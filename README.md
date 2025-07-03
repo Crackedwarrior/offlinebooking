@@ -1,73 +1,108 @@
-# Project README
+# Offline Booking App – Theatre Counter Software
 
-## Project info
+This is a desktop booking application built for a local theatre to handle offline ticket bookings at the counter, working in parallel with BookMyShow for online tickets.
 
-**URL**: https://lovable.dev/projects/b08556e3-bbc9-4962-a3ad-a0f0e030cc99
+The app is optimized for non-tech-savvy staff, with a simple one-click kiosk-style interface and PDF reporting. It is designed to work offline-first, with optional cloud sync for backup and archival.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+### Booking Interface
+- Fixed seat matrix based on the real theatre layout
+- Color-coded seat states:
+  - Green: Available
+  - Red: Booked (Offline)
+  - Yellow: Blocked (VIP/Management)
+  - Blue: BMS Booked (Online, manually marked)
+- Click to toggle seat state
+- Unblock, rebook, and manually mark BMS seats
+- Gaps and walking space preserved as per layout
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b08556e3-bbc9-4962-a3ad-a0f0e030cc99) and start prompting.
+### Show & Date Selection
+- Calendar-based date selector
+- Show dropdown with Morning, Matinee, Evening, and Night
+- Screen is hardcoded as “Screen 1”
 
-Changes made via Lovable will be committed automatically to this repo.
+### Daily Reports
+- Export per-show seat status as PDF
+- Includes:
+  - Booked seats
+  - Blocked seats
+  - BMS-marked seats
+  - Total count for the show
 
-**Use your preferred IDE**
+### Booking History
+- Load any past date's booking
+- View seat map and summary
+- Export previous reports again as PDF
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Offline-First with Cloud Sync
+- Uses local SQLite for fast, offline use
+- Syncs to MongoDB Atlas cloud database (free tier) when internet is available
+- Cloud sync is append-only (no deletion/overwrite allowed)
+- Data is preserved even if the local database is lost
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## Tech Stack
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+| Layer        | Technology                   |
+|--------------|------------------------------|
+| Frontend     | React + Tailwind CSS         |
+| Backend      | Node.js (Tauri wrapper)      |
+| Local DB     | SQLite (offline-first)       |
+| Cloud Backup | MongoDB Atlas (512MB free)   |
+| PDF Reports  | pdf-lib or jspdf             |
+| State Mgmt   | useState / Zustand           |
+| UI Builder   | Lovable AI + Cursor editor   |
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+---
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Final Output
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+A full-screen, installable desktop `.exe` app built using Tauri, meant for theatre counter usage. It requires no internet access to function and offers fast local response with optional cloud backup.
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Folder Structure (Work in Progress)
 
-**Use GitHub Codespaces**
+offlinebooking/
+├── public/
+├── src/
+│ ├── components/
+│ │ ├── SeatGrid.jsx
+│ │ ├── ShowSelector.jsx
+│ │ ├── HistoryView.jsx
+│ │ └── ControlsPanel.jsx
+│ ├── lib/
+│ │ └── pdfUtils.js
+│ ├── App.jsx
+│ └── main.jsx
+├── tauri.conf.json
+└── package.json
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## Licensing
 
-This project is built with:
+This project is developed for private, controlled usage by authorized theatre staff only.  
+All rights reserved © Crackedwarrior. Redistribution or modification without permission is strictly prohibited.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+---
 
-## How can I deploy this project?
+## Project Status
 
-Simply open [Lovable](https://lovable.dev/projects/b08556e3-bbc9-4962-a3ad-a0f0e030cc99) and click on Share -> Publish.
+- [x] Seat matrix finalized (based on physical layout)
+- [x] UI built using Lovable AI and Cursor
+- [x] Core frontend functionality complete
+- [ ] PDF generation logic (in progress)
+- [ ] Tauri `.exe` build
+- [ ] Full database integration and sync
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
+## Contact
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Built and maintained by [@Crackedwarrior](https://github.com/Crackedwarrior)  
+For support or customization inquiries, contact directly via GitHub or email.
