@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
+import { RotateCcw } from 'lucide-react';
 
 const seatSegments = [
   { label: 'BOX', rows: ['BOX-A', 'BOX-B', 'BOX-C'] },
@@ -14,6 +15,27 @@ const seatSegments = [
 const SeatGrid = () => {
   const { seats, toggleSeatStatus } = useBookingStore();
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const actionPanelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!selectedSeat) return;
+    function handleClick(e: MouseEvent) {
+      // If click is inside the action panel, do nothing
+      if (actionPanelRef.current && actionPanelRef.current.contains(e.target as Node)) return;
+      // If click is on a seat button, do nothing
+      if ((e.target as HTMLElement).closest('button[data-seat-button]')) return;
+      setSelectedSeat(null);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [selectedSeat]);
+
+  // Add the reset handler
+  const handleResetSeats = () => {
+    if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
+      useBookingStore.getState().initializeSeats();
+    }
+  };
 
   // Map seats for quick lookup by row and number
   const seatMap = seats.reduce((acc, seat) => {
@@ -55,7 +77,17 @@ const SeatGrid = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold">Seat Selection</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">Seat Selection</h3>
+          <button
+            onClick={handleResetSeats}
+            title="Reset All Seats"
+            className="p-0 m-0 bg-transparent border-none shadow-none hover:bg-transparent focus:outline-none"
+            style={{ lineHeight: 0 }}
+          >
+            <RotateCcw className="w-5 h-5 text-red-500 hover:text-red-700" />
+          </button>
+        </div>
         <div className="text-sm text-gray-600">
           Screen 1 • Total: {seats.length} seats
         </div>
@@ -88,6 +120,7 @@ const SeatGrid = () => {
                           <button
                             key={seat.id}
                             onClick={() => handleSeatClick(seat)}
+                            data-seat-button
                             className={`
                                 w-9 h-9 rounded-md font-medium text-xs border transition-all
                               ${getSeatColor(seat.status)}
@@ -143,15 +176,9 @@ const SeatGrid = () => {
 
       {/* Quick Actions for Selected Seat */}
       {selectedSeat && (
-        <div className="fixed bottom-0 left-16 w-[calc(100vw-4rem)] max-w-none rounded-none z-50 bg-purple-50 border-t border-purple-200 p-4 shadow-lg">
+        <div ref={actionPanelRef} className="fixed bottom-0 left-16 w-[calc(100vw-4rem)] max-w-none rounded-none z-50 bg-purple-50 border-t border-purple-200 p-4 shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium">Selected: Seat {selectedSeat}</span>
-            <button
-              onClick={() => setSelectedSeat(null)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ✕
-            </button>
           </div>
           <div className="grid grid-cols-4 gap-2">
             <Button

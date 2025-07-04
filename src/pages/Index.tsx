@@ -61,14 +61,6 @@ const Index = () => {
       <div
         className={`fixed left-0 top-0 h-screen z-40 bg-white shadow-lg border-r overflow-y-scroll hide-scrollbar transition-all duration-300 flex flex-col ${collapsed ? 'w-16' : 'w-64'}`}
       >
-        {/* Collapse/Expand Button */}
-        <button
-          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 bg-white border rounded-full shadow p-1 hover:bg-gray-100 transition"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
         <nav className={`flex-1 flex flex-col gap-2 ${collapsed ? 'justify-center items-center p-0 m-0' : 'p-4'}`}>
           {sidebarItems.map((item) => {
             const Icon = item.icon;
@@ -77,6 +69,7 @@ const Index = () => {
               <button
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
+                onDoubleClick={() => setCollapsed((c) => !c)}
                 className={`transition-colors w-full
                   ${collapsed
                     ? `flex justify-center items-center aspect-square w-14 h-14 p-0 rounded-xl ${isActive ? 'bg-blue-100' : ''}`
@@ -157,7 +150,7 @@ const Index = () => {
       </div>
       {/* Main Content */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20 hide-scrollbar overflow-y-scroll`}
+        className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20`}
       >
         {/* Content Area */}
         <div className="flex-1 p-0">
@@ -174,14 +167,6 @@ const Index = () => {
           )}
         </div>
       </div>
-      {/* Floating Reset Button */}
-      <button
-        onClick={handleResetSeats}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full bg-orange-100 hover:bg-orange-200 border border-orange-300 flex items-center justify-center shadow-lg transition-colors"
-        title="Reset All Seats"
-      >
-        <RotateCcw className="w-7 h-7 text-orange-600" />
-      </button>
     </div>
   );
 };
