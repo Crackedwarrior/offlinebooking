@@ -1,107 +1,170 @@
-
-import { useState } from 'react';
-import { Calendar, Clock, History, Download, Save, Cloud } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, Clock, History, Download, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
 import SeatGrid from '@/components/SeatGrid';
 import ShowSelector from '@/components/ShowSelector';
 import DateSelector from '@/components/DateSelector';
-import ControlsPanel from '@/components/ControlsPanel';
 import BookingHistory from '@/components/BookingHistory';
 import ReportPreview from '@/components/ReportPreview';
 import { useBookingStore } from '@/store/bookingStore';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
+
+const sidebarItems = [
+  { id: 'booking', label: 'Seat Booking', icon: Calendar },
+  { id: 'history', label: 'Booking History', icon: History },
+  { id: 'reports', label: 'Reports', icon: Download },
+];
+
+const getCurrentShowByTime = () => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+  // Define show time ranges in minutes since midnight
+  if (totalMinutes >= 360 && totalMinutes < 720) return 'Morning Show'; // 6:00 AM - 12:00 PM
+  if (totalMinutes >= 720 && totalMinutes < 1020) return 'Matinee Show'; // 12:00 PM - 5:00 PM
+  if (totalMinutes >= 1020 && totalMinutes < 1230) return 'Evening Show'; // 5:00 PM - 8:30 PM
+  return 'Night Show'; // 8:30 PM - 6:00 AM
+};
 
 const Index = () => {
   const [activeView, setActiveView] = useState('booking');
+  const [collapsed, setCollapsed] = useState(false);
   const { selectedDate, selectedShow } = useBookingStore();
+  const [currentShow, setCurrentShow] = useState(getCurrentShowByTime());
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const initializeSeats = useBookingStore((state) => state.initializeSeats);
 
-  const sidebarItems = [
-    { id: 'booking', label: 'Seat Booking', icon: Calendar },
-    { id: 'history', label: 'Booking History', icon: History },
-    { id: 'reports', label: 'Reports', icon: Download },
-  ];
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentShow(getCurrentShowByTime());
+      setCurrentTime(new Date());
+    }, 1000); // update every second
+    return () => clearInterval(interval);
+  }, []);
+
+  // Floating Reset Button handler
+  const handleResetSeats = () => {
+    if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
+      initializeSeats();
+      toast({
+        title: 'Seats Reset',
+        description: 'All seats have been reset to available status.',
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg border-r">
-        <div className="p-6 border-b">
-          <h1 className="text-2xl font-bold text-gray-800">Theatre Booking</h1>
-          <p className="text-sm text-gray-600 mt-1">Screen 1 - Staff Portal</p>
-        </div>
-        
-        <nav className="p-4">
-          {sidebarItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center px-4 py-3 rounded-lg mb-2 transition-colors ${
-                activeView === item.id
-                  ? 'bg-blue-100 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.label}
-            </button>
-          ))}
+      {/* Sidebar (fixed, collapsible) */}
+      <div
+        className={`fixed left-0 top-0 h-screen z-40 bg-white shadow-lg border-r overflow-y-scroll hide-scrollbar transition-all duration-300 flex flex-col ${collapsed ? 'w-16' : 'w-64'}`}
+      >
+        {/* Collapse/Expand Button */}
+        <button
+          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 bg-white border rounded-full shadow p-1 hover:bg-gray-100 transition"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
+        <nav className={`flex-1 flex flex-col gap-2 ${collapsed ? 'justify-center items-center p-0 m-0' : 'p-4'}`}>
+          {sidebarItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+                className={`transition-colors w-full
+                  ${collapsed
+                    ? `flex justify-center items-center aspect-square w-14 h-14 p-0 rounded-xl ${isActive ? 'bg-blue-100' : ''}`
+                    : `flex flex-col justify-center items-center min-h-[96px] rounded-xl mb-4 ${isActive ? 'bg-blue-100 text-blue-700 font-medium' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`
+                  }
+                  ${isActive && !collapsed ? 'shadow' : ''}`}
+                title={item.label}
+              >
+                <Icon className={`${collapsed ? 'w-6 h-6' : 'w-6 h-6 mb-2'}`} />
+                <span className={`transition-all duration-200 ${collapsed ? 'opacity-0 w-0 h-0 overflow-hidden' : 'opacity-100 w-auto'}`}>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
-
         {/* Status Info */}
-        <div className="absolute bottom-0 left-0 right-0 w-64 p-4 border-t bg-gray-50">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Status:</span>
-            <div className="flex items-center">
+        <div className={`absolute bottom-0 left-0 right-0 transition-all duration-200
+          ${collapsed
+            ? 'w-14 h-14 flex flex-col justify-center items-center bg-gray-50 rounded-xl mb-2 mx-auto left-0 right-0'
+            : 'p-4 border-t bg-gray-50 w-full'
+          }`}
+        >
+          <div className={`flex items-center justify-between text-sm w-full ${collapsed ? 'flex-col gap-1 justify-center items-center' : ''}`}>
+            <span className={`text-gray-600 transition-all duration-200 ${collapsed ? 'opacity-0 w-0 h-0 overflow-hidden' : 'opacity-100'}`}>Status:</span>
+            <div className="flex items-center justify-center">
               <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              <span className="text-green-600 font-medium">Online</span>
+              <span className={`text-green-600 font-medium transition-all duration-200 ${collapsed ? 'opacity-0 w-0 h-0 overflow-hidden' : 'opacity-100'}`}>Online</span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b p-6">
-          <div className="flex items-center justify-between">
-            <div>
+      {/* Header (fixed, immovable) */}
+      <div className={`fixed top-0 right-0 z-30 h-20 bg-white shadow-sm border-b flex items-center px-6 transition-all duration-300 ${collapsed ? 'left-16' : 'left-64'}`}>
+        <div className="flex items-center justify-between w-full">
+          <div>
+            {activeView === 'booking' ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex items-center gap-2 text-xl font-semibold focus:outline-none">
+                    Seat Booking
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="mt-2">
+                  <DateSelector />
+                </PopoverContent>
+              </Popover>
+            ) : (
               <h2 className="text-xl font-semibold">
-                {activeView === 'booking' && 'Seat Booking'}
                 {activeView === 'history' && 'Booking History'}
                 {activeView === 'reports' && 'Reports & Analytics'}
               </h2>
-              {activeView === 'booking' && (
-                <p className="text-gray-600 mt-1">
-                  {selectedDate} • {selectedShow} Show
-                </p>
-              )}
-            </div>
-            <div className="flex items-center space-x-3">
-              <Clock className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-600">{new Date().toLocaleTimeString()}</span>
-            </div>
+            )}
+            {activeView === 'booking' && (
+              <p className="text-gray-600 mt-1">
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {currentShow}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            {/* Select Show Popover */}
+            {activeView === 'booking' && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none">
+                    {selectedShow} Show
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="mt-2">
+                  <ShowSelector />
+                </PopoverContent>
+              </Popover>
+            )}
+            <Clock className="w-5 h-5 text-gray-400" />
+            <span className="text-gray-600">{currentTime.toLocaleTimeString()}</span>
           </div>
         </div>
-
+      </div>
+      {/* Main Content */}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20 hide-scrollbar overflow-y-scroll`}
+      >
         {/* Content Area */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-0">
           {activeView === 'booking' && (
-            <div className="grid grid-cols-12 gap-6 h-full">
-              {/* Left Panel - Controls */}
-              <div className="col-span-3 space-y-6">
-                <DateSelector />
-                <ShowSelector />
-                <ControlsPanel />
-                <ReportPreview />
-              </div>
-
-              {/* Right Panel - Seat Grid */}
-              <div className="col-span-9">
-                <SeatGrid />
-              </div>
-            </div>
+            <SeatGrid />
           )}
-
           {activeView === 'history' && <BookingHistory />}
-          
           {activeView === 'reports' && (
             <div className="text-center py-12">
               <Download className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -111,6 +174,14 @@ const Index = () => {
           )}
         </div>
       </div>
+      {/* Floating Reset Button */}
+      <button
+        onClick={handleResetSeats}
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full bg-orange-100 hover:bg-orange-200 border border-orange-300 flex items-center justify-center shadow-lg transition-colors"
+        title="Reset All Seats"
+      >
+        <RotateCcw className="w-7 h-7 text-orange-600" />
+      </button>
     </div>
   );
 };
