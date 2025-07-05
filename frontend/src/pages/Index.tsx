@@ -9,6 +9,9 @@ import { useBookingStore } from '@/store/bookingStore';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import CheckoutPage from './CheckoutPage';
+import NotFound from './NotFound';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
@@ -35,6 +38,70 @@ const Index = () => {
   const [currentShow, setCurrentShow] = useState(getCurrentShowByTime());
   const [currentTime, setCurrentTime] = useState(new Date());
   const initializeSeats = useBookingStore((state) => state.initializeSeats);
+  const [checkoutData, setCheckoutData] = useState(null);
+  const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
+
+  // Function to deselect seats
+  const deselectSeats = (seatsToDeselect: any[]) => {
+    const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
+    seatsToDeselect.forEach(seat => {
+      toggleSeatStatus(seat.id, 'available');
+    });
+    
+    // Update checkout data by removing the deselected seats
+    if (checkoutData) {
+      const updatedSelectedSeats = checkoutData.selectedSeats.filter(
+        seat => !seatsToDeselect.some(deselected => deselected.id === seat.id)
+      );
+      
+      // Recalculate total amount
+      const classPrices: Record<string, number> = {
+        'BOX': 300,
+        'STAR CLASS': 250,
+        'CLASSIC': 200,
+        'FIRST CLASS': 150,
+        'SECOND CLASS': 100
+      };
+      
+      const totalAmount = updatedSelectedSeats.reduce((total, seat) => {
+        // Find the class for this seat
+        const seatSegments = [
+          { label: 'BOX', rows: ['BOX-A', 'BOX-B', 'BOX-C', 'BOX-D'] },
+          { label: 'STAR CLASS', rows: ['STAR-A', 'STAR-B', 'STAR-C', 'STAR-D', 'STAR-E', 'STAR-F'] },
+          { label: 'CLASSIC', rows: ['CLASSIC-A', 'CLASSIC-B', 'CLASSIC-C', 'CLASSIC-D', 'CLASSIC-E', 'CLASSIC-F'] },
+          { label: 'FIRST CLASS', rows: ['FIRST-A', 'FIRST-B', 'FIRST-C', 'FIRST-D', 'FIRST-E', 'FIRST-F'] },
+          { label: 'SECOND CLASS', rows: ['SECOND-A', 'SECOND-B', 'SECOND-C', 'SECOND-D', 'SECOND-E', 'SECOND-F'] }
+        ];
+        
+        const segment = seatSegments.find(seg => seg.rows.includes(seat.row));
+        const price = segment ? classPrices[segment.label] : 0;
+        return total + price;
+      }, 0);
+      
+      setCheckoutData({
+        ...checkoutData,
+        selectedSeats: updatedSelectedSeats,
+        totalAmount
+      });
+    }
+  };
+
+  // Function to decouple tickets (remove grouped and add back as individual)
+  const decoupleTickets = async (seatsToDecouple: any[]) => {
+    const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
+    // Set all to available
+    seatsToDecouple.forEach(seat => {
+      toggleSeatStatus(seat.id, 'available');
+    });
+    // Wait for state to update
+    await new Promise(res => setTimeout(res, 50));
+    // Set all to booked (individually)
+    seatsToDecouple.forEach(seat => {
+      toggleSeatStatus(seat.id, 'booked');
+    });
+    // Add these seat IDs to decoupledSeatIds
+    setDecoupledSeatIds(prev => [...prev, ...seatsToDecouple.map(seat => seat.id)]);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -116,6 +183,8 @@ const Index = () => {
                   <DateSelector />
                 </PopoverContent>
               </Popover>
+            ) : activeView === 'checkout' ? (
+              <h2 className="text-xl font-semibold">Checkout</h2>
             ) : (
               <h2 className="text-xl font-semibold">
                 {activeView === 'history' && 'Booking History'}
@@ -125,6 +194,11 @@ const Index = () => {
             {activeView === 'booking' && (
               <p className="text-gray-600 mt-1">
                 {format(new Date(selectedDate), 'dd/MM/yyyy')} • {currentShow}
+              </p>
+            )}
+            {activeView === 'checkout' && (
+              <p className="text-gray-600 mt-1">
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow}
               </p>
             )}
           </div>
@@ -155,7 +229,7 @@ const Index = () => {
         {/* Content Area */}
         <div className="flex-1 p-0">
           {activeView === 'booking' && (
-            <SeatGrid />
+            <SeatGrid onProceed={(data) => { setCheckoutData(data); setActiveView('checkout'); }} />
           )}
           {activeView === 'history' && <BookingHistory />}
           {activeView === 'reports' && (
@@ -164,6 +238,15 @@ const Index = () => {
               <h3 className="text-xl font-semibold text-gray-700 mb-2">Reports Dashboard</h3>
               <p className="text-gray-500">Detailed analytics and reporting features coming soon</p>
             </div>
+          )}
+          {activeView === 'checkout' && (
+            <CheckoutPage 
+              data={checkoutData} 
+              onBack={() => setActiveView('booking')} 
+              onDeselectSeats={deselectSeats}
+              onDecoupleTickets={decoupleTickets}
+              decoupledSeatIds={decoupledSeatIds}
+            />
           )}
         </div>
       </div>
