@@ -7,11 +7,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarIcon, Download, Eye, Clock, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { seatsByRow } from '@/lib/seatMatrix';
 
 const BookingHistory = () => {
-  const { bookingHistory, loadBookingForDate, seats, selectedDate, selectedShow } = useBookingStore();
+  const { bookingHistory, loadBookingForDate } = useBookingStore();
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
@@ -42,47 +40,6 @@ const BookingHistory = () => {
     acc[booking.date].push(booking);
     return acc;
   }, {} as Record<string, typeof bookingHistory>);
-
-  // Find booking for selected date and show
-  const selectedDateStr = format(selectedHistoryDate, 'yyyy-MM-dd');
-  const bookingForSelected = bookingHistory.find(
-    b => b.date === selectedDateStr && b.show === selectedShow
-  );
-  const stats = getBookingStats(bookingForSelected ? bookingForSelected.seats : seats);
-  const occupancyRate = ((stats.booked + stats.bmsBooked) / (stats.total || 1) * 100).toFixed(1);
-
-  const showOrder = ['Morning', 'Matinee', 'Evening', 'Night'];
-
-  const ReadOnlySeatGrid = ({ seats }: { seats: any[] }) => {
-    // Map seats for quick lookup by row and number
-    const seatMap = seats.reduce((acc, seat) => {
-      acc[`${seat.row}-${seat.number}`] = seat;
-      return acc;
-    }, {} as Record<string, any>);
-    return (
-      <div className="space-y-4">
-        {Object.keys(seatsByRow).map(row => (
-          <div key={row} className="flex items-center">
-            <div className="w-16 text-right pr-2 text-xs font-semibold text-gray-500">{row.replace(/^[^-]+-/, '')}</div>
-            <div className="flex gap-1">
-              {seatsByRow[row].map((seatNum, idx) => {
-                if (seatNum === '') return <div key={idx} className="w-6 h-6" style={{ visibility: 'hidden' }} />;
-                const seat = seatMap[`${row}-${seatNum}`];
-                let color = 'bg-gray-200';
-                if (seat) {
-                  if (seat.status === 'available') color = 'bg-green-400';
-                  if (seat.status === 'booked') color = 'bg-red-400';
-                  if (seat.status === 'blocked') color = 'bg-yellow-400';
-                  if (seat.status === 'bms-booked') color = 'bg-blue-400';
-                }
-                return <div key={idx} className={`w-6 h-6 rounded text-[10px] flex items-center justify-center border ${color}`}>{seatNum}</div>;
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -159,73 +116,80 @@ const BookingHistory = () => {
             <h3 className="font-semibold mb-4">
               Bookings for {format(selectedHistoryDate, 'MMMM dd, yyyy')}
             </h3>
-            <div className="space-y-4">
-              {showOrder.map(show => {
-                const booking = bookingHistory.find(b => b.date === selectedDateStr && b.show === show);
-                const stats = getBookingStats(booking ? booking.seats : seats);
-                const occupancyRate = ((stats.booked + stats.bmsBooked) / (stats.total || 1) * 100).toFixed(1);
-                return (
-                  <div key={show} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <Clock className="w-5 h-5 text-gray-500" />
-                        <div>
-                          <h4 className="font-medium">{show} Show</h4>
-                          <p className="text-sm text-gray-600">
-                            {booking ? `Saved at ${format(new Date(booking.timestamp), 'h:mm a')}` : 'Live (unsaved)'}
-                          </p>
+            
+            {historyByDate[format(selectedHistoryDate, 'yyyy-MM-dd')] ? (
+              <div className="space-y-4">
+                {historyByDate[format(selectedHistoryDate, 'yyyy-MM-dd')]
+                  .sort((a, b) => {
+                    const showOrder = { Morning: 0, Matinee: 1, Evening: 2, Night: 3 };
+                    return showOrder[a.show] - showOrder[b.show];
+                  })
+                  .map((booking, index) => {
+                    const stats = getBookingStats(booking.seats);
+                    const occupancyRate = ((stats.booked + stats.bmsBooked) / stats.total * 100).toFixed(1);
+                    
+                    return (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <Clock className="w-5 h-5 text-gray-500" />
+                            <div>
+                              <h4 className="font-medium">{booking.show} Show</h4>
+                              <p className="text-sm text-gray-600">
+                                Saved at {format(new Date(booking.timestamp), 'h:mm a')}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleLoadBooking(booking.date, booking.show)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                            <Button size="sm" variant="outline">
+                              <Download className="w-4 h-4 mr-1" />
+                              PDF
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-5 gap-3 text-sm">
+                          <div className="text-center p-2 bg-gray-100 rounded">
+                            <div className="font-semibold">{stats.total}</div>
+                            <div className="text-gray-600">Total</div>
+                          </div>
+                          <div className="text-center p-2 bg-green-100 rounded">
+                            <div className="font-semibold text-green-800">{stats.available}</div>
+                            <div className="text-green-600">Available</div>
+                          </div>
+                          <div className="text-center p-2 bg-red-100 rounded">
+                            <div className="font-semibold text-red-800">{stats.booked}</div>
+                            <div className="text-red-600">Booked</div>
+                          </div>
+                          <div className="text-center p-2 bg-blue-100 rounded">
+                            <div className="font-semibold text-blue-800">{stats.bmsBooked}</div>
+                            <div className="text-blue-600">BMS</div>
+                          </div>
+                          <div className="text-center p-2 bg-purple-100 rounded">
+                            <div className="font-semibold text-purple-800">{occupancyRate}%</div>
+                            <div className="text-purple-600">Occupied</div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {booking && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="sm" variant="outline">
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>{show} Show Seat Map</DialogTitle>
-                              </DialogHeader>
-                              <ReadOnlySeatGrid seats={booking.seats} />
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                        <Button size="sm" variant="outline">
-                          <Download className="w-4 h-4 mr-1" />
-                          PDF
-                        </Button>
-                      </div>
-                    </div>
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-5 gap-3 text-sm">
-                      <div className="text-center p-2 bg-gray-100 rounded">
-                        <div className="font-semibold">{stats.total}</div>
-                        <div className="text-gray-600">Total</div>
-                      </div>
-                      <div className="text-center p-2 bg-green-100 rounded">
-                        <div className="font-semibold text-green-800">{stats.available}</div>
-                        <div className="text-green-600">Available</div>
-                      </div>
-                      <div className="text-center p-2 bg-red-100 rounded">
-                        <div className="font-semibold text-red-800">{stats.booked}</div>
-                        <div className="text-red-600">Booked</div>
-                      </div>
-                      <div className="text-center p-2 bg-blue-100 rounded">
-                        <div className="font-semibold text-blue-800">{stats.bmsBooked}</div>
-                        <div className="text-blue-600">BMS</div>
-                      </div>
-                      <div className="text-center p-2 bg-purple-100 rounded">
-                        <div className="font-semibold text-purple-800">{occupancyRate}%</div>
-                        <div className="text-purple-600">Occupied</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-700 mb-2">No Bookings Found</h3>
+                <p className="text-gray-500">No booking records found for this date.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
