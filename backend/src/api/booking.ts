@@ -1,7 +1,7 @@
-import prisma from '@/db/prismaClient';
+import prisma from '../db/prismaClient';
 
 // Save a booking snapshot
-export async function saveBooking(bookingData) {
+export async function saveBooking(bookingData: any) {
   return await prisma.booking.create({
     data: bookingData,
   });
@@ -18,5 +18,13 @@ export async function getAllBookings() {
 export async function getBookingById(id: string) {
   return await prisma.booking.findUnique({
     where: { id },
+  });
+}
+
+// Update an existing booking by ID
+export async function updateBookingById(id: string, updateData: any) {
+  return await prisma.booking.update({
+    where: { id },
+    data: updateData,
   });
 } 
