@@ -10,7 +10,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import CheckoutPage from './CheckoutPage';
+import Checkout from './Checkout';
 import NotFound from './NotFound';
 
 const sidebarItems = [
@@ -56,11 +56,12 @@ const Index = () => {
       
       // Recalculate total amount
       const classPrices: Record<string, number> = {
-        'BOX': 300,
-        'STAR CLASS': 250,
-        'CLASSIC': 200,
-        'FIRST CLASS': 150,
-        'SECOND CLASS': 100
+        'BOX': 150,
+        'STAR CLASS': 150,
+        'CLASSIC': 120,
+        'FIRST CLASS': 70,
+        'SECOND CLASS': 50
+
       };
       
       const totalAmount = updatedSelectedSeats.reduce((total, seat) => {
@@ -239,15 +240,7 @@ const Index = () => {
               <p className="text-gray-500">Detailed analytics and reporting features coming soon</p>
             </div>
           )}
-          {activeView === 'checkout' && (
-            <CheckoutPage 
-              data={checkoutData} 
-              onBack={() => setActiveView('booking')} 
-              onDeselectSeats={deselectSeats}
-              onDecoupleTickets={decoupleTickets}
-              decoupledSeatIds={decoupledSeatIds}
-            />
-          )}
+          {activeView === 'checkout' && <Checkout />}
         </div>
       </div>
     </div>

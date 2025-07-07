@@ -5,11 +5,11 @@ import { format } from 'date-fns';
 import ShowSelector from '@/components/ShowSelector';
 
 const CLASS_INFO = [
-  { key: 'BOX', label: 'BOX', color: 'bg-cyan-200', price: 300, rows: ['BOX-A', 'BOX-B', 'BOX-C'] },
-  { key: 'STAR', label: 'STAR CLASS', color: 'bg-cyan-300', price: 250, rows: ['SC-A', 'SC-B', 'SC-C', 'SC-D'] },
-  { key: 'CLASSIC', label: 'CLASSIC', color: 'bg-orange-200', price: 200, rows: ['CB-A', 'CB-B', 'CB-C', 'CB-D', 'CB-E', 'CB-F', 'CB-G', 'CB-H'] },
-  { key: 'FIRST', label: 'FIRST CLASS', color: 'bg-pink-200', price: 150, rows: ['FC-A', 'FC-B', 'FC-C', 'FC-D', 'FC-E', 'FC-F', 'FC-G'] },
-  { key: 'SECOND', label: 'SECOND CLASS', color: 'bg-gray-200', price: 100, rows: ['SC2-A', 'SC2-B'] },
+  { key: 'BOX', label: 'BOX', color: 'bg-cyan-200', price: 150, rows: ['BOX-A', 'BOX-B', 'BOX-C'] },
+  { key: 'STAR', label: 'STAR CLASS', color: 'bg-cyan-300', price: 150, rows: ['SC-A', 'SC-B', 'SC-C', 'SC-D'] },
+  { key: 'CLASSIC', label: 'CLASSIC', color: 'bg-orange-200', price: 120, rows: ['CB-A', 'CB-B', 'CB-C', 'CB-D', 'CB-E', 'CB-F', 'CB-G', 'CB-H'] },
+  { key: 'FIRST', label: 'FIRST CLASS', color: 'bg-pink-200', price: 70, rows: ['FC-A', 'FC-B', 'FC-C', 'FC-D', 'FC-E', 'FC-F', 'FC-G'] },
+  { key: 'SECOND', label: 'SECOND CLASS', color: 'bg-gray-200', price: 50, rows: ['SC2-A', 'SC2-B'] },
 ];
 
 const showOptions = ['Morning', 'Matinee', 'Evening', 'Night'];
@@ -38,53 +38,53 @@ const Checkout = () => {
   });
 
   return (
-    <div className="w-full h-full px-8 pt-8 pb-4 flex flex-col items-center">
+    <div className="w-full h-full px-4 pt-4 pb-4 flex flex-col">
       {/* Checkout Summary Heading */}
-      <div className="font-bold text-2xl mb-3 self-start">Checkout Summary</div>
-      {/* 6-column grid */}
-      <div className="grid grid-cols-6 gap-0 bg-white rounded-xl shadow p-0 mb-2 w-full max-w-5xl overflow-hidden">
-        {/* Show Selector (first column, slightly wider) */}
-        <div className="flex flex-col items-center justify-center border-r border-gray-200 bg-white min-w-[156px] px-6 py-6">
-          <span className="font-semibold mb-2">Show</span>
-          <select
-            className="border rounded px-2 py-1 text-base"
-            value={show}
-            onChange={e => {
-              setShow(e.target.value as typeof show);
-              setSelectedShow(e.target.value as typeof show);
-            }}
-          >
-            {showOptions.map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+      <div className="font-bold text-xl mb-3 ml-0">Checkout Summary</div>
+      {/* Wrap the grid in a relative container and add the badge: */}
+      {/* Replace the grid with a modern, responsive flex layout */}
+      <div className="flex w-full max-w-5xl mt-4">
+        {/* Show Box */}
+        <div className="flex flex-col items-start justify-between border-r border-gray-200 bg-white min-w-[156px] px-6 py-4 rounded-l-xl h-[130px]">
+          <span className="font-bold text-lg mb-1">KALANK (HINDI)</span>
+          <span className="text-sm mb-2">6:00 P.M - 9:00 P.M</span>
+          <span className="text-base font-semibold">{(() => {
+            const totalSeats = seats.length;
+            const bookedSeats = seats.filter(seat => seat.status === 'booked').length;
+            return `${bookedSeats}/${totalSeats}`;
+          })()}</span>
         </div>
-        {/* Class Summary Columns (exact colors from screenshot) */}
-        <div className="flex flex-col items-center justify-center min-w-[152px] px-6 py-6" style={{background:'#b6f3fa'}}>
-          <span className="font-bold text-lg">BOX</span>
-          <span className="text-2xl font-bold">{classCounts[0].count} <span className="text-base font-normal">({classCounts[0].rows.reduce((acc, row) => acc + (seats.filter(s => s.row === row).length), 0)})</span></span>
-          <span className="text-md font-semibold mt-1">₹{classCounts[0].price}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center min-w-[152px] px-6 py-6" style={{background:'#3ee6fa'}}>
-          <span className="font-bold text-lg">STAR CLASS</span>
-          <span className="text-2xl font-bold">{classCounts[1].count} <span className="text-base font-normal">({classCounts[1].rows.reduce((acc, row) => acc + (seats.filter(s => s.row === row).length), 0)})</span></span>
-          <span className="text-md font-semibold mt-1">₹{classCounts[1].price}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center min-w-[152px] px-6 py-6" style={{background:'#ffd59a'}}>
-          <span className="font-bold text-lg">CLASSIC</span>
-          <span className="text-2xl font-bold">{classCounts[2].count} <span className="text-base font-normal">({classCounts[2].rows.reduce((acc, row) => acc + (seats.filter(s => s.row === row).length), 0)})</span></span>
-          <span className="text-md font-semibold mt-1">₹{classCounts[2].price}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center min-w-[152px] px-6 py-6" style={{background:'#ffb6d9'}}>
-          <span className="font-bold text-lg">FIRST CLASS</span>
-          <span className="text-2xl font-bold">{classCounts[3].count} <span className="text-base font-normal">({classCounts[3].rows.reduce((acc, row) => acc + (seats.filter(s => s.row === row).length), 0)})</span></span>
-          <span className="text-md font-semibold mt-1">₹{classCounts[3].price}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center min-w-[152px] px-6 py-6 rounded-tr-xl rounded-br-xl" style={{background:'#e6e8ea'}}>
-          <span className="font-bold text-lg">SECOND CLASS</span>
-          <span className="text-2xl font-bold">{classCounts[4].count} <span className="text-base font-normal">({classCounts[4].rows.reduce((acc, row) => acc + (seats.filter(s => s.row === row).length), 0)})</span></span>
-          <span className="text-md font-semibold mt-1">₹{classCounts[4].price}</span>
-        </div>
+        {/* Class Boxes */}
+        {CLASS_INFO.map((cls, i) => {
+          const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
+          const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'booked').length;
+          const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'booked').length;
+          const price = cls.price;
+          const colorMap = {
+            BOX: 'bg-cyan-100',
+            'STAR CLASS': 'bg-cyan-300',
+            CLASSIC: 'bg-yellow-100',
+            'FIRST CLASS': 'bg-pink-200',
+            'SECOND CLASS': 'bg-gray-200',
+          };
+          return (
+            <div
+              key={cls.key}
+              className={`flex flex-col justify-between min-w-[152px] h-[130px] px-6 py-4 relative border-r border-gray-200 ${colorMap[cls.label]}`}
+            >
+              <div>
+                <span className="block font-bold text-lg mb-1 text-left">{cls.label}</span>
+                <span className="block text-sm text-gray-700 mb-2 text-left">{total} ({available})</span>
+              </div>
+              <span className="absolute bottom-2 left-2 text-[10px] bg-gray-200 rounded-full px-2 py-0.5 border border-gray-300 font-semibold">
+                {sold}
+              </span>
+              <div className="flex items-center justify-end w-full">
+                <span className="text-lg font-bold text-right">₹{price}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
       {/* Total on the right, outside the grid */}
       <div className="w-full max-w-5xl flex justify-end mt-2">
