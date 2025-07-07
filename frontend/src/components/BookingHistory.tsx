@@ -9,8 +9,6 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { seatsByRow } from '@/lib/seatMatrix';
-import SeatsBookedByClass from './SeatsBookedByClass';
-import { seatSegments } from './SeatGrid';
 
 const BookingHistory = () => {
   const { bookingHistory, loadBookingForDate, seats, selectedDate, selectedShow } = useBookingStore();
@@ -88,6 +86,16 @@ const BookingHistory = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Booking History</h2>
+          <div className="text-sm text-gray-600">
+            Total Records: {bookingHistory.length}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-12 gap-6">
         {/* Left Panel - Date Selector */}
         <div className="col-span-4">
@@ -118,9 +126,6 @@ const BookingHistory = () => {
               </PopoverContent>
             </Popover>
 
-            {/* SeatsBookedByClass summary table moved here */}
-            <SeatsBookedByClass seats={bookingForSelected ? bookingForSelected.seats : seats} seatSegments={seatSegments} />
-
             {/* Recent Dates */}
             <div className="mt-6">
               <h4 className="font-medium text-sm text-gray-700 mb-3">Recent Bookings</h4>
@@ -145,51 +150,6 @@ const BookingHistory = () => {
                   ))}
               </div>
             </div>
-
-            {/* Gross Income Summary */}
-            {(() => {
-              // Hardcoded prices per class
-              const classPrices: Record<string, number> = {
-                'BOX': 300,
-                'STAR CLASS': 250,
-                'CLASSIC BALCONY': 200,
-                'FIRST CLASS': 150,
-                'SECOND CLASS': 100
-              };
-              // Get seats for selected date/show
-              const currentSeats = bookingForSelected ? bookingForSelected.seats : seats;
-              // Helper to get class label for a seat
-              const getClassLabel = (row: string) => {
-                for (const seg of seatSegments) {
-                  if (seg.rows.includes(row)) return seg.label;
-                }
-                return '';
-              };
-              let totalIncome = 0, bmsIncome = 0, bookingIncome = 0, bmsBookedIncome = 0;
-              currentSeats.forEach(seat => {
-                const classLabel = getClassLabel(seat.row);
-                const price = classPrices[classLabel] || 0;
-                if (seat.status === 'booked') {
-                  bookingIncome += price;
-                  totalIncome += price;
-                } else if (seat.status === 'bms-booked') {
-                  bmsIncome += price;
-                  bmsBookedIncome += price;
-                  totalIncome += price;
-                }
-              });
-              return (
-                <div className="mt-8 p-4 bg-gray-50 rounded shadow text-sm">
-                  <div className="font-semibold mb-2">Gross Income</div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between"><span>Total Income:</span><span>₹ {totalIncome}</span></div>
-                    <div className="flex justify-between"><span>BMS Income:</span><span>₹ {bmsIncome}</span></div>
-                    <div className="flex justify-between"><span>Booking Income:</span><span>₹ {bookingIncome}</span></div>
-                    <div className="flex justify-between"><span>BMS Booked Income:</span><span>₹ {bmsBookedIncome}</span></div>
-                  </div>
-                </div>
-              );
-            })()}
           </div>
         </div>
 
@@ -233,7 +193,10 @@ const BookingHistory = () => {
                             </DialogContent>
                           </Dialog>
                         )}
-                        {/* PDF/Print button removed as per user request */}
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-1" />
+                          PDF
+                        </Button>
                       </div>
                     </div>
                     {/* Stats Grid */}
@@ -254,9 +217,9 @@ const BookingHistory = () => {
                         <div className="font-semibold text-blue-800">{stats.bmsBooked}</div>
                         <div className="text-blue-600">BMS</div>
                       </div>
-                      <div className="text-center p-2 bg-yellow-100 rounded">
-                        <div className="font-semibold text-yellow-800">{stats.blocked}</div>
-                        <div className="text-yellow-600">Blocked</div>
+                      <div className="text-center p-2 bg-purple-100 rounded">
+                        <div className="font-semibold text-purple-800">{occupancyRate}%</div>
+                        <div className="text-purple-600">Occupied</div>
                       </div>
                     </div>
                   </div>

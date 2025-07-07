@@ -18,7 +18,7 @@ const seatSegments = [
   { label: 'SECOND CLASS', rows: ['SC2-A', 'SC2-B'] }
 ];
 
-const SeatGrid = () => {
+const SeatGrid = ({ onProceed }: { onProceed?: () => void }) => {
   const { seats, toggleSeatStatus } = useBookingStore();
   // Remove selectedSeat and actionPanelRef logic
 
@@ -67,13 +67,16 @@ const SeatGrid = () => {
   //   }
   // };
 
+  const selectedSeats = seats.filter(seat => seat.status === 'booked');
+  const totalPrice = selectedSeats.length * 300; // Flat price per seat
+
   const availableCount = seats.filter(seat => seat.status === 'available').length;
   const bookedCount = seats.filter(seat => seat.status === 'booked').length;
   const blockedCount = seats.filter(seat => seat.status === 'blocked').length;
   const bmsBookedCount = seats.filter(seat => seat.status === 'bms-booked').length;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
+    <div className="bg-white rounded-lg shadow-sm border p-6 relative">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">Seat Selection</h3>
@@ -190,6 +193,23 @@ const SeatGrid = () => {
 
       {/* Quick Actions for Selected Seat */}
       {/* The action panel is removed, so this section is no longer needed. */}
+      {/* Proceed Button (sticky at bottom of card) */}
+      {selectedSeats.length > 0 && (
+        <div className="sticky bottom-0 left-0 right-0 w-full flex items-center bg-white border-t pt-4 pb-2 px-4 mt-4 gap-6 z-10">
+          <Button
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold"
+            onClick={onProceed}
+          >
+            Proceed
+          </Button>
+          <span className="text-gray-800 text-md font-medium">
+            Selected Seats: {selectedSeats.length}
+          </span>
+          <span className="text-gray-800 text-md font-medium">
+            Total: ₹ {totalPrice}
+          </span>
+        </div>
+      )}
     </div>
   );
 };
