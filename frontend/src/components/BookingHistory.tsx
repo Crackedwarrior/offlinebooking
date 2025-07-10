@@ -146,6 +146,69 @@ const BookingHistory = () => {
               </div>
             </div>
 
+            {/* Move the table above the Gross Income card and update logic: */}
+            {(() => {
+              // Get the current show and seats
+              const currentShow = selectedShow;
+              const currentSeats = bookingForSelected ? bookingForSelected.seats : seats;
+              // Define class segments and color mapping (should match seat grid)
+              const classSegments = [
+                { label: 'BOX', rows: ['BOX-A', 'BOX-B', 'BOX-C', 'BOX-D'], color: 'bg-cyan-400' },
+                { label: 'STAR CLASS', rows: ['STAR-A', 'STAR-B', 'STAR-C', 'STAR-D', 'STAR-E', 'STAR-F'], color: 'bg-cyan-600' },
+                { label: 'CLASSIC BALCONY', rows: ['CLASSIC-A', 'CLASSIC-B', 'CLASSIC-C', 'CLASSIC-D', 'CLASSIC-E', 'CLASSIC-F'], color: 'bg-yellow-400' },
+                { label: 'FIRST CLASS', rows: ['FIRST-A', 'FIRST-B', 'FIRST-C', 'FIRST-D', 'FIRST-E', 'FIRST-F'], color: 'bg-pink-400' },
+                { label: 'SECOND CLASS', rows: ['SECOND-A', 'SECOND-B', 'SECOND-C', 'SECOND-D', 'SECOND-E', 'SECOND-F'], color: 'bg-gray-400' }
+              ];
+              // Count booked, bms-booked, blocked, and total seats per class
+              const classCounts = classSegments.map(seg => {
+                const booked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'booked').length;
+                const bmsBooked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'bms-booked').length;
+                const blocked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'blocked').length;
+                const total = booked + bmsBooked + blocked;
+                return { label: seg.label, color: seg.color, booked, bmsBooked, blocked, total };
+              });
+              const totalBooked = classCounts.reduce((sum, seg) => sum + seg.booked, 0);
+              const totalBmsBooked = classCounts.reduce((sum, seg) => sum + seg.bmsBooked, 0);
+              const totalBlocked = classCounts.reduce((sum, seg) => sum + seg.blocked, 0);
+              const totalAll = classCounts.reduce((sum, seg) => sum + seg.total, 0);
+              return (
+                <div className="mb-4 border rounded-xl overflow-hidden shadow-sm bg-white">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 font-semibold">
+                        <th className="px-4 py-2 text-left">Class</th>
+                        <th className="px-4 py-2 text-right">Booked</th>
+                        <th className="px-4 py-2 text-right">BMS Booked</th>
+                        <th className="px-4 py-2 text-right">Blocked</th>
+                        <th className="px-4 py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classCounts.map((seg, idx) => (
+                        <tr key={seg.label} className="even:bg-gray-50 hover:bg-gray-100 transition">
+                          <td className="flex items-center gap-2 px-4 py-2">
+                            <div className={`w-1.5 h-4 rounded-sm ${seg.color}`} />
+                            {seg.label}
+                          </td>
+                          <td className="px-4 py-2 text-red-600 font-medium text-right">{seg.booked}</td>
+                          <td className="px-4 py-2 text-blue-600 font-medium text-right">{seg.bmsBooked}</td>
+                          <td className="px-4 py-2 text-yellow-600 text-right">{seg.blocked}</td>
+                          <td className="px-4 py-2 text-right">{seg.total}</td>
+                        </tr>
+                      ))}
+                      <tr className="font-semibold border-t">
+                        <td className="px-4 py-2">TOTAL</td>
+                        <td className="px-4 py-2 text-red-700 text-right">{totalBooked}</td>
+                        <td className="px-4 py-2 text-blue-700 text-right">{totalBmsBooked}</td>
+                        <td className="px-4 py-2 text-yellow-700 text-right">{totalBlocked}</td>
+                        <td className="px-4 py-2 text-right">{totalAll}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
             {/* Gross Income Summary */}
             {(() => {
               // Hardcoded prices per class

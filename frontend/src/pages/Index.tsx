@@ -20,23 +20,11 @@ const sidebarItems = [
   { id: 'reports', label: 'Reports', icon: Download },
 ];
 
-const getCurrentShowByTime = () => {
-  const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  // Define show time ranges in minutes since midnight
-  if (totalMinutes >= 360 && totalMinutes < 720) return 'Morning Show'; // 6:00 AM - 12:00 PM
-  if (totalMinutes >= 720 && totalMinutes < 1020) return 'Matinee Show'; // 12:00 PM - 5:00 PM
-  if (totalMinutes >= 1020 && totalMinutes < 1230) return 'Evening Show'; // 5:00 PM - 8:30 PM
-  return 'Night Show'; // 8:30 PM - 6:00 AM
-};
-
 const Index = () => {
   const [activeView, setActiveView] = useState('booking');
   const [collapsed, setCollapsed] = useState(false);
   const { selectedDate, selectedShow } = useBookingStore();
-  const [currentShow, setCurrentShow] = useState(getCurrentShowByTime());
+  const [currentShow, setCurrentShow] = useState(getCurrentShowLabel());
   const [currentTime, setCurrentTime] = useState(new Date());
   const initializeSeats = useBookingStore((state) => state.initializeSeats);
   const [checkoutData, setCheckoutData] = useState(null);
@@ -107,7 +95,7 @@ const Index = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentShow(getCurrentShowByTime());
+      setCurrentShow(getCurrentShowLabel());
       setCurrentTime(new Date());
     }, 1000); // update every second
     return () => clearInterval(interval);

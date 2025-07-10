@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
@@ -21,7 +21,13 @@ export const seatSegments = [
   { label: 'SECOND CLASS', rows: ['SC2-A', 'SC2-B'] }
 ];
 
-const SeatGrid = ({ onProceed }: { onProceed?: (data: any) => void }) => {
+interface SeatGridProps {
+  onProceed?: (data: any) => void;
+  blockMove?: { row: string, start: number, length: number, seatIds: string[] } | null;
+  setBlockMove?: (v: null) => void;
+}
+
+const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
   const { seats, toggleSeatStatus } = useBookingStore();
   // Remove drawerOpen state and anySelected logic
 
@@ -32,6 +38,33 @@ const SeatGrid = ({ onProceed }: { onProceed?: (data: any) => void }) => {
     if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
       useBookingStore.getState().initializeSeats();
     }
+  };
+
+  // Block move state
+  const [blockMove, setBlockMove] = useState<null | { row: string, start: number, length: number, seatIds: string[] }>(null);
+
+  // Helper to get contiguous blocks of booked seats in a row
+  const getBookedBlocks = (row: string) => {
+    const rowSeats = seats.filter(seat => seat.row === row).sort((a, b) => a.number - b.number);
+    const blocks = [];
+    let block = [];
+    for (const seat of rowSeats) {
+      if (seat.status === 'booked') {
+        if (block.length === 0 || seat.number === block[block.length - 1].number + 1) {
+          block.push(seat);
+        } else {
+          if (block.length > 0) blocks.push([...block]);
+          block = [seat];
+        }
+      } else {
+        if (block.length > 0) {
+          blocks.push([...block]);
+          block = [];
+        }
+      }
+    }
+    if (block.length > 0) blocks.push([...block]);
+    return blocks;
   };
 
   // Map seats for quick lookup by row and number
@@ -96,6 +129,10 @@ const SeatGrid = ({ onProceed }: { onProceed?: (data: any) => void }) => {
   const selectedSeats = seats.filter(seat => seat.status === 'booked' || seat.status === 'bms-booked');
   const totalAmount = selectedSeats.reduce((sum, seat) => sum + (classPrices[getClassLabel(seat.row)] || 0), 0);
 
+  // Only show Proceed bar if there is at least one seat with status 'booked'
+  const bookedSelectedSeats = seats.filter(seat => seat.status === 'booked');
+  const bookedTotalAmount = bookedSelectedSeats.reduce((sum, seat) => sum + (classPrices[getClassLabel(seat.row)] || 0), 0);
+
   // Get sidebar collapsed state from localStorage (to match Index.tsx logic)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   useEffect(() => {
@@ -154,22 +191,61 @@ const SeatGrid = ({ onProceed }: { onProceed?: (data: any) => void }) => {
                             }
                             const seat = seatMap[`${row}-${seatNum}`];
                             if (!seat) return <div key={idx} className="w-12 h-12 bg-gray-200" />;
+                            // Block move highlight
+                            let highlight = false;
+                            if (blockMove && blockMove.row === row && seat.number >= blockMove.start && seat.number < blockMove.start + blockMove.length) {
+                              highlight = true;
+                            }
                             return (
                               <ContextMenu key={seat.id}>
                                 <ContextMenuTrigger asChild>
                                   <button
                                     data-seat-button
-                                    className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)}`}
-                                    title={`${seat.id} - ${seat.status}`}
+                                    className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)} ${seat.status === 'bms-booked' ? 'cursor-not-allowed opacity-70' : ''} ${highlight ? 'ring-2 ring-blue-500' : ''}`}
+                                    title={seat.status === 'bms-booked' ? 'BMS Booked seats cannot be selected for printing' : `${seat.id} - ${seat.status}`}
                                     onClick={e => {
                                       e.preventDefault();
-                                      if (seat.status === 'available') {
-                                        toggleSeatStatus(seat.id, 'booked');
-                                      } else if (seat.status === 'booked') {
-                                        toggleSeatStatus(seat.id, 'available');
+                                      // If blockMove is active and this is an available seat in the same row, try to move block
+                                      if (blockMove && seat.status === 'available' && blockMove.row === row) {
+                                        // Check if enough contiguous available seats from this seat
+                                        const rowSeats = seats.filter(s => s.row === row).sort((a, b) => a.number - b.number);
+                                        const startIdx = rowSeats.findIndex(s => s.number === seat.number);
+                                        const blockSeats = rowSeats.slice(startIdx, startIdx + blockMove.length);
+                                        if (blockSeats.length === blockMove.length && blockSeats.every(s => s.status === 'available')) {
+                                          // Move block: set old seats to available, new seats to booked
+                                          blockMove.seatIds.forEach(id => toggleSeatStatus(id, 'available'));
+                                          blockSeats.forEach(s => toggleSeatStatus(s.id, 'booked'));
+                                          setBlockMove && setBlockMove(null);
+                                        }
+                                        return;
                                       }
-                                      // Popup will open automatically via effect
+                                      // If this is a booked seat, only allow cancel block move if already in blockMove
+                                      if (seat.status === 'booked') {
+                                        if (blockMove && blockMove.row === row && seat.number >= blockMove.start && seat.number < blockMove.start + blockMove.length) {
+                                          setBlockMove && setBlockMove(null);
+                                        }
+                                        return;
+                                      }
+                                      // Default: only allow seat interaction if not in blockMove
+                                      if (!blockMove) {
+                                        if (seat.status === 'available') {
+                                          toggleSeatStatus(seat.id, 'booked');
+                                        } else if (seat.status === 'booked') {
+                                          toggleSeatStatus(seat.id, 'available');
+                                        }
+                                      }
                                     }}
+                                    disabled={
+                                      seat.status === 'bms-booked' ||
+                                      (blockMove && // If blockMove is active, only allow:
+                                        !(
+                                          // (1) This is a valid available target in the same row
+                                          (seat.status === 'available' && blockMove.row === row) ||
+                                          // (2) This is a seat in the selected block
+                                          (blockMove.row === row && seat.number >= blockMove.start && seat.number < blockMove.start + blockMove.length && seat.status === 'booked')
+                                        )
+                                      )
+                                    }
                                   >
                                     <div className="text-xs">{seat.number}</div>
                                     <div className="text-xs">{getSeatIcon(seat.status)}</div>
@@ -233,18 +309,18 @@ const SeatGrid = ({ onProceed }: { onProceed?: (data: any) => void }) => {
       </div>
 
       {/* Fixed Bottom Panel for Selected Seats */}
-      {selectedSeats.length > 0 && (
+      {bookedSelectedSeats.length > 0 && (
         <div className={`
           fixed bottom-0 z-50 bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
           ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
           left-0 w-full md:left-auto md:w-auto
         `}>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all" onClick={() => onProceed && onProceed({ selectedSeats, totalAmount, seats })}>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all" onClick={() => onProceed && onProceed({ selectedSeats: bookedSelectedSeats, totalAmount: bookedTotalAmount, seats })}>
             Proceed
           </button>
           <div className="flex flex-row items-center gap-4 ml-4">
-            <span className="font-medium text-gray-700">Selected Seats: {selectedSeats.length}</span>
-            <span className="font-medium text-gray-700">Total: ₹ {totalAmount}</span>
+            <span className="font-medium text-gray-700">Selected Seats: {bookedSelectedSeats.length}</span>
+            <span className="font-medium text-gray-700">Total: ₹ {bookedTotalAmount}</span>
           </div>
         </div>
       )}
