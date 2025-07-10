@@ -191,36 +191,45 @@ const Checkout = () => {
               else cardClass = 'rounded-none -ml-2';
               // On click, book the first available seat in the class (prefer first row)
               const handleClassCardClick = () => {
+                let blockSet = false;
                 for (const row of cls.rows) {
                   const availableSeat = seats
                     .filter(seat => seat.row === row && seat.status === 'available')
                     .sort((a, b) => a.number - b.number)[0];
                   if (availableSeat) {
                     toggleSeatStatus(availableSeat.id, 'booked');
-                    // After booking, check for contiguous block in this row
                     setTimeout(() => {
-                      const rowSeats = useBookingStore.getState().seats.filter(seat => seat.row === row).sort((a, b) => a.number - b.number);
-                      let block = [];
-                      for (const seat of rowSeats) {
-                        if (seat.status === 'booked') {
-                          if (block.length === 0 || seat.number === block[block.length - 1].number + 1) {
-                            block.push(seat);
+                      // After booking, check all rows in this class for the largest contiguous block
+                      let largestBlock = null;
+                      for (const checkRow of cls.rows) {
+                        const rowSeats = useBookingStore.getState().seats.filter(seat => seat.row === checkRow).sort((a, b) => a.number - b.number);
+                        let block = [];
+                        for (const seat of rowSeats) {
+                          if (seat.status === 'booked') {
+                            if (block.length === 0 || seat.number === block[block.length - 1].number + 1) {
+                              block.push(seat);
+                            } else {
+                              if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
+                              block = [seat];
+                            }
                           } else {
-                            if (block.length > 1) break;
-                            block = [seat];
+                            if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
+                            block = [];
                           }
-                        } else {
-                          if (block.length > 1) break;
-                          block = [];
                         }
+                        if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
                       }
-                      if (block.length > 1) {
-                        setBlockMove({ row, start: block[0].number, length: block.length, seatIds: block.map(s => s.id) });
+                      if (largestBlock && largestBlock.length > 1) {
+                        setBlockMove({ row: largestBlock[0].row, start: largestBlock[0].number, length: largestBlock.length, seatIds: largestBlock.map(s => s.id) });
+                      } else {
+                        setBlockMove(null);
                       }
                     }, 50);
+                    blockSet = true;
                     break;
                   }
                 }
+                if (!blockSet) setBlockMove(null);
               };
               return (
                 <div

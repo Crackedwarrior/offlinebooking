@@ -40,9 +40,6 @@ const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
     }
   };
 
-  // Block move state
-  const [blockMove, setBlockMove] = useState<null | { row: string, start: number, length: number, seatIds: string[] }>(null);
-
   // Helper to get contiguous blocks of booked seats in a row
   const getBookedBlocks = (row: string) => {
     const rowSeats = seats.filter(seat => seat.row === row).sort((a, b) => a.number - b.number);
