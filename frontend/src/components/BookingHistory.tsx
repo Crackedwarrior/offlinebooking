@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { seatsByRow } from '@/lib/seatMatrix';
-import SeatsBookedByClass from './SeatsBookedByClass';
+// import SeatsBookedByClass from './SeatsBookedByClass';
 import { seatSegments } from './SeatGrid';
 
 const BookingHistory = () => {
@@ -119,7 +119,7 @@ const BookingHistory = () => {
             </Popover>
 
             {/* SeatsBookedByClass summary table moved here */}
-            <SeatsBookedByClass seats={bookingForSelected ? bookingForSelected.seats : seats} seatSegments={seatSegments} />
+            {/* <SeatsBookedByClass seats={bookingForSelected ? bookingForSelected.seats : seats} seatSegments={seatSegments} /> */}
 
             {/* Recent Dates */}
             <div className="mt-6">

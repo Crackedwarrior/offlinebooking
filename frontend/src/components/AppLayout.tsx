@@ -5,6 +5,7 @@ import { useBookingStore } from '@/store/bookingStore';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import ShowSelector from '@/components/ShowSelector';
 import { format } from 'date-fns';
+import { getCurrentShowLabel } from '@/lib/utils';
 
 const sidebarItems = [
   { id: '', label: 'Seat Booking', icon: Calendar, path: '/' },
@@ -70,7 +71,7 @@ const AppLayout = () => {
           <div>
             <h2 className="text-xl font-semibold capitalize">{location.pathname === '/' ? 'Seat Booking' : location.pathname.replace('/', '').replace(/\b\w/g, l => l.toUpperCase())}</h2>
             <p className="text-gray-600 mt-1">
-              {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow} Show
+              {format(new Date(selectedDate), 'dd/MM/yyyy')} • {location.pathname.includes('checkout') ? getCurrentShowLabel() : `${selectedShow} Show`}
             </p>
           </div>
           <div className="flex items-center space-x-3">

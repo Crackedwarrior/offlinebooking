@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Checkout from './Checkout';
 import NotFound from './NotFound';
+import { getCurrentShowLabel } from '@/lib/utils';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
@@ -199,7 +200,7 @@ const Index = () => {
             )}
             {activeView === 'checkout' && (
               <p className="text-gray-600 mt-1">
-                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow}
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabel()}
               </p>
             )}
           </div>
