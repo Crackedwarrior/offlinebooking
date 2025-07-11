@@ -36,6 +36,25 @@ function getCurrentShowKey() {
   return 'Night';
 }
 
+// Helper to get the first valid contiguous block in a class
+function getValidContiguousBlock(seats) {
+  if (seats.length === 0) return [];
+  // Group by row
+  const grouped = seats.reduce((acc, seat) => {
+    acc[seat.row] = acc[seat.row] || [];
+    acc[seat.row].push(seat);
+    return acc;
+  }, {});
+  // Find the first group that is contiguous
+  for (const row in grouped) {
+    const group = grouped[row].sort((a, b) => a.number - b.number);
+    if (group.length > 1 && group.every((s, i, arr) => i === 0 || s.number === arr[i - 1].number + 1)) {
+      return group;
+    }
+  }
+  return [];
+}
+
 const Checkout = () => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate } = useBookingStore();
   const [ungroupKey, setUngroupKey] = useState(0); // for triggering ungroup
@@ -44,6 +63,7 @@ const Checkout = () => {
   const showDropdownRef = useRef<HTMLDivElement>(null);
   // Block move state for passing to SeatGrid
   const [blockMove, setBlockMove] = useState<null | { row: string, start: number, length: number, seatIds: string[] }>(null);
+  const [blockSizes, setBlockSizes] = useState<Record<string, number>>({});
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -120,6 +140,7 @@ const Checkout = () => {
     selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'available'));
     setDecoupledSeatIds([]);
     setUngroupKey(prev => prev + 1);
+    setBlockSizes({});
   };
 
   const movieName = 'KALANK';
@@ -191,45 +212,61 @@ const Checkout = () => {
               else cardClass = 'rounded-none -ml-2';
               // On click, book the first available seat in the class (prefer first row)
               const handleClassCardClick = () => {
-                let blockSet = false;
+                console.log('Card clicked:', cls.key);
+                const prevSize = blockSizes[cls.key] || 0;
+                const newSize = prevSize + 1;
+                // Unbook all seats in this class first
+                seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'booked').forEach(seat => toggleSeatStatus(seat.id, 'available'));
+
+                // Gather all available seats in this class, strictly ordered by row and then by seat number
+                const availableSeats = [];
                 for (const row of cls.rows) {
-                  const availableSeat = seats
+                  const rowSeats = seats
                     .filter(seat => seat.row === row && seat.status === 'available')
-                    .sort((a, b) => a.number - b.number)[0];
-                  if (availableSeat) {
-                    toggleSeatStatus(availableSeat.id, 'booked');
-                    setTimeout(() => {
-                      // After booking, check all rows in this class for the largest contiguous block
-                      let largestBlock = null;
-                      for (const checkRow of cls.rows) {
-                        const rowSeats = useBookingStore.getState().seats.filter(seat => seat.row === checkRow).sort((a, b) => a.number - b.number);
-                        let block = [];
-                        for (const seat of rowSeats) {
-                          if (seat.status === 'booked') {
-                            if (block.length === 0 || seat.number === block[block.length - 1].number + 1) {
-                              block.push(seat);
-                            } else {
-                              if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
-                              block = [seat];
-                            }
-                          } else {
-                            if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
-                            block = [];
-                          }
-                        }
-                        if (!largestBlock || block.length > largestBlock.length) largestBlock = [...block];
+                    .sort((a, b) => a.number - b.number);
+                  availableSeats.push(...rowSeats);
+                }
+                console.log('Available seats:', availableSeats.map(s => s.id));
+
+                // Always try to book the first N contiguous available seats starting from the first available seat
+                let block = [];
+                if (availableSeats.length >= newSize) {
+                  const candidate = availableSeats.slice(0, newSize);
+                  let contiguous = true;
+                  for (let j = 1; j < candidate.length; j++) {
+                    const prev = candidate[j - 1];
+                    const curr = candidate[j];
+                    if (prev.row === curr.row) {
+                      if (curr.number !== prev.number + 1) {
+                        contiguous = false;
+                        break;
                       }
-                      if (largestBlock && largestBlock.length > 1) {
-                        setBlockMove({ row: largestBlock[0].row, start: largestBlock[0].number, length: largestBlock.length, seatIds: largestBlock.map(s => s.id) });
-                      } else {
-                        setBlockMove(null);
+                    } else {
+                      // Must be the first seat in the next row
+                      const prevRowIdx = cls.rows.indexOf(prev.row);
+                      const currRowIdx = cls.rows.indexOf(curr.row);
+                      if (currRowIdx !== prevRowIdx + 1 || curr.number !== 1) {
+                        contiguous = false;
+                        break;
                       }
-                    }, 50);
-                    blockSet = true;
-                    break;
+                    }
+                  }
+                  if (contiguous) {
+                    block = candidate;
                   }
                 }
-                if (!blockSet) setBlockMove(null);
+                console.log('Block to book:', block.map(s => s.id));
+
+                if (block.length === newSize) {
+                  block.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
+                  setBlockSizes(bs => ({ ...bs, [cls.key]: newSize }));
+                  setTimeout(() => {
+                    setBlockMove({ row: block[0].row, start: block[0].number, length: block.length, seatIds: block.map(s => s.id) });
+                  }, 50);
+                } else {
+                  setBlockSizes(bs => ({ ...bs, [cls.key]: 0 })); // always reset to 0 if booking fails
+                  setBlockMove(null);
+                }
               };
               return (
                 <div
