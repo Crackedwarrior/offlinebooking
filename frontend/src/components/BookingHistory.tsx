@@ -280,13 +280,18 @@ const BookingHistory = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <Button size="sm" variant="outline">
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-1" />
+                          PDF
+                        </Button>
                         {booking && (
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button size="sm" variant="outline">
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
+                              <span></span> {/* Keep dialog logic for saved bookings, but always show buttons */}
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>
@@ -296,7 +301,6 @@ const BookingHistory = () => {
                             </DialogContent>
                           </Dialog>
                         )}
-                        {/* PDF/Print button removed as per user request */}
                       </div>
                     </div>
                     {/* Stats Grid */}
