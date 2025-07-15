@@ -135,9 +135,8 @@ const Checkout = () => {
     setDecoupledSeatIds(prev => prev.filter(id => id !== seatId));
   };
 
-  // Handler for resetting all tickets
-  const handleResetTickets = () => {
-    selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'available'));
+  // Handler for confirming booking (clears ticket panel, keeps seats booked)
+  const handleConfirmBooking = () => {
     setDecoupledSeatIds([]);
     setUngroupKey(prev => prev + 1);
     setBlockSizes({});
@@ -212,60 +211,42 @@ const Checkout = () => {
               else cardClass = 'rounded-none -ml-2';
               // On click, book the first available seat in the class (prefer first row)
               const handleClassCardClick = () => {
-                console.log('Card clicked:', cls.key);
-                const prevSize = blockSizes[cls.key] || 0;
-                const newSize = prevSize + 1;
-                // Unbook all seats in this class first
-                seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'booked').forEach(seat => toggleSeatStatus(seat.id, 'available'));
+                const targetSize = 1; // Always book 1 seat per click
 
-                // Gather all available seats in this class, strictly ordered by row and then by seat number
-                const availableSeats = [];
-                for (const row of cls.rows) {
-                  const rowSeats = seats
+                // Gather all available seats by row for this class
+                const allAvailableSeatsByRow = cls.rows.map(row => {
+                  return seats
                     .filter(seat => seat.row === row && seat.status === 'available')
                     .sort((a, b) => a.number - b.number);
-                  availableSeats.push(...rowSeats);
-                }
-                console.log('Available seats:', availableSeats.map(s => s.id));
+                });
 
-                // Always try to book the first N contiguous available seats starting from the first available seat
-                let block = [];
-                if (availableSeats.length >= newSize) {
-                  const candidate = availableSeats.slice(0, newSize);
-                  let contiguous = true;
-                  for (let j = 1; j < candidate.length; j++) {
-                    const prev = candidate[j - 1];
-                    const curr = candidate[j];
-                    if (prev.row === curr.row) {
-                      if (curr.number !== prev.number + 1) {
-                        contiguous = false;
-                        break;
-                      }
-                    } else {
-                      // Must be the first seat in the next row
-                      const prevRowIdx = cls.rows.indexOf(prev.row);
-                      const currRowIdx = cls.rows.indexOf(curr.row);
-                      if (currRowIdx !== prevRowIdx + 1 || curr.number !== 1) {
-                        contiguous = false;
-                        break;
-                      }
+                let foundBlock = null;
+                for (const rowSeats of allAvailableSeatsByRow) {
+                  for (let i = 0; i <= rowSeats.length - targetSize; i++) {
+                    const candidate = rowSeats.slice(i, i + targetSize);
+                    const isContiguous = candidate.every((s, j, arr) => j === 0 || s.number === arr[j - 1].number + 1);
+                    if (isContiguous) {
+                      foundBlock = candidate;
+                      break;
                     }
                   }
-                  if (contiguous) {
-                    block = candidate;
-                  }
+                  if (foundBlock) break;
                 }
-                console.log('Block to book:', block.map(s => s.id));
 
-                if (block.length === newSize) {
-                  block.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
-                  setBlockSizes(bs => ({ ...bs, [cls.key]: newSize }));
+                if (foundBlock?.length === targetSize) {
+                  foundBlock.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
+                  // Optionally, append to blockMove if you want to highlight multiple blocks
+                  setBlockSizes(bs => ({ ...bs, [cls.key]: (bs[cls.key] || 0) + targetSize }));
                   setTimeout(() => {
-                    setBlockMove({ row: block[0].row, start: block[0].number, length: block.length, seatIds: block.map(s => s.id) });
+                    setBlockMove(prev => {
+                      if (!prev) {
+                        return { row: foundBlock[0].row, start: foundBlock[0].number, length: foundBlock.length, seatIds: foundBlock.map(s => s.id) };
+                      } else {
+                        // Append new block's seatIds to existing
+                        return { ...prev, seatIds: [...prev.seatIds, ...foundBlock.map(s => s.id)] };
+                      }
+                    });
                   }, 50);
-                } else {
-                  setBlockSizes(bs => ({ ...bs, [cls.key]: 0 })); // always reset to 0 if booking fails
-                  setBlockMove(null);
                 }
               };
               return (
@@ -294,7 +275,15 @@ const Checkout = () => {
       </div>
       {/* TicketPrint Panel aligned right */}
       <div className="flex-[1] h-full">
-        <TicketPrint key={ungroupKey} selectedSeats={ticketSeats} onUnfork={handleUnfork} onDelete={handleDeleteTickets} decoupledSeatIds={decoupledSeatIds} onRegroup={handleRegroup} onReset={handleResetTickets} />
+        <TicketPrint
+          key={ungroupKey}
+          selectedSeats={ticketSeats}
+          onUnfork={handleUnfork}
+          onDelete={handleDeleteTickets}
+          decoupledSeatIds={decoupledSeatIds}
+          onRegroup={handleRegroup}
+          onReset={handleConfirmBooking} // ✅ use new handler
+        />
       </div>
     </div>
   );

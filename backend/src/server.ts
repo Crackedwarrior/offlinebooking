@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 // Helper: Map row to class label
-const rowToClass = (row) => {
+const rowToClass = (row: string): string => {
   if (row.startsWith('BOX')) return 'BOX';
   if (row.startsWith('SC-') || row.startsWith('SC_')) return 'STAR_CLASS';
   if (row.startsWith('CB-')) return 'CLASSIC';
@@ -38,18 +38,29 @@ app.post('/api/bookings', async (req, res) => {
         },
       });
       // Aggregate summary
-      const classWiseBreakdown = {};
+      const classWiseBreakdown: { [key: string]: { count: number; income: number } } = {};
       let totalSeats = 0;
       let totalIncome = 0;
       for (const b of group) {
         if (Array.isArray(b.bookedSeats)) {
-          for (const seat of b.bookedSeats) {
-            const classLabel = rowToClass(seat.row);
-            if (!classWiseBreakdown[classLabel]) classWiseBreakdown[classLabel] = { count: 0, income: 0 };
-            classWiseBreakdown[classLabel].count++;
-            classWiseBreakdown[classLabel].income += seat.price || 0;
-            totalSeats++;
-          }
+          b.bookedSeats.forEach((seat: any) => {
+            if (
+              seat &&
+              typeof seat === 'object' &&
+              'row' in seat &&
+              typeof seat.row === 'string' &&
+              'price' in seat &&
+              typeof seat.price === 'number'
+            ) {
+              const classLabel = rowToClass(seat.row);
+              if (!classWiseBreakdown[classLabel]) {
+                classWiseBreakdown[classLabel] = { count: 0, income: 0 };
+              }
+              classWiseBreakdown[classLabel].count++;
+              classWiseBreakdown[classLabel].income += seat.price;
+              totalSeats++;
+            }
+          });
         }
         totalIncome += b.totalIncome || 0;
       }
@@ -134,7 +145,7 @@ app.post('/api/sync-to-mongo', async (req, res) => {
     const collection = db.collection('show_summaries');
 
     // Group bookings by date, show, and screen
-    const grouped = {};
+    const grouped: { [key: string]: any[] } = {};
     for (const b of localBookings) {
       const key = `${b.date.toISOString().split('T')[0]}|${b.show}|${b.screen}`;
       if (!grouped[key]) {
@@ -148,18 +159,29 @@ app.post('/api/sync-to-mongo', async (req, res) => {
       const group = grouped[key];
       const first = group[0];
       // Aggregate summary
-      const classWiseBreakdown = {};
+      const classWiseBreakdown: { [key: string]: { count: number; income: number } } = {};
       let totalSeats = 0;
       let totalIncome = 0;
       for (const b of group) {
         if (Array.isArray(b.bookedSeats)) {
-          for (const seat of b.bookedSeats) {
-            const classLabel = rowToClass(seat.row);
-            if (!classWiseBreakdown[classLabel]) classWiseBreakdown[classLabel] = { count: 0, income: 0 };
-            classWiseBreakdown[classLabel].count++;
-            classWiseBreakdown[classLabel].income += seat.price || 0;
-            totalSeats++;
-          }
+          b.bookedSeats.forEach((seat: any) => {
+            if (
+              seat &&
+              typeof seat === 'object' &&
+              'row' in seat &&
+              typeof seat.row === 'string' &&
+              'price' in seat &&
+              typeof seat.price === 'number'
+            ) {
+              const classLabel = rowToClass(seat.row);
+              if (!classWiseBreakdown[classLabel]) {
+                classWiseBreakdown[classLabel] = { count: 0, income: 0 };
+              }
+              classWiseBreakdown[classLabel].count++;
+              classWiseBreakdown[classLabel].income += seat.price;
+              totalSeats++;
+            }
+          });
         }
         totalIncome += b.totalIncome || 0;
       }

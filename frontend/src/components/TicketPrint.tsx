@@ -81,7 +81,8 @@ const classColorMap: Record<string, string> = {
 // Add saveBookingToBackend async function
 async function saveBookingToBackend(bookingData: any) {
   try {
-    const res = await fetch('http://localhost:5173/api/bookings', {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${API_URL}/api/bookings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bookingData),
