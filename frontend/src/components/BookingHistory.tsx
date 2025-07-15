@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -11,21 +11,80 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import { seatsByRow } from '@/lib/seatMatrix';
 // import SeatsBookedByClass from './SeatsBookedByClass';
 import { seatSegments } from './SeatGrid';
+import BookingViewerModal from './BookingViewerModal'; // To be created
+import { downloadBookingPdf } from "../utils/downloadBookingPdf";
+import { formatSafeDate } from "../utils/formatDate";
+
+interface Booking {
+  id: string;
+  date: string;
+  show: string;
+  seats: any[];
+  totalIncome: number;
+  // Add other fields as needed
+}
 
 const BookingHistory = () => {
-  const { bookingHistory, loadBookingForDate, seats, selectedDate, selectedShow } = useBookingStore();
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState<Date>(new Date());
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  // Remove selectedDate and selectedShow from destructuring
+  const { bookingHistory, loadBookingForDate, seats } = useBookingStore();
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedShow, setSelectedShow] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'date-asc' | 'income' | 'income-asc'>('date');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setSelectedHistoryDate(date);
-      setIsCalendarOpen(false);
+  useEffect(() => {
+    async function fetchBookings() {
+      setLoading(true);
+      setError(null);
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${API_URL}/api/bookings`);
+        if (!res.ok) throw new Error('Failed to fetch bookings');
+        const data = await res.json();
+        setBookings(data);
+      } catch (err: any) {
+        setError(err.message || 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
     }
-  };
+    fetchBookings();
+  }, []);
+
+  if (loading) return <div className="p-8 text-center">Loading booking history...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
   const handleLoadBooking = (date: string, show: ShowTime) => {
     loadBookingForDate(date, show);
+  };
+
+  const handleViewBooking = async (id: string) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/bookings/${id}`);
+      const data = await res.json();
+      setSelectedBooking(data);
+      setViewerOpen(true);
+    } catch (err) {
+      console.error('Failed to fetch booking details', err);
+    }
+  };
+
+  const handleDownloadPDF = async (id: string) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/pdf`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `booking-${id}.pdf`;
+      link.click();
+    } catch (error) {
+      console.error("Failed to download PDF:", error);
+    }
   };
 
   const getBookingStats = (seats: any[]) => {
@@ -46,7 +105,7 @@ const BookingHistory = () => {
   }, {} as Record<string, typeof bookingHistory>);
 
   // Find booking for selected date and show
-  const selectedDateStr = format(selectedHistoryDate, 'yyyy-MM-dd');
+  const selectedDateStr = format(new Date(selectedDate || ''), 'yyyy-MM-dd');
   const bookingForSelected = bookingHistory.find(
     b => b.date === selectedDateStr && b.show === selectedShow
   );
@@ -86,255 +145,91 @@ const BookingHistory = () => {
     );
   };
 
+  // Apply filters and sorting
+  const filteredBookings = bookings
+    .filter(b => !selectedDate || b.date.startsWith(selectedDate))
+    .filter(b => !selectedShow || b.show === selectedShow)
+    .sort((a, b) => {
+      if (sortBy === 'income') return (b.totalIncome ?? 0) - (a.totalIncome ?? 0);
+      if (sortBy === 'income-asc') return (a.totalIncome ?? 0) - (b.totalIncome ?? 0);
+      if (sortBy === 'date-asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
+      return new Date(b.date).getTime() - new Date(a.date).getTime(); // default newest first
+    });
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left Panel - Date Selector */}
-        <div className="col-span-4">
-          <div className="bg-white rounded-lg shadow-sm border p-4 sticky top-6">
-            <h3 className="font-semibold mb-4">Select Date</h3>
-            
-            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal h-12",
-                    !selectedHistoryDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedHistoryDate ? format(selectedHistoryDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedHistoryDate}
-                  onSelect={handleDateSelect}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-
-            {/* SeatsBookedByClass summary table moved here */}
-            {/* <SeatsBookedByClass seats={bookingForSelected ? bookingForSelected.seats : seats} seatSegments={seatSegments} /> */}
-
-            {/* Recent Dates */}
-            <div className="mt-6">
-              <h4 className="font-medium text-sm text-gray-700 mb-3">Recent Bookings</h4>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {Object.keys(historyByDate)
-                  .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-                  .slice(0, 10)
-                  .map((date) => (
-                    <button
-                      key={date}
-                      onClick={() => setSelectedHistoryDate(new Date(date))}
-                      className={cn(
-                        "w-full text-left p-2 rounded-lg text-sm hover:bg-gray-100",
-                        format(selectedHistoryDate, 'yyyy-MM-dd') === date && "bg-blue-100 text-blue-700"
-                      )}
-                    >
-                      <div className="font-medium">{format(new Date(date), 'MMM dd, yyyy')}</div>
-                      <div className="text-xs text-gray-500">
-                        {historyByDate[date].length} show(s)
+    <div className="p-8 max-w-2xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Booking History</h2>
+      <div className="flex items-center gap-4 mb-4">
+        <input
+          type="date"
+          value={selectedDate || ''}
+          onChange={(e) => setSelectedDate(e.target.value || null)}
+          className="border rounded px-2 py-1"
+        />
+        <select value={selectedShow || ''} onChange={(e) => setSelectedShow(e.target.value || null)} className="border rounded px-2 py-1">
+          <option value="">All Shows</option>
+          <option value="MORNING">Morning</option>
+          <option value="MATINEE">Matinee</option>
+          <option value="EVENING">Evening</option>
+          <option value="NIGHT">Night</option>
+        </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'date' | 'income')} className="border rounded px-2 py-1">
+          <option value="date">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="income">Highest Income</option>
+          <option value="income-asc">Lowest Income</option>
+        </select>
                       </div>
-                    </button>
-                  ))}
-              </div>
-            </div>
-
-            {/* Move the table above the Gross Income card and update logic: */}
-            {(() => {
-              // Get the current show and seats
-              const currentShow = selectedShow;
-              const currentSeats = bookingForSelected ? bookingForSelected.seats : seats;
-              // Define class segments and color mapping (should match seat grid)
-              const classSegments = [
-                { label: 'BOX', rows: ['BOX-A', 'BOX-B', 'BOX-C', 'BOX-D'], color: 'bg-cyan-400' },
-                { label: 'STAR CLASS', rows: ['STAR-A', 'STAR-B', 'STAR-C', 'STAR-D', 'STAR-E', 'STAR-F'], color: 'bg-cyan-600' },
-                { label: 'CLASSIC BALCONY', rows: ['CLASSIC-A', 'CLASSIC-B', 'CLASSIC-C', 'CLASSIC-D', 'CLASSIC-E', 'CLASSIC-F'], color: 'bg-yellow-400' },
-                { label: 'FIRST CLASS', rows: ['FIRST-A', 'FIRST-B', 'FIRST-C', 'FIRST-D', 'FIRST-E', 'FIRST-F'], color: 'bg-pink-400' },
-                { label: 'SECOND CLASS', rows: ['SECOND-A', 'SECOND-B', 'SECOND-C', 'SECOND-D', 'SECOND-E', 'SECOND-F'], color: 'bg-gray-400' }
-              ];
-              // Count booked, bms-booked, blocked, and total seats per class
-              const classCounts = classSegments.map(seg => {
-                const booked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'booked').length;
-                const bmsBooked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'bms-booked').length;
-                const blocked = currentSeats.filter(seat => seg.rows.includes(seat.row) && seat.status === 'blocked').length;
-                const total = booked + bmsBooked + blocked;
-                return { label: seg.label, color: seg.color, booked, bmsBooked, blocked, total };
-              });
-              const totalBooked = classCounts.reduce((sum, seg) => sum + seg.booked, 0);
-              const totalBmsBooked = classCounts.reduce((sum, seg) => sum + seg.bmsBooked, 0);
-              const totalBlocked = classCounts.reduce((sum, seg) => sum + seg.blocked, 0);
-              const totalAll = classCounts.reduce((sum, seg) => sum + seg.total, 0);
-              return (
-                <div className="mb-4 border rounded-xl overflow-hidden shadow-sm bg-white">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 font-semibold">
-                        <th className="px-4 py-2 text-left">Class</th>
-                        <th className="px-4 py-2 text-right">Booked</th>
-                        <th className="px-4 py-2 text-right">BMS Booked</th>
-                        <th className="px-4 py-2 text-right">Blocked</th>
-                        <th className="px-4 py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {classCounts.map((seg, idx) => (
-                        <tr key={seg.label} className="even:bg-gray-50 hover:bg-gray-100 transition">
-                          <td className="flex items-center gap-2 px-4 py-2">
-                            <div className={`w-1.5 h-4 rounded-sm ${seg.color}`} />
-                            {seg.label}
-                          </td>
-                          <td className="px-4 py-2 text-red-600 font-medium text-right">{seg.booked}</td>
-                          <td className="px-4 py-2 text-blue-600 font-medium text-right">{seg.bmsBooked}</td>
-                          <td className="px-4 py-2 text-yellow-600 text-right">{seg.blocked}</td>
-                          <td className="px-4 py-2 text-right">{seg.total}</td>
-                        </tr>
-                      ))}
-                      <tr className="font-semibold border-t">
-                        <td className="px-4 py-2">TOTAL</td>
-                        <td className="px-4 py-2 text-red-700 text-right">{totalBooked}</td>
-                        <td className="px-4 py-2 text-blue-700 text-right">{totalBmsBooked}</td>
-                        <td className="px-4 py-2 text-yellow-700 text-right">{totalBlocked}</td>
-                        <td className="px-4 py-2 text-right">{totalAll}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+      {filteredBookings.length === 0 ? (
+        <div className="text-gray-500 text-center">No bookings found yet.</div>
+      ) : (
+        <div className="space-y-4">
+          {filteredBookings.map((booking) => (
+              <div key={booking.id} className="bg-white rounded-xl shadow p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 border border-gray-100">
+                <div>
+                  <div className="font-semibold text-lg mb-1">{formatDate(booking.date)}, {booking.show} Show</div>
+                  <div className="text-gray-600 text-sm">{booking.seats?.length || 0} seats booked</div>
                 </div>
-              );
-            })()}
-
-            {/* Gross Income Summary */}
-            {(() => {
-              // Hardcoded prices per class
-              const classPrices: Record<string, number> = {
-                'BOX': 300,
-                'STAR CLASS': 250,
-                'CLASSIC BALCONY': 200,
-                'FIRST CLASS': 150,
-                'SECOND CLASS': 100
-              };
-              // Get seats for selected date/show
-              const currentSeats = bookingForSelected ? bookingForSelected.seats : seats;
-              // Helper to get class label for a seat
-              const getClassLabel = (row: string) => {
-                for (const seg of seatSegments) {
-                  if (seg.rows.includes(row)) return seg.label;
-                }
-                return '';
-              };
-              let totalIncome = 0, bmsIncome = 0, bookingIncome = 0, bmsBookedIncome = 0;
-              currentSeats.forEach(seat => {
-                const classLabel = getClassLabel(seat.row);
-                const price = classPrices[classLabel] || 0;
-                if (seat.status === 'booked') {
-                  bookingIncome += price;
-                  totalIncome += price;
-                } else if (seat.status === 'bms-booked') {
-                  bmsIncome += price;
-                  bmsBookedIncome += price;
-                  totalIncome += price;
-                }
-              });
-              return (
-                <div className="mt-8 p-4 bg-gray-50 rounded shadow text-sm">
-                  <div className="font-semibold mb-2">Gross Income</div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between"><span>Total Income:</span><span>₹ {totalIncome}</span></div>
-                    <div className="flex justify-between"><span>BMS Income:</span><span>₹ {bmsIncome}</span></div>
-                    <div className="flex justify-between"><span>Booking Income:</span><span>₹ {bookingIncome}</span></div>
-                    <div className="flex justify-between"><span>BMS Booked Income:</span><span>₹ {bmsBookedIncome}</span></div>
-                  </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-green-700 font-bold text-lg">₹ {booking.totalIncome}</div>
+                  <Button
+                    className="ml-2"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadPDF(booking.id)}
+                  >
+                    📥 Download PDF
+                  </Button>
+                  <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold" onClick={() => handleViewBooking(booking.id)}>View</button>
                 </div>
-              );
-            })()}
           </div>
+            ))}
         </div>
-
-        {/* Right Panel - History Details */}
-        <div className="col-span-8">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="font-semibold mb-4">
-              Bookings for {format(selectedHistoryDate, 'MMMM dd, yyyy')}
-            </h3>
-            <div className="space-y-4">
-              {showOrder.map(show => {
-                const booking = bookingHistory.find(b => b.date === selectedDateStr && b.show === show);
-                const stats = getBookingStats(booking ? booking.seats : seats);
-                const occupancyRate = ((stats.booked + stats.bmsBooked) / (stats.total || 1) * 100).toFixed(1);
-                return (
-                  <div key={show} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <Clock className="w-5 h-5 text-gray-500" />
-                        <div>
-                          <h4 className="font-medium">{show} Show</h4>
-                          <p className="text-sm text-gray-600">
-                            {booking ? `Saved at ${format(new Date(booking.timestamp), 'h:mm a')}` : 'Live (unsaved)'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Download className="w-4 h-4 mr-1" />
-                          PDF
-                        </Button>
-                        {booking && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <span></span> {/* Keep dialog logic for saved bookings, but always show buttons */}
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>{show} Show Seat Map</DialogTitle>
-                              </DialogHeader>
-                              <ReadOnlySeatGrid seats={booking.seats} />
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                      </div>
-                    </div>
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-5 gap-3 text-sm">
-                      <div className="text-center p-2 bg-gray-100 rounded">
-                        <div className="font-semibold">{stats.total}</div>
-                        <div className="text-gray-600">Total</div>
-                      </div>
-                      <div className="text-center p-2 bg-green-100 rounded">
-                        <div className="font-semibold text-green-800">{stats.available}</div>
-                        <div className="text-green-600">Available</div>
-                      </div>
-                      <div className="text-center p-2 bg-red-100 rounded">
-                        <div className="font-semibold text-red-800">{stats.booked}</div>
-                        <div className="text-red-600">Booked</div>
-                      </div>
-                      <div className="text-center p-2 bg-blue-100 rounded">
-                        <div className="font-semibold text-blue-800">{stats.bmsBooked}</div>
-                        <div className="text-blue-600">BMS</div>
-                      </div>
-                      <div className="text-center p-2 bg-yellow-100 rounded">
-                        <div className="font-semibold text-yellow-800">{stats.blocked}</div>
-                        <div className="text-yellow-600">Blocked</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
+      {/* BookingViewerModal integration (to be implemented) */}
+      {selectedBooking && (
+        <BookingViewerModal
+          open={viewerOpen}
+          booking={selectedBooking}
+          onClose={() => setViewerOpen(false)}
+          seatCounts={getSeatCounts(selectedBooking.seats)}
+        />
+      )}
     </div>
   );
 };
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+// Helper for seat counts
+function getSeatCounts(seats: any[] = []) {
+  return seats.reduce((acc, seat) => {
+    acc[seat.status] = (acc[seat.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+}
 
 export default BookingHistory;

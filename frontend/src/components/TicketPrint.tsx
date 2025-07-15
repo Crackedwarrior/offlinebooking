@@ -78,6 +78,24 @@ const classColorMap: Record<string, string> = {
   'SECOND CLASS': 'bg-gray-300',
 };
 
+// Add saveBookingToBackend async function
+async function saveBookingToBackend(bookingData: any) {
+  try {
+    const res = await fetch('http://localhost:5173/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bookingData),
+    });
+    if (!res.ok) throw new Error('Booking save failed');
+    const saved = await res.json();
+    console.log('✅ Booking saved:', saved);
+    // Optionally show success toast or navigate to history
+  } catch (err) {
+    console.error('❌ Error saving booking:', err);
+    // Show error toast
+  }
+}
+
 const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset }) => {
   const groups = groupSeats(selectedSeats, decoupledSeatIds);
   const total = groups.reduce((sum, g) => sum + g.price, 0);
@@ -102,8 +120,16 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
     setShowPrintModal(true);
   };
 
-  const handleConfirmPrint = () => {
+  const handleConfirmPrint = async () => {
     setShowPrintModal(false);
+    // Save all selected tickets as one booking
+    const bookingData = {
+      tickets: selectedSeats,
+      total,
+      totalTickets,
+      timestamp: new Date().toISOString(),
+    };
+    await saveBookingToBackend(bookingData);
     // Placeholder: replace with actual print logic
     alert('Printing tickets...');
     // After printing, clear the selectedGroupIdxs (ticket selection), but do not change seat statuses

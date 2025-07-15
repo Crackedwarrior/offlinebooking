@@ -237,6 +237,7 @@ const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
                           // Default seat rendering
                           return (
                             <button
+                              key={seat.id || `${row}-${seatNum}`}
                               data-seat-button
                               className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)} ${seat.status === 'bms-booked' ? 'cursor-not-allowed opacity-70' : ''} ${isBlock ? 'ring-2 ring-blue-500' : ''}`}
                               title={seat.status === 'bms-booked' ? 'BMS Booked seats cannot be selected for printing' : `${seat.id} - ${seat.status}`}
