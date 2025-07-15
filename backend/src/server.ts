@@ -11,23 +11,61 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Helper: Map row to class label
+const rowToClass = (row) => {
+  if (row.startsWith('BOX')) return 'BOX';
+  if (row.startsWith('SC-') || row.startsWith('SC_')) return 'STAR_CLASS';
+  if (row.startsWith('CB-')) return 'CLASSIC';
+  if (row.startsWith('FC-')) return 'FIRST_CLASS';
+  if (row.startsWith('SC2-')) return 'SECOND_CLASS';
+  return 'OTHER';
+};
+
 // Save a new booking
 app.post('/api/bookings', async (req, res) => {
   try {
     const booking = await saveBooking(req.body);
-    // Immediately push to MongoDB
+    // After saving locally, trigger summary sync for this show/date/screen
     try {
       const client = await connectMongo();
-      const collection = client.db('offlineBooking').collection('bookings');
-      const existing = await collection.findOne({ id: booking.id });
-      if (!existing) {
-        await collection.insertOne({ ...booking, syncedAt: new Date() });
-        console.log('Synced to MongoDB ✅');
-      } else {
-        console.log('Already synced to MongoDB ❌ Skipped duplicate.');
+      const collection = client.db('offlineBooking').collection('show_summaries');
+      // Find all bookings for this show/date/screen
+      const group = await prisma.booking.findMany({
+        where: {
+          date: booking.date,
+          show: booking.show,
+          screen: booking.screen,
+        },
+      });
+      // Aggregate summary
+      const classWiseBreakdown = {};
+      let totalSeats = 0;
+      let totalIncome = 0;
+      for (const b of group) {
+        if (Array.isArray(b.bookedSeats)) {
+          for (const seat of b.bookedSeats) {
+            const classLabel = rowToClass(seat.row);
+            if (!classWiseBreakdown[classLabel]) classWiseBreakdown[classLabel] = { count: 0, income: 0 };
+            classWiseBreakdown[classLabel].count++;
+            classWiseBreakdown[classLabel].income += seat.price || 0;
+            totalSeats++;
+          }
+        }
+        totalIncome += b.totalIncome || 0;
       }
+      // Insert a new summary document (never overwrite)
+      await collection.insertOne({
+        date: booking.date,
+        show: booking.show,
+        screen: booking.screen,
+        theatreName: booking.theatreName,
+        totalIncome,
+        totalSeats,
+        classWiseBreakdown,
+        syncedAt: new Date(),
+      });
     } catch (err) {
-      console.error('MongoDB Sync Failed ❌', err);
+      console.error('MongoDB Summary Sync Failed ❌', err);
     }
     res.json(booking);
   } catch (err) {
@@ -93,16 +131,55 @@ app.post('/api/sync-to-mongo', async (req, res) => {
     const localBookings = await prisma.booking.findMany();
     const client = await connectMongo();
     const db = client.db('offlineBooking');
-    const collection = db.collection('bookings');
-    const inserted = await collection.insertMany(
-      localBookings.map((b: any) => ({
-        ...b,
+    const collection = db.collection('show_summaries');
+
+    // Group bookings by date, show, and screen
+    const grouped = {};
+    for (const b of localBookings) {
+      const key = `${b.date.toISOString().split('T')[0]}|${b.show}|${b.screen}`;
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(b);
+    }
+
+    let insertedCount = 0;
+    for (const key in grouped) {
+      const group = grouped[key];
+      const first = group[0];
+      // Aggregate summary
+      const classWiseBreakdown = {};
+      let totalSeats = 0;
+      let totalIncome = 0;
+      for (const b of group) {
+        if (Array.isArray(b.bookedSeats)) {
+          for (const seat of b.bookedSeats) {
+            const classLabel = rowToClass(seat.row);
+            if (!classWiseBreakdown[classLabel]) classWiseBreakdown[classLabel] = { count: 0, income: 0 };
+            classWiseBreakdown[classLabel].count++;
+            classWiseBreakdown[classLabel].income += seat.price || 0;
+            totalSeats++;
+          }
+        }
+        totalIncome += b.totalIncome || 0;
+      }
+      // Always insert a new summary document (never overwrite)
+      await collection.insertOne({
+        date: first.date,
+        show: first.show,
+        screen: first.screen,
+        theatreName: first.theatreName,
+        totalIncome,
+        totalSeats,
+        classWiseBreakdown,
         syncedAt: new Date(),
-      }))
-    );
+      });
+      insertedCount++;
+    }
+
     res.json({
-      message: 'Bookings synced to MongoDB',
-      insertedCount: inserted.insertedCount,
+      message: 'Show summaries synced to MongoDB',
+      insertedCount,
     });
   } catch (err) {
     console.error('Sync failed:', err);
