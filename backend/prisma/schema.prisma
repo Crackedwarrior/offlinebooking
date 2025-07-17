@@ -21,19 +21,21 @@ enum Show {
 }
 
 model Booking {
-  id           String   @id @default(cuid())
-  theatreId    String
-  theatreName  String
-  screen       String
+  id           String   @id @default(uuid())
   date         DateTime
-  show         Show
-  seats        Json     // Full seat matrix with statuses
-  bmsSeats     Json     // BMS-marked seats
-  vipSeats     Json     // VIP reserved seats
-  bookedSeats  Json     // All confirmed seats
-  localIncome  Int?     // Local tickets gross income
-  bmsIncome    Int?     // BMS tickets gross income
-  vipIncome    Int?     // VIP tickets gross income
-  totalIncome  Int?     // Total income (sum of above)
-  createdAt    DateTime @default(now())
+  show         Show     // Use enum for show
+  screen       String
+  movie        String
+  bookedSeats  Json     // seat numbers like ["A1", "A2"]
+  class        String   // e.g., "BOX"
+  pricePerSeat Int
+  totalPrice   Int
+  bookedAt     DateTime @default(now())
+  synced       Boolean  @default(false)
+
+  totalIncome  Int?     @default(0)
+  localIncome  Int?     @default(0)
+  bmsIncome    Int?     @default(0)
+  vipIncome    Int?     @default(0)
 }
+
