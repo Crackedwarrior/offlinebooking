@@ -7,10 +7,10 @@ const ShowSelector = () => {
   const { selectedShow, setSelectedShow, selectedDate, loadBookingForDate } = useBookingStore();
 
   const shows: Array<{ time: ShowTime; label: string; timing: string }> = [
-    { time: 'Morning', label: 'Morning Show', timing: '10:00 AM' },
-    { time: 'Matinee', label: 'Matinee Show', timing: '2:00 PM' },
-    { time: 'Evening', label: 'Evening Show', timing: '6:00 PM' },
-    { time: 'Night', label: 'Night Show', timing: '9:30 PM' },
+    { time: 'MORNING', label: 'Morning Show', timing: '10:00 AM' },
+    { time: 'MATINEE', label: 'Matinee Show', timing: '2:00 PM' },
+    { time: 'EVENING', label: 'Evening Show', timing: '6:00 PM' },
+    { time: 'NIGHT', label: 'Night Show', timing: '9:30 PM' },
   ];
 
   const handleShowSelect = (show: ShowTime) => {

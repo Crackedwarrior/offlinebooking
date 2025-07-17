@@ -56,7 +56,7 @@ function getValidContiguousBlock(seats) {
 }
 
 const Checkout = () => {
-  const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate } = useBookingStore();
+  const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats } = useBookingStore();
   const [ungroupKey, setUngroupKey] = useState(0); // for triggering ungroup
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
   const [showDropdownOpen, setShowDropdownOpen] = useState(false);
@@ -140,6 +140,7 @@ const Checkout = () => {
     setDecoupledSeatIds([]);
     setUngroupKey(prev => prev + 1);
     setBlockSizes({});
+    initializeSeats(); // <-- Reset all seats to available
   };
 
   const movieName = 'KALANK';
@@ -282,7 +283,8 @@ const Checkout = () => {
           onDelete={handleDeleteTickets}
           decoupledSeatIds={decoupledSeatIds}
           onRegroup={handleRegroup}
-          onReset={handleConfirmBooking} // ✅ use new handler
+          onReset={handleConfirmBooking}
+          selectedDate={selectedDate} // <-- pass selectedDate
         />
       </div>
     </div>

@@ -24,6 +24,7 @@ interface TicketPrintProps {
   decoupledSeatIds?: string[];
   onRegroup?: (seatId: string) => void;
   onReset?: () => void;
+  selectedDate: string; // <-- add this
 }
 
 // Helper: group seats by class and row, and split into ranges/commas
@@ -97,7 +98,7 @@ async function saveBookingToBackend(bookingData: any) {
   }
 }
 
-const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset }) => {
+const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset, selectedDate }) => {
   const groups = groupSeats(selectedSeats, decoupledSeatIds);
   const total = groups.reduce((sum, g) => sum + g.price, 0);
   const totalTickets = selectedSeats.length;
@@ -129,11 +130,14 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
       total,
       totalTickets,
       timestamp: new Date().toISOString(),
+      show: selectedSeats[0].classLabel.toUpperCase(), // Ensure enum match
+      screen: 'Screen 1',
+      movie: 'KALANK',
+      date: selectedDate,
     };
     await saveBookingToBackend(bookingData);
     // Placeholder: replace with actual print logic
     alert('Printing tickets...');
-    // After printing, clear the selectedGroupIdxs (ticket selection), but do not change seat statuses
     setSelectedGroupIdxs([]);
   };
 

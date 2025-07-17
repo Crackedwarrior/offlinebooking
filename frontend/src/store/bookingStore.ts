@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { seatsByRow } from '@/lib/seatMatrix';
 
 export type SeatStatus = 'available' | 'booked' | 'blocked' | 'bms-booked';
-export type ShowTime = 'Morning' | 'Matinee' | 'Evening' | 'Night';
+export type ShowTime = 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
 
 export interface Seat {
   id: string;
