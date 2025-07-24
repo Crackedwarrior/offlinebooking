@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBookingStore } from '@/store/bookingStore';
 
 // Types for seat and ticket group
 interface Seat {
@@ -25,6 +26,7 @@ interface TicketPrintProps {
   onRegroup?: (seatId: string) => void;
   onReset?: () => void;
   selectedDate: string; // <-- add this
+  onBookingComplete?: () => void; // <-- add this
 }
 
 // Helper: group seats by class and row, and split into ranges/commas
@@ -98,12 +100,14 @@ async function saveBookingToBackend(bookingData: any) {
   }
 }
 
-const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset, selectedDate }) => {
+const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset, selectedDate, onBookingComplete }) => {
   const groups = groupSeats(selectedSeats, decoupledSeatIds);
   const total = groups.reduce((sum, g) => sum + g.price, 0);
   const totalTickets = selectedSeats.length;
   const [selectedGroupIdxs, setSelectedGroupIdxs] = useState<number[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const selectedShow = useBookingStore(state => state.selectedShow); // Get the selected show
+  const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus); // Add this to update seat status
 
   const toggleGroupSelection = (idx: number) => {
     setSelectedGroupIdxs(prev =>
@@ -124,21 +128,29 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
 
   const handleConfirmPrint = async () => {
     setShowPrintModal(false);
-    // Save all selected tickets as one booking
-    const bookingData = {
-      tickets: selectedSeats,
-      total,
-      totalTickets,
-      timestamp: new Date().toISOString(),
-      show: selectedSeats[0].classLabel.toUpperCase(), // Ensure enum match
+    // Save each group as a separate booking matching backend schema
+    const bookingsToSave = groups.map(g => ({
+      date: selectedDate,
+      show: selectedShow.toUpperCase(), // Ensure enum matches backend
       screen: 'Screen 1',
       movie: 'KALANK',
-      date: selectedDate,
-    };
-    await saveBookingToBackend(bookingData);
+      bookedSeats: g.seats.map(seatNum => `${g.row}${seatNum}`), // e.g., "B3"
+      class: g.classLabel,
+      pricePerSeat: Math.round(g.price / g.seats.length),
+      totalPrice: g.price,
+      source: 'LOCAL',
+    }));
+    for (const booking of bookingsToSave) {
+      console.log('Sending booking to backend:', booking);
+      await saveBookingToBackend(booking);
+    }
+    // Mark all selected seats as booked in the store
+    selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
     // Placeholder: replace with actual print logic
     alert('Printing tickets...');
     setSelectedGroupIdxs([]);
+    // Notify parent to clear ticket panel
+    if (onBookingComplete) onBookingComplete();
   };
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
+import type { ShowTime } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import ShowSelector from '@/components/ShowSelector';
@@ -82,13 +83,13 @@ const Checkout = () => {
 
   // Handler for show selection
   const handleShowSelect = (showKey: string) => {
-    setSelectedShow(showKey);
-    loadBookingForDate(selectedDate, showKey);
+    setSelectedShow(showKey.toUpperCase() as ShowTime);
+    loadBookingForDate(selectedDate, showKey.toUpperCase() as ShowTime);
     setShowDropdownOpen(false);
   };
 
   // Group selected seats by class
-  const selectedSeats = seats.filter(seat => seat.status === 'booked');
+  const selectedSeats = seats.filter(seat => seat.status === 'selected');
   const classCounts = CLASS_INFO.map(cls => {
     const count = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
     return { ...cls, count };
@@ -97,7 +98,6 @@ const Checkout = () => {
 
   // For TicketPrint: map to required format, only include 'booked' seats
   const ticketSeats = selectedSeats
-    .filter(seat => seat.status === 'booked')
     .map(seat => {
       const cls = CLASS_INFO.find(c => c.rows.includes(seat.row));
       return {
@@ -140,7 +140,12 @@ const Checkout = () => {
     setDecoupledSeatIds([]);
     setUngroupKey(prev => prev + 1);
     setBlockSizes({});
-    initializeSeats(); // <-- Reset all seats to available
+    // Removed initializeSeats() to prevent resetting all seats to available
+  };
+
+  // Handler for booking complete (clears ticket panel)
+  const handleBookingComplete = () => {
+    setUngroupKey(prev => prev + 1); // This will remount TicketPrint with empty selectedSeats
   };
 
   const movieName = 'KALANK';
@@ -210,9 +215,9 @@ const Checkout = () => {
               if (i === 0) cardClass = 'rounded-none -ml-2';
               else if (i === CLASS_INFO.length - 1) cardClass = 'rounded-r-xl -ml-2';
               else cardClass = 'rounded-none -ml-2';
-              // On click, book the first available seat in the class (prefer first row)
+              // On click, select the first available seat in the class (prefer first row)
               const handleClassCardClick = () => {
-                const targetSize = 1; // Always book 1 seat per click
+                const targetSize = 1; // Always select 1 seat per click
 
                 // Gather all available seats by row for this class
                 const allAvailableSeatsByRow = cls.rows.map(row => {
@@ -235,7 +240,7 @@ const Checkout = () => {
                 }
 
                 if (foundBlock?.length === targetSize) {
-                  foundBlock.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
+                  foundBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
                   // Optionally, append to blockMove if you want to highlight multiple blocks
                   setBlockSizes(bs => ({ ...bs, [cls.key]: (bs[cls.key] || 0) + targetSize }));
                   setTimeout(() => {
@@ -285,6 +290,7 @@ const Checkout = () => {
           onRegroup={handleRegroup}
           onReset={handleConfirmBooking}
           selectedDate={selectedDate} // <-- pass selectedDate
+          onBookingComplete={handleBookingComplete}
         />
       </div>
     </div>

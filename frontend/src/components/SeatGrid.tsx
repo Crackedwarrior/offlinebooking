@@ -123,7 +123,7 @@ const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
     return '';
   };
   // Selected seats and total amount
-  const selectedSeats = seats.filter(seat => seat.status === 'booked' || seat.status === 'bms-booked');
+  const selectedSeats = seats.filter(seat => seat.status === 'selected');
   const totalAmount = selectedSeats.reduce((sum, seat) => sum + (classPrices[getClassLabel(seat.row)] || 0), 0);
 
   // Only show Proceed bar if there is at least one seat with status 'booked'
@@ -217,57 +217,28 @@ const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
                           // Only render the grid and highlight booked seats as a block if they are contiguous
                           let isBlockStart = false;
                           let isBlock = false;
-                          if (bookedSelectedSeats.length > 1) {
-                            for (const bookedSeat of bookedSelectedSeats) {
-                              if (bookedSeat.row === row && bookedSeat.number >= seat.number && bookedSeat.number < seat.number + 1) {
-                                isBlock = true;
-                                if (bookedSeat.number === seat.number) isBlockStart = true;
-                              }
-                            }
-                          }
+                          // Booked seats should not be part of any block/group logic
                           // DND: Make available seats droppable for block
                           let isDropTarget = false;
-                          if (blockSelected) {
-                            for (const bookedSeat of bookedSelectedSeats) {
-                              if (bookedSeat.row === row && bookedSeat.number >= seat.number && bookedSeat.number < seat.number + 1) {
-                                isDropTarget = true;
-                              }
-                            }
-                          }
                           // Default seat rendering
                           return (
                             <button
                               key={seat.id || `${row}-${seatNum}`}
                               data-seat-button
-                              className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)} ${seat.status === 'bms-booked' ? 'cursor-not-allowed opacity-70' : ''} ${isBlock ? 'ring-2 ring-blue-500' : ''}`}
-                              title={seat.status === 'bms-booked' ? 'BMS Booked seats cannot be selected for printing' : `${seat.id} - ${seat.status}`}
+                              className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)} ${seat.status === 'bms-booked' || seat.status === 'booked' ? 'cursor-not-allowed opacity-70' : ''}`}
+                              title={seat.status === 'bms-booked' ? 'BMS Booked seats cannot be selected for printing' : seat.status === 'booked' ? 'Seat is already booked' : `${seat.id} - ${seat.status}`}
                               onClick={e => {
                                 e.preventDefault();
-                                // If a block is selected, try to move it
-                                if (currentBlock) {
-                                  const seatClass = getClassLabel(row);
-                                  if (seatClass !== currentBlock.classLabel) return; // Only allow move within same class
-                                  if (seat.status !== 'available') return; // Only allow move to available seat
-                                  // Check if enough contiguous seats are available from this seat
-                                  const rowSeats = seats.filter(s => s.row === row).sort((a, b) => a.number - b.number);
-                                  const startIdx = rowSeats.findIndex(s => s.number === seat.number);
-                                  const blockSeats = rowSeats.slice(startIdx, startIdx + currentBlock.length);
-                                  if (blockSeats.length === currentBlock.length && blockSeats.every(s => s.status === 'available')) {
-                                    // Unbook current block
-                                    bookedSelectedSeats.forEach(s => toggleSeatStatus(s.id, 'available'));
-                                    // Book new block
-                                    blockSeats.forEach(s => toggleSeatStatus(s.id, 'booked'));
-                                  }
-                                  return;
-                                }
+                                // Prevent any interaction for booked or bms-booked seats
+                                if (seat.status === 'booked' || seat.status === 'bms-booked') return;
                                 // Only allow single-seat selection if no block is selected
                                 if (seat.status === 'available') {
-                                  toggleSeatStatus(seat.id, 'booked');
-                                } else if (seat.status === 'booked') {
+                                  toggleSeatStatus(seat.id, 'selected');
+                                } else if (seat.status === 'selected') {
                                   toggleSeatStatus(seat.id, 'available');
                                 }
                               }}
-                              disabled={seat.status === 'bms-booked' || (blockSelected && seat.status !== 'available')}
+                              disabled={seat.status === 'booked' || seat.status === 'bms-booked'}
                             >
                               <div className="text-xs">{seat.number}</div>
                               <div className="text-xs">{getSeatIcon(seat.status)}</div>
@@ -322,21 +293,23 @@ const SeatGrid = ({ onProceed, blockMove, setBlockMove }: SeatGridProps) => {
       {/* The action panel is removed, so this section is no longer needed. */}
 
       {/* Fixed Bottom Panel for Selected Seats */}
-      {bookedSelectedSeats.length > 0 && (
         <div className={
           `fixed bottom-0 z-50 bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
           ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
           left-0 w-full md:left-auto md:w-auto`
         }>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all" onClick={() => onProceed && onProceed({ selectedSeats: bookedSelectedSeats, totalAmount: bookedTotalAmount, seats })}>
+        <button
+          className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all ${selectedSeats.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+          onClick={() => selectedSeats.length > 0 && onProceed && onProceed({ selectedSeats, totalAmount, seats })}
+          disabled={selectedSeats.length === 0}
+        >
             Proceed
           </button>
           <div className="flex flex-row items-center gap-4 ml-4">
-            <span className="font-medium text-gray-700">Selected Seats: {bookedSelectedSeats.length}</span>
-            <span className="font-medium text-gray-700">Total: ₹ {bookedTotalAmount}</span>
-          </div>
+          <span className="font-medium text-gray-700">Selected Seats: {selectedSeats.length}</span>
+          <span className="font-medium text-gray-700">Total: ₹ {totalAmount}</span>
         </div>
-      )}
+      </div>
     </div>
   );
 };
