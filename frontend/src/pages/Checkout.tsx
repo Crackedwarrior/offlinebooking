@@ -65,6 +65,8 @@ const Checkout = () => {
   // Block move state for passing to SeatGrid
   const [blockMove, setBlockMove] = useState<null | { row: string, start: number, length: number, seatIds: string[] }>(null);
   const [blockSizes, setBlockSizes] = useState<Record<string, number>>({});
+  // Add state for dynamic seat selection count per class
+  const [selectedCount, setSelectedCount] = useState<Record<string, number>>({});
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -110,19 +112,21 @@ const Checkout = () => {
     });
 
   // Handler for ungrouping tickets (decoupling logic)
-  const handleUnfork = async (groupSeats: {id: string}[]) => {
-    setDecoupledSeatIds(prev => Array.from(new Set([...prev, ...groupSeats.map(s => s.id)])));
-    // Set all to available
-    groupSeats.forEach(seat => {
-      toggleSeatStatus(seat.id, 'available');
+  const handleUnfork = (groupSeats: {id: string}[]) => {
+    setDecoupledSeatIds(prev => {
+      const updated = Array.from(new Set([...prev, ...groupSeats.map(s => s.id)]));
+      // Set all to available, then selected
+      groupSeats.forEach(seat => {
+        toggleSeatStatus(seat.id, 'available');
+      });
+      setTimeout(() => {
+        groupSeats.forEach(seat => {
+          toggleSeatStatus(seat.id, 'selected');
+        });
+        setUngroupKey(prevKey => prevKey + 1); // Force TicketPrint re-render
+      }, 100);
+      return updated;
     });
-    // Wait for state to update
-    await new Promise(res => setTimeout(res, 50));
-    // Set all to booked (individually)
-    groupSeats.forEach(seat => {
-      toggleSeatStatus(seat.id, 'booked');
-    });
-    setUngroupKey(prev => prev + 1);
   };
 
   // Handler for deleting tickets
@@ -217,49 +221,39 @@ const Checkout = () => {
               else cardClass = 'rounded-none -ml-2';
               // On click, select the first available seat in the class (prefer first row)
               const handleClassCardClick = () => {
-                const targetSize = 1; // Always select 1 seat per click
-
-                // Gather all available seats by row for this class
-                const allAvailableSeatsByRow = cls.rows.map(row => {
-                  return seats
-                    .filter(seat => seat.row === row && seat.status === 'available')
-                    .sort((a, b) => a.number - b.number);
-                });
-
-                let foundBlock = null;
-                for (const rowSeats of allAvailableSeatsByRow) {
-                  for (let i = 0; i <= rowSeats.length - targetSize; i++) {
-                    const candidate = rowSeats.slice(i, i + targetSize);
-                    const isContiguous = candidate.every((s, j, arr) => j === 0 || s.number === arr[j - 1].number + 1);
-                    if (isContiguous) {
-                      foundBlock = candidate;
-                      break;
+                setSelectedCount(prev => {
+                  const classKey = cls.key || cls.label;
+                  const newCount = (prev[classKey] || 0) + 1;
+                  // Gather all available seats by row for this class
+                  const allAvailableSeatsByRow = cls.rows.map(row => {
+                    return seats
+                      .filter(seat => seat.row === row && seat.status === 'available')
+                      .sort((a, b) => a.number - b.number);
+                  });
+                  // Try to find a single row with enough contiguous seats
+                  for (const rowSeats of allAvailableSeatsByRow) {
+                    for (let i = 0; i <= rowSeats.length - newCount; i++) {
+                      const candidate = rowSeats.slice(i, i + newCount);
+                      const isContiguous = candidate.every((s, j, arr) => j === 0 || s.number === arr[j - 1].number + 1);
+                      if (isContiguous) {
+                        // Deselect previous selection for this class
+                        seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'selected')
+                          .forEach(seat => toggleSeatStatus(seat.id, 'available'));
+                        // Select new contiguous block
+                        candidate.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
+                        return { ...prev, [classKey]: newCount };
+                      }
                     }
                   }
-                  if (foundBlock) break;
-                }
-
-                if (foundBlock?.length === targetSize) {
-                  foundBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
-                  // Optionally, append to blockMove if you want to highlight multiple blocks
-                  setBlockSizes(bs => ({ ...bs, [cls.key]: (bs[cls.key] || 0) + targetSize }));
-                  setTimeout(() => {
-                    setBlockMove(prev => {
-                      if (!prev) {
-                        return { row: foundBlock[0].row, start: foundBlock[0].number, length: foundBlock.length, seatIds: foundBlock.map(s => s.id) };
-                      } else {
-                        // Append new block's seatIds to existing
-                        return { ...prev, seatIds: [...prev.seatIds, ...foundBlock.map(s => s.id)] };
-                      }
-                    });
-                  }, 50);
-                }
+                  // If no block found, do not increment
+                  return prev;
+                });
               };
               return (
                 <div
                   key={cls.key}
                   className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform hover:-translate-y-1 hover:shadow-lg cursor-pointer ${colorMap[cls.label]} ${cardClass}`}
-                  onClick={handleClassCardClick}
+                  onClick={() => handleClassCardClick(cls)}
                 >
                   <div>
                     <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>

@@ -284,3 +284,4 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
 };
 
 export default TicketPrint; 
+ 
