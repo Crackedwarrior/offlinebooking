@@ -2,16 +2,17 @@
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
+import { useSettingsStore } from '@/store/settingsStore';
 
 const ShowSelector = () => {
   const { selectedShow, setSelectedShow, selectedDate, loadBookingForDate } = useBookingStore();
+  const { getShowTimes } = useSettingsStore();
 
-  const shows: Array<{ time: ShowTime; label: string; timing: string }> = [
-    { time: 'MORNING', label: 'Morning Show', timing: '10:00 AM' },
-    { time: 'MATINEE', label: 'Matinee Show', timing: '2:00 PM' },
-    { time: 'EVENING', label: 'Evening Show', timing: '6:00 PM' },
-    { time: 'NIGHT', label: 'Night Show', timing: '9:30 PM' },
-  ];
+  const shows = getShowTimes().map(show => ({
+    time: show.key as ShowTime,
+    label: show.label,
+    timing: `${show.startTime} - ${show.endTime}`
+  }));
 
   const handleShowSelect = (show: ShowTime) => {
     setSelectedShow(show);

@@ -20,22 +20,17 @@ interface TicketGroup {
 
 interface TicketPrintProps {
   selectedSeats: Seat[];
-  onUnfork?: (groupSeats: { id: string }[]) => void;
   onDelete?: (seatIds: string[]) => void;
-  decoupledSeatIds?: string[];
-  onRegroup?: (seatId: string) => void;
   onReset?: () => void;
-  selectedDate: string; // <-- add this
-  onBookingComplete?: () => void; // <-- add this
+  selectedDate: string;
+  onBookingComplete?: () => void;
 }
 
-// Helper: group seats by class and row, and split into ranges/commas
-function groupSeats(seats: Seat[], decoupledSeatIds: string[] = []): TicketGroup[] {
-  // Group by class and row, but treat decoupled seats as their own group
+// Simplified helper: group seats by class and row
+function groupSeats(seats: Seat[]): TicketGroup[] {
   const groups: Record<string, TicketGroup> = {};
   seats.forEach(seat => {
-    const isDecoupled = decoupledSeatIds.includes(seat.id);
-    const key = isDecoupled ? `${seat.classLabel}|${seat.row}|${seat.id}` : `${seat.classLabel}|${seat.row}`;
+    const key = `${seat.classLabel}|${seat.row}`;
     if (!groups[key]) {
       groups[key] = {
         classLabel: seat.classLabel,
@@ -81,7 +76,7 @@ const classColorMap: Record<string, string> = {
   'SECOND CLASS': 'bg-gray-300',
 };
 
-// Add saveBookingToBackend async function
+// Save booking to backend
 async function saveBookingToBackend(bookingData: any) {
   try {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -93,21 +88,25 @@ async function saveBookingToBackend(bookingData: any) {
     if (!res.ok) throw new Error('Booking save failed');
     const saved = await res.json();
     console.log('✅ Booking saved:', saved);
-    // Optionally show success toast or navigate to history
   } catch (err) {
     console.error('❌ Error saving booking:', err);
-    // Show error toast
   }
 }
 
-const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDelete, decoupledSeatIds = [], onRegroup, onReset, selectedDate, onBookingComplete }) => {
-  const groups = groupSeats(selectedSeats, decoupledSeatIds);
+const TicketPrint: React.FC<TicketPrintProps> = ({ 
+  selectedSeats, 
+  onDelete, 
+  onReset, 
+  selectedDate, 
+  onBookingComplete 
+}) => {
+  const groups = groupSeats(selectedSeats);
   const total = groups.reduce((sum, g) => sum + g.price, 0);
   const totalTickets = selectedSeats.length;
   const [selectedGroupIdxs, setSelectedGroupIdxs] = useState<number[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const selectedShow = useBookingStore(state => state.selectedShow); // Get the selected show
-  const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus); // Add this to update seat status
+  const selectedShow = useBookingStore(state => state.selectedShow);
+  const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
 
   const toggleGroupSelection = (idx: number) => {
     setSelectedGroupIdxs(prev =>
@@ -128,28 +127,33 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
 
   const handleConfirmPrint = async () => {
     setShowPrintModal(false);
-    // Save each group as a separate booking matching backend schema
+    
+    // Save each group as a separate booking
     const bookingsToSave = groups.map(g => ({
       date: selectedDate,
-      show: selectedShow.toUpperCase(), // Ensure enum matches backend
+      show: selectedShow.toUpperCase(),
       screen: 'Screen 1',
       movie: 'KALANK',
-      bookedSeats: g.seats.map(seatNum => `${g.row}${seatNum}`), // e.g., "B3"
+      bookedSeats: g.seats.map(seatNum => `${g.row}${seatNum}`),
       class: g.classLabel,
       pricePerSeat: Math.round(g.price / g.seats.length),
       totalPrice: g.price,
       source: 'LOCAL',
     }));
+    
     for (const booking of bookingsToSave) {
       console.log('Sending booking to backend:', booking);
       await saveBookingToBackend(booking);
     }
+    
     // Mark all selected seats as booked in the store
     selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
-    // Placeholder: replace with actual print logic
-    alert('Printing tickets...');
+    
+    // Show success message
+    alert('Tickets printed successfully!');
     setSelectedGroupIdxs([]);
-    // Notify parent to clear ticket panel
+    
+    // Notify parent to complete booking
     if (onBookingComplete) onBookingComplete();
   };
 
@@ -169,10 +173,10 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
           </button>
         )}
       </div>
+      
       {/* Scrollable ticket list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 max-h-80 px-2">
         {groups.map((g, idx) => {
-          const isDecoupled = g.seatIds.length === 1 && decoupledSeatIds.includes(g.seatIds[0]);
           const colorClass = classColorMap[g.classLabel] || 'bg-cyan-300';
           return (
             <div
@@ -180,40 +184,22 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
               className={`rounded-xl shadow-md px-5 py-3 mb-3 cursor-pointer relative transition border-2 flex flex-col justify-between ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-100' : 'border-transparent'} hover:shadow-lg`}
               onClick={() => toggleGroupSelection(idx)}
             >
-              {/* Top row: label left, fork icon then checkbox right */}
+              {/* Top row: label and checkbox */}
               <div className="flex items-center justify-between w-full">
                 <div className="font-bold text-base leading-tight">
                   {g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}
                 </div>
-                <div className="flex items-center gap-2 ml-1">
-                  {/* Decouple (unfork) icon for grouped tickets */}
-                  {onUnfork && g.seats.length > 1 && !isDecoupled && (
-                    <button
-                      className="text-blue-700 hover:text-blue-900 mt-1"
-                      title="Ungroup tickets"
-                      onClick={e => {
-                        e.stopPropagation();
-                        onUnfork(g.seatIds.map(id => ({ id })));
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 19V9" stroke="#3b82f6" strokeWidth="2.2" strokeLinecap="round"/>
-                        <path d="M12 9L7 5" stroke="#3b82f6" strokeWidth="2.2" strokeLinecap="round"/>
-                        <path d="M12 9L17 5" stroke="#3b82f6" strokeWidth="2.2" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  )}
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIdxs.includes(idx)}
-                    onChange={() => toggleGroupSelection(idx)}
-                    className="w-5 h-5 accent-blue-600 cursor-pointer rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
-                    style={{ marginTop: 2 }}
-                    onClick={e => e.stopPropagation()}
-                  />
-                </div>
+                <input
+                  type="checkbox"
+                  checked={selectedGroupIdxs.includes(idx)}
+                  onChange={() => toggleGroupSelection(idx)}
+                  className="w-5 h-5 accent-blue-600 cursor-pointer rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
+                  style={{ marginTop: 2 }}
+                  onClick={e => e.stopPropagation()}
+                />
               </div>
-              {/* Bottom row: price left, counter right */}
+              
+              {/* Bottom row: price and count */}
               <div className="flex items-end justify-between w-full mt-1">
                 <div className="text-sm font-medium">Price: <span className="font-bold">₹{g.price}</span></div>
                 <div className="text-xs font-semibold bg-white/70 rounded-full px-2 py-0.5 shadow-sm">{g.seats.length}</div>
@@ -224,6 +210,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
         {/* Add spacing below last ticket card */}
         <div className="mb-4"></div>
       </div>
+      
       {/* Sticky action bar at bottom */}
       <div className="sticky bottom-0 left-0 bg-white/90 pt-3 pb-2 z-10 px-4 rounded-b-2xl">
         <hr className="my-3 border-gray-100" />
@@ -237,7 +224,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
           </span>
         </div>
         <div className="flex justify-between items-center w-full mt-2 gap-2">
-          <button className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold px-5 py-2 rounded-lg shadow transition" onClick={handlePrint}>Print Tickets</button>
+          <button 
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold px-5 py-2 rounded-lg shadow transition" 
+            onClick={handlePrint}
+            disabled={totalTickets === 0}
+          >
+            Print Tickets
+          </button>
           <button
             className="bg-red-50 text-red-700 hover:bg-red-100 font-semibold px-5 py-2 rounded-lg border border-red-200 disabled:opacity-50 transition"
             disabled={selectedGroupIdxs.length === 0}
@@ -247,6 +240,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
           </button>
         </div>
       </div>
+      
       {/* Print confirmation modal */}
       {showPrintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
@@ -268,6 +262,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({ selectedSeats, onUnfork, onDe
           </div>
         </div>
       )}
+      
       {/* Hide the vertical scrollbar but keep scrolling */}
       <style>{`
         .scrollbar-thin::-webkit-scrollbar {

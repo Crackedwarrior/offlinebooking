@@ -4,31 +4,17 @@ import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
 import { formatSafeDate } from '../utils/formatDate';
+import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 
-const showOrder: { key: ShowTime; label: string }[] = [
-  { key: 'MORNING', label: 'Morning Show' },
-  { key: 'MATINEE', label: 'Matinee Show' },
-  { key: 'EVENING', label: 'Evening Show' },
-  { key: 'NIGHT', label: 'Evening Show' },
-];
+const showOrder: { key: ShowTime; label: string }[] = SHOW_TIMES.map(show => ({
+  key: show.enumValue,
+  label: show.label
+}));
 
-const classLabelMap: Record<string, string> = {
-  'BOX': 'BOX',
-  'STAR CLASS': 'STAR CLASS',
-  'CLASSIC': 'CLASSIC BALCONY',
-  'FIRST CLASS': 'FIRST CLASS',
-  'SECOND CLASS': 'SECOND CLASS',
-};
-
-// Helper to get seat price by row/class
-function getSeatPrice(row: string): number {
-  if (row.startsWith('BOX')) return 150;
-  if (row.startsWith('SC-')) return 150;
-  if (row.startsWith('CB-')) return 120;
-  if (row.startsWith('FC-')) return 70;
-  if (row.startsWith('SC2-')) return 50;
-  return 0;
-}
+const classLabelMap: Record<string, string> = SEAT_CLASSES.reduce((acc, cls) => {
+  acc[cls.label] = cls.label;
+  return acc;
+}, {} as Record<string, string>);
 
 const BookingHistory = () => {
   const { bookingHistory, seats, loadBookingForDate } = useBookingStore();

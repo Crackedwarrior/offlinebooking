@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, History, Download, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
+import { Calendar, Clock, History, Download, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Settings as SettingsIcon, Users } from 'lucide-react';
 import SeatGrid from '@/components/SeatGrid';
 import ShowSelector from '@/components/ShowSelector';
 import DateSelector from '@/components/DateSelector';
 import BookingHistory from '@/components/BookingHistory';
 import ReportPreview from '@/components/ReportPreview';
+import SeatStatusPanel from '@/components/SeatStatusPanel';
+import BookingConfirmation from '@/components/BookingConfirmation';
 import { useBookingStore } from '@/store/bookingStore';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -13,11 +15,16 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Checkout from './Checkout';
 import NotFound from './NotFound';
 import { getCurrentShowLabel } from '@/lib/utils';
+import { getSeatClassByRow } from '@/lib/config';
+import { useSettingsStore } from '@/store/settingsStore';
+import Settings from '@/components/Settings';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
+  { id: 'status', label: 'Seat Status', icon: Users },
   { id: 'history', label: 'Booking History', icon: History },
   { id: 'reports', label: 'Reports', icon: Download },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 const Index = () => {
@@ -27,8 +34,11 @@ const Index = () => {
   const [currentShow, setCurrentShow] = useState(getCurrentShowLabel());
   const [currentTime, setCurrentTime] = useState(new Date());
   const initializeSeats = useBookingStore((state) => state.initializeSeats);
+  const { getPriceForClass } = useSettingsStore();
   const [checkoutData, setCheckoutData] = useState(null);
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [bookingConfirmationData, setBookingConfirmationData] = useState(null);
 
   // Function to deselect seats
   const deselectSeats = (seatsToDeselect: any[]) => {
@@ -44,27 +54,9 @@ const Index = () => {
       );
       
       // Recalculate total amount
-      const classPrices: Record<string, number> = {
-        'BOX': 150,
-        'STAR CLASS': 150,
-        'CLASSIC': 120,
-        'FIRST CLASS': 70,
-        'SECOND CLASS': 50
-
-      };
-      
       const totalAmount = updatedSelectedSeats.reduce((total, seat) => {
-        // Find the class for this seat
-        const seatSegments = [
-          { label: 'BOX', rows: ['BOX-A', 'BOX-B', 'BOX-C', 'BOX-D'] },
-          { label: 'STAR CLASS', rows: ['STAR-A', 'STAR-B', 'STAR-C', 'STAR-D', 'STAR-E', 'STAR-F'] },
-          { label: 'CLASSIC', rows: ['CLASSIC-A', 'CLASSIC-B', 'CLASSIC-C', 'CLASSIC-D', 'CLASSIC-E', 'CLASSIC-F'] },
-          { label: 'FIRST CLASS', rows: ['FIRST-A', 'FIRST-B', 'FIRST-C', 'FIRST-D', 'FIRST-E', 'FIRST-F'] },
-          { label: 'SECOND CLASS', rows: ['SECOND-A', 'SECOND-B', 'SECOND-C', 'SECOND-D', 'SECOND-E', 'SECOND-F'] }
-        ];
-        
-        const segment = seatSegments.find(seg => seg.rows.includes(seat.row));
-        const price = segment ? classPrices[segment.label] : 0;
+        const seatClass = getSeatClassByRow(seat.row);
+        const price = seatClass ? getPriceForClass(seatClass.label) : 0;
         return total + price;
       }, 0);
       
@@ -110,6 +102,28 @@ const Index = () => {
         description: 'All seats have been reset to available status.',
       });
     }
+  };
+
+  // Handle booking completion
+  const handleBookingComplete = (bookingData: any) => {
+    setBookingConfirmationData(bookingData);
+    setShowConfirmation(true);
+    setActiveView('confirmation');
+  };
+
+  // Handle new booking
+  const handleNewBooking = () => {
+    setShowConfirmation(false);
+    setBookingConfirmationData(null);
+    setActiveView('booking');
+    initializeSeats();
+  };
+
+  // Handle back to booking
+  const handleBackToBooking = () => {
+    setShowConfirmation(false);
+    setBookingConfirmationData(null);
+    setActiveView('booking');
   };
 
   return (
@@ -175,10 +189,14 @@ const Index = () => {
               </Popover>
             ) : activeView === 'checkout' ? (
               <h2 className="text-xl font-semibold">Checkout</h2>
+            ) : activeView === 'confirmation' ? (
+              <h2 className="text-xl font-semibold">Booking Confirmation</h2>
             ) : (
               <h2 className="text-xl font-semibold">
+                {activeView === 'status' && 'Seat Status'}
                 {activeView === 'history' && 'Booking History'}
                 {activeView === 'reports' && 'Reports & Analytics'}
+                {activeView === 'settings' && 'Settings'}
               </h2>
             )}
             {activeView === 'booking' && (
@@ -191,10 +209,20 @@ const Index = () => {
                 {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabel()}
               </p>
             )}
+            {activeView === 'status' && (
+              <p className="text-gray-600 mt-1">
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow} Show
+              </p>
+            )}
+            {activeView === 'confirmation' && (
+              <p className="text-gray-600 mt-1">
+                Booking completed successfully
+              </p>
+            )}
           </div>
           <div className="flex items-center space-x-3">
             {/* Select Show Popover */}
-            {activeView === 'booking' && (
+            {(activeView === 'booking' || activeView === 'status') && (
               <Popover>
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none">
@@ -221,6 +249,18 @@ const Index = () => {
           {activeView === 'booking' && (
             <SeatGrid onProceed={(data) => { setCheckoutData(data); setActiveView('checkout'); }} />
           )}
+          {activeView === 'status' && (
+            <div className="p-6">
+              <SeatStatusPanel 
+                date={selectedDate} 
+                show={selectedShow} 
+                onRefresh={() => {
+                  // Refresh seat status
+                  initializeSeats();
+                }}
+              />
+            </div>
+          )}
           {activeView === 'history' && <BookingHistory />}
           {activeView === 'reports' && (
             <div className="text-center py-12">
@@ -229,7 +269,29 @@ const Index = () => {
               <p className="text-gray-500">Detailed analytics and reporting features coming soon</p>
             </div>
           )}
-          {activeView === 'checkout' && <Checkout />}
+          {activeView === 'settings' && <Settings />}
+          {activeView === 'checkout' && (
+            <Checkout onBookingComplete={handleBookingComplete} />
+          )}
+          {activeView === 'confirmation' && bookingConfirmationData && (
+            <BookingConfirmation
+              bookingId={bookingConfirmationData.bookingId || 'BK' + Date.now()}
+              bookingData={bookingConfirmationData}
+              onPrint={() => {
+                // Handle print functionality
+                window.print();
+              }}
+              onDownload={() => {
+                // Handle download functionality
+                toast({
+                  title: 'Download Started',
+                  description: 'PDF download will begin shortly.',
+                });
+              }}
+              onNewBooking={handleNewBooking}
+              onBack={handleBackToBooking}
+            />
+          )}
         </div>
       </div>
     </div>

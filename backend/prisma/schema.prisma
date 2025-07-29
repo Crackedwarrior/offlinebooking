@@ -13,6 +13,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums
 enum Show {
   MORNING
   MATINEE
@@ -20,22 +21,144 @@ enum Show {
   NIGHT
 }
 
-model Booking {
-  id           String   @id @default(uuid())
-  date         DateTime
-  show         Show     // Use enum for show
-  screen       String
-  movie        String
-  bookedSeats  Json     // seat numbers like ["A1", "A2"]
-  class        String   // e.g., "BOX"
-  pricePerSeat Int
-  totalPrice   Int
-  bookedAt     DateTime @default(now())
-  synced       Boolean  @default(false)
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  PENDING
+  REFUNDED
+}
 
-  totalIncome  Int?     @default(0)
-  localIncome  Int?     @default(0)
-  bmsIncome    Int?     @default(0)
-  vipIncome    Int?     @default(0)
+enum BookingSource {
+  LOCAL
+  BMS
+  VIP
+  ONLINE
+}
+
+enum SeatStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+  BMS_BOOKED
+  SELECTED
+}
+
+// Models
+model Booking {
+  id            String        @id @default(uuid())
+  date          DateTime
+  show          Show
+  screen        String
+  movie         String
+  movieLanguage String        @default("HINDI")
+  
+  // Seat information
+  bookedSeats   Json          // Array of seat IDs like ["A1", "A2", "B3"]
+  seatCount     Int           // Number of seats booked
+  classLabel    String        // e.g., "BOX", "STAR CLASS"
+  
+  // Pricing
+  pricePerSeat  Int
+  totalPrice    Int
+  
+  // Booking metadata
+  status        BookingStatus @default(CONFIRMED)
+  source        BookingSource @default(LOCAL)
+  synced        Boolean       @default(false)
+  
+  // Timestamps
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  bookedAt      DateTime      @default(now())
+  
+  // Optional fields for future use
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  notes         String?
+  
+  // Income tracking (for future use)
+  totalIncome   Int?          @default(0)
+  localIncome   Int?          @default(0)
+  bmsIncome     Int?          @default(0)
+  vipIncome     Int?          @default(0)
+  
+  // Relations
+  seats Seat[]
+  
+  // Indexes for better performance
+  @@index([date, show])
+  @@index([status])
+  @@index([source])
+  @@index([classLabel])
+  @@index([createdAt])
+}
+
+// Seat tracking model for real-time seat status
+model Seat {
+  id        String     @id @default(uuid())
+  seatId    String     @unique // e.g., "A1", "B3"
+  row       String     // e.g., "A", "B"
+  number    Int        // e.g., 1, 3
+  classLabel String    // e.g., "BOX", "STAR CLASS"
+  status    SeatStatus @default(AVAILABLE)
+  
+  // Booking reference (if booked)
+  bookingId String?
+  booking   Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  // Indexes
+  @@index([seatId])
+  @@index([row, number])
+  @@index([classLabel])
+  @@index([bookingId])
+}
+
+// Movie configuration model
+model Movie {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  language    String   @default("HINDI")
+  screen      String   @default("Screen 1")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Indexes
+  @@index([name])
+  @@index([isActive])
+}
+
+// Show configuration model
+model ShowConfig {
+  id        String   @id @default(uuid())
+  show      Show     @unique
+  startTime String   // e.g., "10:00"
+  endTime   String   // e.g., "12:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Indexes
+  @@index([show])
+  @@index([isActive])
+}
+
+// Pricing configuration model
+model PricingConfig {
+  id         String   @id @default(uuid())
+  classLabel String   @unique // e.g., "BOX", "STAR CLASS"
+  price      Int
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Indexes
+  @@index([classLabel])
+  @@index([isActive])
 }
 
