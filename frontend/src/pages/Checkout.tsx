@@ -85,10 +85,10 @@ function getCurrentShowKey() {
     return showTimes[0]?.key || 'EVENING';
   } catch {
     // Fallback to static configuration
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
     
     if (totalMinutes >= 600 && totalMinutes < 720) return 'MORNING';
     if (totalMinutes >= 840 && totalMinutes < 1020) return 'MATINEE';
@@ -217,40 +217,124 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     return [];
   }
 
-  // Handler for class card click - select contiguous seats
+  // Helper function to find contiguous block starting from seat 1
+  const findContiguousBlock = (rowSeats: any[], count: number) => {
+    console.log(`findContiguousBlock: looking for ${count} seats in`, rowSeats.map(s => `${s.row}${s.number}`));
+    
+    if (rowSeats.length < count) {
+      console.log(`findContiguousBlock: not enough seats (${rowSeats.length} < ${count})`);
+      return null;
+    }
+    
+    const candidate = rowSeats.slice(0, count);
+    console.log(`findContiguousBlock: candidate seats:`, candidate.map(s => `${s.row}${s.number}`));
+    
+    const isContiguous = candidate.every((s: any, j: number, arr: any[]) => {
+      if (j === 0) return true;
+      const isConsecutive = s.number === arr[j - 1].number + 1;
+      console.log(`findContiguousBlock: checking ${s.row}${s.number} vs ${arr[j-1].row}${arr[j-1].number}: ${isConsecutive}`);
+      return isConsecutive;
+    });
+    
+    console.log(`findContiguousBlock: isContiguous = ${isContiguous}`);
+    return isContiguous ? candidate : null;
+  };
+
+  // Handler for class card click - select contiguous seats with grow-or-relocate logic
   const handleClassCardClick = (cls: any) => {
-    setSelectedCount(prev => {
-      const classKey = cls.key || cls.label;
-      const currentCount = prev[classKey] || 0;
-      const newCount = currentCount + 1;
+    const classKey = cls.key || cls.label;
+    
+    // Get currently selected seats in this class
+    const previouslySelected = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'selected');
+    const currentCount = previouslySelected.length;
+    const newCount = currentCount + 1;
+    
+    console.log(`Class card clicked: ${classKey}, current count: ${currentCount}, new count: ${newCount}`);
+    console.log('Previously selected seats:', previouslySelected.map(s => s.id));
+    
+    // CASE 1: Nothing selected yet — start with first block
+    if (previouslySelected.length === 0) {
+      console.log('Case 1: Starting fresh');
       
-      // First, deselect any existing seats in this class
-      const alreadySelected = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'selected');
-      alreadySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
-      
-      // Try to find N contiguous seats across all rows in this class
+      // Try to find N contiguous seats starting from seat 1 in each row
       for (const row of cls.rows) {
-        const rowSeats = seats
-          .filter(seat => seat.row === row && seat.status === 'available')
+        console.log(`Checking row: ${row}`);
+        
+        const allSeatsInRow = seats.filter(seat => seat.row === row);
+        const rowSeats = allSeatsInRow
+          .filter(seat => seat.status === 'available')
           .sort((a, b) => a.number - b.number);
         
-        // Check if this row has enough seats
-        if (rowSeats.length >= newCount) {
-          // Always start from the first available seat (seat 1) in this row
-          const candidate = rowSeats.slice(0, newCount);
-          const isContiguous = candidate.every((s: any, j: number, arr: any[]) => j === 0 || s.number === arr[j - 1].number + 1);
-          
-          if (isContiguous) {
-            // Select the contiguous block starting from seat 1
-            candidate.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
-            return { ...prev, [classKey]: newCount };
-          }
+        console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
+        
+        const block = findContiguousBlock(rowSeats, newCount);
+        if (block) {
+          console.log(`Found initial block:`, block.map(s => s.id));
+          block.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
+          setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
+          return;
         }
       }
       
-      // If no suitable block found in any row, reset to 0
-      return { ...prev, [classKey]: 0 };
-    });
+      // No block found, reset to 0
+      setSelectedCount(prev => ({ ...prev, [classKey]: 0 }));
+      return;
+    }
+    
+    // CASE 2: Try growing the existing block in the same row
+    const currentRow = previouslySelected[0].row;
+    console.log(`Case 2: Trying to grow in row ${currentRow}`);
+    
+    const allSeatsInCurrentRow = seats.filter(seat => seat.row === currentRow);
+    const allSeatsInCurrentRowSorted = allSeatsInCurrentRow.sort((a, b) => a.number - b.number);
+    
+    console.log(`All seats in current row:`, allSeatsInCurrentRowSorted.map(s => `${s.row}${s.number} (${s.status})`));
+    
+    // Try to find a larger contiguous block starting from seat 1 in the current row
+    const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount);
+    if (grownBlock) {
+      console.log(`Found grown block in same row:`, grownBlock.map(s => s.id));
+      
+      // Deselect current seats and select the grown block
+      previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
+      grownBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
+      setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
+      return;
+    }
+    
+    // CASE 3: Cannot grow in same row — find new block in next available row
+    console.log('Case 3: Looking for new block in next row');
+    
+    // Find the next row after current row
+    const currentRowIndex = cls.rows.indexOf(currentRow);
+    const nextRows = cls.rows.slice(currentRowIndex + 1);
+    
+    for (const row of nextRows) {
+      console.log(`Checking next row: ${row}`);
+      
+      const allSeatsInRow = seats.filter(seat => seat.row === row);
+      const rowSeats = allSeatsInRow
+        .filter(seat => seat.status === 'available')
+        .sort((a, b) => a.number - b.number);
+      
+      console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
+      
+      const newBlock = findContiguousBlock(rowSeats, newCount);
+      if (newBlock) {
+        console.log(`Found new block in ${row}:`, newBlock.map(s => s.id));
+        
+        // Deselect current seats and select the new block
+        previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
+        newBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
+        setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
+        return;
+      }
+    }
+    
+    // CASE 4: No valid block found anywhere — reset to 0
+    console.log('Case 4: No valid block found, resetting to 0');
+    previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
+    setSelectedCount(prev => ({ ...prev, [classKey]: 0 }));
   };
 
   const movieName = 'KALANK';

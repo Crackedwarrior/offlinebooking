@@ -199,19 +199,35 @@ const SeatGrid = ({ onProceed }: SeatGridProps) => {
         </div>
       </div>
 
+
+
       {/* Fixed Bottom Panel */}
       <div className={
-        `fixed bottom-0 z-50 bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
+        `fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
         ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
         left-0 w-full md:left-auto md:w-auto`
-      }>
-        <button
-          className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all ${selectedSeats.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-          onClick={() => selectedSeats.length > 0 && onProceed && onProceed({ selectedSeats, totalAmount, seats })}
-          disabled={selectedSeats.length === 0}
+      } style={{ zIndex: 9999, position: 'fixed', bottom: 0 }}>
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
+          style={{ 
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            zIndex: 9999
+          }}
+          onClick={() => {
+            console.log('Proceed button clicked!');
+            console.log('onProceed function:', onProceed);
+            console.log('selectedSeats:', selectedSeats);
+            if (onProceed) {
+              onProceed({ selectedSeats, totalAmount, seats });
+            }
+          }}
         >
           Proceed to Checkout
-        </button>
+        </Button>
         <div className="flex flex-row items-center gap-4 ml-4">
           <span className="font-medium text-gray-700">Selected: {selectedSeats.length} seats</span>
           <span className="font-medium text-gray-700">Total: ₹{totalAmount}</span>
