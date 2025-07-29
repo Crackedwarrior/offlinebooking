@@ -110,6 +110,8 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
   const showDropdownRef = useRef<HTMLDivElement>(null);
   // Add state for dynamic seat selection count per class
   const [selectedCount, setSelectedCount] = useState<Record<string, number>>({});
+  // Add state for decoupled seat IDs
+  const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -159,6 +161,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
   // Simplified handlers
   const handleDeleteTickets = (seatIds: string[]) => {
     seatIds.forEach(id => toggleSeatStatus(id, 'available'));
+    // Remove from decoupled list if present
+    setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
+  };
+
+  const handleDecoupleTickets = (seatIds: string[]) => {
+    // Add these seat IDs to the decoupled list
+    setDecoupledSeatIds(prev => [...prev, ...seatIds]);
   };
 
   const handleConfirmBooking = () => {
@@ -217,16 +226,16 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     return [];
   }
 
-  // Helper function to find contiguous block starting from seat 1
-  const findContiguousBlock = (rowSeats: any[], count: number) => {
-    console.log(`findContiguousBlock: looking for ${count} seats in`, rowSeats.map(s => `${s.row}${s.number}`));
+  // Helper function to find contiguous block starting from a specific position
+  const findContiguousBlock = (rowSeats: any[], count: number, startFromIndex: number = 0) => {
+    console.log(`findContiguousBlock: looking for ${count} seats starting from index ${startFromIndex} in`, rowSeats.map(s => `${s.row}${s.number}`));
     
-    if (rowSeats.length < count) {
-      console.log(`findContiguousBlock: not enough seats (${rowSeats.length} < ${count})`);
+    if (rowSeats.length < count + startFromIndex) {
+      console.log(`findContiguousBlock: not enough seats (${rowSeats.length} < ${count + startFromIndex})`);
       return null;
     }
     
-    const candidate = rowSeats.slice(0, count);
+    const candidate = rowSeats.slice(startFromIndex, startFromIndex + count);
     console.log(`findContiguousBlock: candidate seats:`, candidate.map(s => `${s.row}${s.number}`));
     
     const isContiguous = candidate.every((s: any, j: number, arr: any[]) => {
@@ -252,11 +261,28 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     console.log(`Class card clicked: ${classKey}, current count: ${currentCount}, new count: ${newCount}`);
     console.log('Previously selected seats:', previouslySelected.map(s => s.id));
     
-    // CASE 1: Nothing selected yet — start with first block
+    // CASE 1: Nothing selected yet — find next available block after last booking
     if (previouslySelected.length === 0) {
-      console.log('Case 1: Starting fresh');
+      console.log('Case 1: Starting fresh - looking for next available block');
       
-      // Try to find N contiguous seats starting from seat 1 in each row
+      // Find the last booked seat in this class to know where to start
+      const allSeatsInClass = seats.filter(seat => cls.rows.includes(seat.row));
+      const bookedSeatsInClass = allSeatsInClass.filter(seat => seat.status === 'booked');
+      
+      let lastBookedSeatNumber = 0;
+      let lastBookedRow = cls.rows[0];
+      
+      if (bookedSeatsInClass.length > 0) {
+        // Find the highest seat number among booked seats
+        const highestBooked = bookedSeatsInClass.reduce((max, seat) => 
+          seat.number > max.number ? seat : max
+        );
+        lastBookedSeatNumber = highestBooked.number;
+        lastBookedRow = highestBooked.row;
+        console.log(`Last booked seat: ${lastBookedRow}${lastBookedSeatNumber}`);
+      }
+      
+      // Try to find N contiguous seats starting after the last booked seat
       for (const row of cls.rows) {
         console.log(`Checking row: ${row}`);
         
@@ -267,9 +293,25 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
         
         console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
         
-        const block = findContiguousBlock(rowSeats, newCount);
+        let startIndex = 0;
+        
+        // If this is the same row as the last booking, start after the last booked seat
+        if (row === lastBookedRow && lastBookedSeatNumber > 0) {
+          // Find the first available seat that comes after the last booked seat
+          const nextAvailableSeat = rowSeats.find(seat => seat.number > lastBookedSeatNumber);
+          if (nextAvailableSeat) {
+            startIndex = rowSeats.indexOf(nextAvailableSeat);
+            console.log(`Starting from index ${startIndex} (seat ${nextAvailableSeat.row}${nextAvailableSeat.number} after ${lastBookedSeatNumber})`);
+          } else {
+            // No seats available after last booking in this row
+            console.log(`No seats available after ${lastBookedSeatNumber} in row ${row}`);
+            continue; // Try next row
+          }
+        }
+        
+        const block = findContiguousBlock(rowSeats, newCount, startIndex);
         if (block) {
-          console.log(`Found initial block:`, block.map(s => s.id));
+          console.log(`Found next available block:`, block.map(s => s.id));
           block.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
           setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
           return;
@@ -290,8 +332,19 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     
     console.log(`All seats in current row:`, allSeatsInCurrentRowSorted.map(s => `${s.row}${s.number} (${s.status})`));
     
-    // Try to find a larger contiguous block starting from seat 1 in the current row
-    const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount);
+    // Find the lowest and highest seat numbers among currently selected seats
+    const lowestSelectedSeat = previouslySelected.reduce((min, seat) => 
+      seat.number < min.number ? seat : min
+    );
+    const highestSelectedSeat = previouslySelected.reduce((max, seat) => 
+      seat.number > max.number ? seat : max
+    );
+    console.log(`Selected range: ${lowestSelectedSeat.row}${lowestSelectedSeat.number} to ${highestSelectedSeat.row}${highestSelectedSeat.number}`);
+    
+    // Try to find a larger contiguous block that includes the current selection
+    // We need to find a block of 'newCount' seats that starts from the lowest selected seat
+    const startIndex = allSeatsInCurrentRowSorted.findIndex(seat => seat.number === lowestSelectedSeat.number);
+    const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount, startIndex);
     if (grownBlock) {
       console.log(`Found grown block in same row:`, grownBlock.map(s => s.id));
       
@@ -436,8 +489,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
         <TicketPrint
           selectedSeats={ticketSeats}
           onDelete={handleDeleteTickets}
+          onDecouple={handleDecoupleTickets}
+          decoupledSeatIds={decoupledSeatIds}
           onReset={() => {
             selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'available'));
+            setDecoupledSeatIds([]);
           }}
           selectedDate={selectedDate}
           onBookingComplete={handleBookingComplete}

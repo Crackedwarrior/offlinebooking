@@ -6,7 +6,7 @@ import DateSelector from '@/components/DateSelector';
 import BookingHistory from '@/components/BookingHistory';
 import ReportPreview from '@/components/ReportPreview';
 import SeatStatusPanel from '@/components/SeatStatusPanel';
-import BookingConfirmation from '@/components/BookingConfirmation';
+
 import { useBookingStore } from '@/store/bookingStore';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -37,8 +37,6 @@ const Index = () => {
   const { getPriceForClass } = useSettingsStore();
   const [checkoutData, setCheckoutData] = useState(null);
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [bookingConfirmationData, setBookingConfirmationData] = useState(null);
 
   // Function to deselect seats
   const deselectSeats = (seatsToDeselect: any[]) => {
@@ -106,25 +104,18 @@ const Index = () => {
 
   // Handle booking completion
   const handleBookingComplete = (bookingData: any) => {
-    setBookingConfirmationData(bookingData);
-    setShowConfirmation(true);
-    setActiveView('confirmation');
+    // Show success toast instead of confirmation page
+    toast({
+      title: '✅ Tickets Printed Successfully!',
+      description: `${bookingData.totalTickets} ticket(s) have been printed and saved.`,
+      duration: 3000,
+    });
+    
+    // Stay on checkout page - no page switch
+    // User can manually navigate back when ready
   };
 
-  // Handle new booking
-  const handleNewBooking = () => {
-    setShowConfirmation(false);
-    setBookingConfirmationData(null);
-    setActiveView('booking');
-    initializeSeats();
-  };
 
-  // Handle back to booking
-  const handleBackToBooking = () => {
-    setShowConfirmation(false);
-    setBookingConfirmationData(null);
-    setActiveView('booking');
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -214,11 +205,7 @@ const Index = () => {
                 {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow} Show
               </p>
             )}
-            {activeView === 'confirmation' && (
-              <p className="text-gray-600 mt-1">
-                Booking completed successfully
-              </p>
-            )}
+
           </div>
           <div className="flex items-center space-x-3">
             {/* Select Show Popover */}
@@ -273,25 +260,7 @@ const Index = () => {
           {activeView === 'checkout' && (
             <Checkout onBookingComplete={handleBookingComplete} />
           )}
-          {activeView === 'confirmation' && bookingConfirmationData && (
-            <BookingConfirmation
-              bookingId={bookingConfirmationData.bookingId || 'BK' + Date.now()}
-              bookingData={bookingConfirmationData}
-              onPrint={() => {
-                // Handle print functionality
-                window.print();
-              }}
-              onDownload={() => {
-                // Handle download functionality
-                toast({
-                  title: 'Download Started',
-                  description: 'PDF download will begin shortly.',
-                });
-              }}
-              onNewBooking={handleNewBooking}
-              onBack={handleBackToBooking}
-            />
-          )}
+
         </div>
       </div>
     </div>
