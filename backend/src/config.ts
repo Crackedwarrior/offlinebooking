@@ -19,15 +19,15 @@ const envSchema = z.object({
   
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
-  ENABLE_REQUEST_LOGGING: z.string().transform(val => val === 'true').default('true'),
+  ENABLE_REQUEST_LOGGING: z.string().transform((val: string) => val === 'true').default('true'),
   
   // Security
   JWT_SECRET: z.string().default('dev-secret-key-change-in-production'),
   BCRYPT_ROUNDS: z.string().transform(Number).default('10'),
   
   // Feature Flags
-  ENABLE_SYNC_FEATURE: z.string().transform(val => val === 'true').default('false'),
-  ENABLE_ANALYTICS: z.string().transform(val => val === 'true').default('false'),
+  ENABLE_SYNC_FEATURE: z.string().transform((val: string) => val === 'true').default('false'),
+  ENABLE_ANALYTICS: z.string().transform((val: string) => val === 'true').default('false'),
   
   // External Services (optional)
   BMS_API_URL: z.string().optional(),

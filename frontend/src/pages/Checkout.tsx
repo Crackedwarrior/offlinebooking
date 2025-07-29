@@ -19,6 +19,15 @@ const CLASS_INFO = SEAT_CLASSES.map(cls => ({
 }));
 
 // Dynamic show details from settings
+// Helper function to convert 24-hour format to 12-hour format for display
+const convertTo12Hour = (time24h: string): string => {
+  const [hours, minutes] = time24h.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+
 const getShowDetails = () => {
   try {
     const { useSettingsStore } = require('@/store/settingsStore');
@@ -28,7 +37,7 @@ const getShowDetails = () => {
     return showTimes.reduce((acc, show) => {
       acc[show.key] = { 
         label: show.label, 
-        timing: `${show.startTime} - ${show.endTime}`, 
+        timing: `${convertTo12Hour(show.startTime)} - ${convertTo12Hour(show.endTime)}`, 
         price: 150 // All shows have same base price
       };
       return acc;
@@ -45,9 +54,6 @@ const getShowDetails = () => {
     }, {} as Record<string, { label: string; timing: string; price: number }>);
   }
 };
-
-const SHOW_DETAILS = getShowDetails();
-const showOptions = Object.keys(SHOW_DETAILS);
 
 function getCurrentShowKey() {
   try {
@@ -113,6 +119,10 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
   // Add state for decoupled seat IDs
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
 
+  // Get reactive show details
+  const SHOW_DETAILS = getShowDetails();
+  const showOptions = Object.keys(SHOW_DETAILS);
+
   // Handle outside click to close dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -130,6 +140,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
 
   // Handler for show selection
   const handleShowSelect = (showKey: string) => {
+    console.log('Show selection changed:', showKey.toUpperCase());
     setSelectedShow(showKey.toUpperCase() as ShowTime);
     loadBookingForDate(selectedDate, showKey.toUpperCase() as ShowTime);
     setShowDropdownOpen(false);
@@ -405,7 +416,8 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
               ref={showDropdownRef}
             >
               <span className="font-bold text-lg mb-1 inline whitespace-nowrap">{`${movie.name} (${movie.language})`}</span>
-              <span className="text-sm mb-2 whitespace-nowrap mt-1">{SHOW_DETAILS[selectedShow]?.timing || ''}</span>
+              <span className="text-sm font-semibold text-blue-600 mb-1">{SHOW_DETAILS[selectedShow]?.label || selectedShow}</span>
+              <span className="text-sm mb-2 whitespace-nowrap">{SHOW_DETAILS[selectedShow]?.timing || ''}</span>
               <span className="absolute right-3 bottom-2 text-base font-semibold">{(() => {
                 const totalSeats = seats.length;
                 const bookedSeats = seats.filter(seat => seat.status === 'booked').length;
@@ -418,7 +430,10 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
                     <div
                       key={showKey}
                       className={`p-3 rounded-lg cursor-pointer flex flex-col border transition-all ${selectedShow === showKey ? 'bg-blue-100 border-blue-400' : 'hover:bg-gray-100 border-transparent'}`}
-                      onClick={() => handleShowSelect(showKey)}
+                      onClick={() => {
+                        console.log('Dropdown clicked:', showKey);
+                        handleShowSelect(showKey);
+                      }}
                     >
                       <span className="font-bold text-base">{SHOW_DETAILS[showKey].label}</span>
                       <span className="text-xs text-gray-600">{SHOW_DETAILS[showKey].timing}</span>

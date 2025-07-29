@@ -99,7 +99,8 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
           screen,
           movie,
           bookedSeats: classTickets.map((t: any) => t.id),
-          class: classLabel, // Use 'class' field from current schema
+          classLabel: classLabel, // Use 'classLabel' field from current schema
+          seatCount: classTickets.length,
           pricePerSeat,
           totalPrice: classTotal,
           synced: false,
@@ -116,7 +117,7 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
         movieLanguage: 'HINDI', // Default value
         bookedSeats: newBooking.bookedSeats as string[],
         seatCount: classTickets.length,
-        classLabel: newBooking.class,
+        classLabel: newBooking.classLabel,
         pricePerSeat: newBooking.pricePerSeat,
         totalPrice: newBooking.totalPrice,
         status: 'CONFIRMED',
@@ -172,7 +173,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     movieLanguage: 'HINDI',
     bookedSeats: booking.bookedSeats as string[],
     seatCount: (booking.bookedSeats as string[]).length,
-    classLabel: booking.class,
+            classLabel: booking.classLabel,
     pricePerSeat: booking.pricePerSeat,
     totalPrice: booking.totalPrice,
     status: 'CONFIRMED',
@@ -225,7 +226,7 @@ app.get('/api/bookings/stats', asyncHandler(async (req: Request, res: Response) 
       _sum: { totalPrice: true }
     }),
     prisma.booking.groupBy({
-      by: ['class'],
+      by: ['classLabel'],
       where,
       _count: { id: true },
       _sum: { totalPrice: true }
@@ -238,7 +239,7 @@ app.get('/api/bookings/stats', asyncHandler(async (req: Request, res: Response) 
       totalBookings,
       totalRevenue: totalRevenue._sum.totalPrice || 0,
       bookingsByClass: bookingsByClass.map(item => ({
-        class: item.class,
+        class: item.classLabel,
         count: item._count.id,
         revenue: item._sum.totalPrice || 0
       }))
@@ -264,7 +265,7 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     },
     select: {
       bookedSeats: true,
-      class: true
+      classLabel: true
     }
   });
   
@@ -272,7 +273,7 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
   const bookedSeats = bookings.flatMap(booking => 
     (booking.bookedSeats as string[]).map(seatId => ({
       seatId,
-      class: booking.class
+      class: booking.classLabel
     }))
   );
   

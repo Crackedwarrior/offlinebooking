@@ -160,30 +160,39 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const handleConfirmPrint = async () => {
     setShowPrintModal(false);
     
-    // Save each group as a separate booking
-    const bookingsToSave = groups.map(g => ({
-      date: selectedDate,
+    // Prepare tickets array for the backend
+    const tickets = selectedSeats.map(seat => ({
+      id: seat.id,
+      classLabel: seat.classLabel,
+      price: seat.price,
+    }));
+    
+    // Calculate totals
+    const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+    const totalTickets = selectedSeats.length;
+    
+    // Prepare booking data in the correct format
+    const bookingData = {
+      tickets: tickets,
+      total: total,
+      totalTickets: totalTickets,
+      timestamp: new Date().toISOString(),
       show: selectedShow.toUpperCase(),
       screen: 'Screen 1',
       movie: 'KALANK',
-      bookedSeats: g.seats.map(seatNum => `${g.row}${seatNum}`),
-      class: g.classLabel,
-      pricePerSeat: Math.round(g.price / g.seats.length),
-      totalPrice: g.price,
-      source: 'LOCAL',
-    }));
+      date: selectedDate,
+      source: 'LOCAL'
+    };
     
-    for (const booking of bookingsToSave) {
-      console.log('Sending booking to backend:', booking);
-      await saveBookingToBackend(booking);
-    }
+    console.log('Sending booking to backend:', bookingData);
+    await saveBookingToBackend(bookingData);
     
     // Mark all selected seats as booked in the store
     selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
     
     // Show success message
     toast({
-      title: '✅ Tickets Printed Successfully!',
+      title: 'Tickets Printed Successfully!',
       description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
       duration: 4000,
     });

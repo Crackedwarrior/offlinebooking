@@ -18,6 +18,7 @@ import { getCurrentShowLabel } from '@/lib/utils';
 import { getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import Settings from '@/components/Settings';
+import { createBooking } from '@/services/api';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
@@ -29,7 +30,7 @@ const sidebarItems = [
 
 const Index = () => {
   const [activeView, setActiveView] = useState('booking');
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { selectedDate, selectedShow } = useBookingStore();
   const [currentShow, setCurrentShow] = useState(getCurrentShowLabel());
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -103,13 +104,43 @@ const Index = () => {
   };
 
   // Handle booking completion
-  const handleBookingComplete = (bookingData: any) => {
-    // Show success toast instead of confirmation page
-    toast({
-      title: '✅ Tickets Printed Successfully!',
-      description: `${bookingData.totalTickets} ticket(s) have been printed and saved.`,
-      duration: 3000,
-    });
+  const handleBookingComplete = async (bookingData: any) => {
+    try {
+      // Save booking to database via API
+      const response = await createBooking({
+        tickets: bookingData.seats,
+        total: bookingData.totalAmount,
+        totalTickets: bookingData.totalTickets,
+        timestamp: bookingData.timestamp,
+        show: bookingData.show,
+        screen: bookingData.screen,
+        movie: bookingData.movie,
+        date: bookingData.date,
+        source: 'LOCAL'
+      });
+
+      if (response.success) {
+        // Show success toast
+        toast({
+          title: 'Tickets Printed Successfully!',
+          description: `${bookingData.totalTickets} ticket(s) have been printed and saved to database.`,
+          duration: 3000,
+        });
+        
+        // Note: BookingHistory will automatically refetch data when the date changes
+        // or when the user navigates to the history page
+      } else {
+        throw new Error(response.error?.message || 'Failed to save booking');
+      }
+    } catch (error) {
+      console.error('Error saving booking:', error);
+      toast({
+        title: 'Error Saving Booking',
+        description: 'Failed to save booking to database. Please try again.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    }
     
     // Stay on checkout page - no page switch
     // User can manually navigate back when ready
