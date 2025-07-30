@@ -152,9 +152,28 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
   const queryParams: BookingQueryParams = req.query as any;
   const { date, show, status } = queryParams;
   
+  console.log('🔍 GET /api/bookings called with params:', { date, show, status });
+  
   // Build filter conditions
   const where: any = {};
-  if (date) where.date = new Date(date);
+  if (date) {
+    // Parse the date and create a range that covers the entire day
+    // Use UTC to avoid timezone issues
+    const dateObj = new Date(date + 'T00:00:00.000Z');
+    const startOfDay = new Date(dateObj);
+    const endOfDay = new Date(dateObj);
+    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+    
+    where.date = {
+      gte: startOfDay,
+      lt: endOfDay
+    };
+    console.log('📅 Date filter:', { 
+      inputDate: date, 
+      startOfDay: startOfDay.toISOString(), 
+      endOfDay: endOfDay.toISOString() 
+    });
+  }
   if (show) where.show = show;
   if (status) where.status = status;
   
@@ -162,6 +181,9 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     where,
     orderBy: { bookedAt: 'desc' },
   });
+  
+  console.log('📊 Found bookings:', bookings.length);
+  console.log('📊 Where clause:', JSON.stringify(where, null, 2));
   
   // Transform to API response format
   const bookingData: BookingData[] = bookings.map(booking => ({
@@ -193,6 +215,12 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     data: bookingData,
   };
   
+  console.log('📤 Sending response:', {
+    success: response.success,
+    dataLength: response.data.length,
+    sampleBooking: response.data[0]
+  });
+  
   res.json(response);
 }));
 
@@ -216,7 +244,19 @@ app.get('/api/bookings/stats', asyncHandler(async (req: Request, res: Response) 
   const { date, show } = req.query;
   
   const where: any = {};
-  if (date) where.date = new Date(date as string);
+  if (date) {
+    // Parse the date and create a range that covers the entire day
+    // Use UTC to avoid timezone issues
+    const dateObj = new Date(date as string + 'T00:00:00.000Z');
+    const startOfDay = new Date(dateObj);
+    const endOfDay = new Date(dateObj);
+    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+    
+    where.date = {
+      gte: startOfDay,
+      lt: endOfDay
+    };
+  }
   if (show) where.show = show;
   
   const [totalBookings, totalRevenue, bookingsByClass] = await Promise.all([
@@ -258,11 +298,25 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     throw new ValidationError('Date and show are required');
   }
   
+  // Build filter conditions with date range
+  const where: any = {};
+  if (date) {
+    // Parse the date and create a range that covers the entire day
+    // Use UTC to avoid timezone issues
+    const dateObj = new Date(date + 'T00:00:00.000Z');
+    const startOfDay = new Date(dateObj);
+    const endOfDay = new Date(dateObj);
+    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+    
+    where.date = {
+      gte: startOfDay,
+      lt: endOfDay
+    };
+  }
+  if (show) where.show = show;
+  
   const bookings = await prisma.booking.findMany({
-    where: {
-      date: new Date(date),
-      show: show as any
-    },
+    where,
     select: {
       bookedSeats: true,
       classLabel: true
@@ -276,6 +330,14 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
       class: booking.classLabel
     }))
   );
+  
+  console.log('📊 Seat status response:', {
+    date,
+    show,
+    bookingsFound: bookings.length,
+    totalBookedSeats: bookedSeats.length,
+    sampleBookedSeats: bookedSeats.slice(0, 5)
+  });
   
   const response: SeatStatusResponse = {
     success: true,

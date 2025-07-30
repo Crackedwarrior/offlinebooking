@@ -73,10 +73,10 @@ class ApiService {
           throw new Error(data.error.message || 'API request failed');
         }
 
-        return { data, success: true };
+        return data as ApiResponse<T>;
       } catch (error) {
         logError(error as Error, `API Request: ${endpoint}`);
-        handleNetworkError(error);
+        throw handleNetworkError(error);
       }
     });
   }

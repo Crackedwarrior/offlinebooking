@@ -5,6 +5,8 @@ import { seatsByRow } from '@/lib/seatMatrix';
 import { RotateCcw } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
+import { getSeatStatus } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 export const seatSegments = SEAT_CLASSES.map(cls => ({
   label: cls.label,
@@ -16,8 +18,60 @@ interface SeatGridProps {
 }
 
 const SeatGrid = ({ onProceed }: SeatGridProps) => {
-  const { seats, toggleSeatStatus } = useBookingStore();
+  const { seats, toggleSeatStatus, selectedDate, selectedShow } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
+  const { toast } = useToast();
+  const [loadingSeats, setLoadingSeats] = useState(false);
+
+  // Fetch seat status from database
+  const fetchSeatStatus = async () => {
+    if (!selectedDate || !selectedShow) return;
+    
+    setLoadingSeats(true);
+    try {
+      console.log('🔍 Fetching seat status for:', { date: selectedDate, show: selectedShow });
+      const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
+      
+      if (response.success && response.data) {
+        console.log('📊 Seat status response:', response.data);
+        
+        // Update seat status based on database data
+        const bookedSeats = response.data.bookedSeats || [];
+        const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
+        
+        console.log('🔍 Debugging seat status:');
+        console.log('  - Total booked seats from API:', bookedSeats.length);
+        console.log('  - Booked seat IDs:', Array.from(bookedSeatIds));
+        console.log('  - Sample booked seats:', bookedSeats.slice(0, 5));
+        
+        // Reset all seats to available first
+        useBookingStore.getState().initializeSeats();
+        
+        // Mark booked seats as booked
+        bookedSeatIds.forEach(seatId => {
+          useBookingStore.getState().toggleSeatStatus(seatId, 'booked');
+        });
+        
+        console.log(`✅ Updated ${bookedSeatIds.size} seats as booked`);
+        
+        // Check if any seat IDs weren't found
+        const allSeatIds = seats.map(s => s.id);
+        const notFoundSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id));
+        if (notFoundSeats.length > 0) {
+          console.warn('⚠️ Some seat IDs from API not found in seat matrix:', notFoundSeats);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching seat status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load seat status from database.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingSeats(false);
+    }
+  };
 
   // Simplified reset handler
   const handleResetSeats = () => {
@@ -98,20 +152,25 @@ const SeatGrid = ({ onProceed }: SeatGridProps) => {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  // Fetch seat status when component mounts or date/show changes
+  useEffect(() => {
+    if (selectedDate && selectedShow) {
+      console.log('🔄 SeatGrid: Date or show changed, fetching seat status');
+      console.log('  - Current date:', selectedDate);
+      console.log('  - Current show:', selectedShow);
+      console.log('  - Effect triggered for show:', selectedShow);
+      fetchSeatStatus();
+    } else {
+      console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
+    }
+  }, [selectedDate, selectedShow]);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">Seat Selection</h3>
-          <button
-            onClick={handleResetSeats}
-            title="Reset All Seats"
-            className="p-0 m-0 bg-transparent border-none shadow-none hover:bg-transparent focus:outline-none"
-            style={{ lineHeight: 0 }}
-          >
-            <RotateCcw className="w-5 h-5 text-red-500 hover:text-red-700" />
-          </button>
         </div>
         <div className="text-sm text-gray-600">
           Screen 1 • Total: {seats.length} seats

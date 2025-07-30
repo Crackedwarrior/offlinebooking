@@ -97,17 +97,19 @@ const classColorMap: Record<string, string> = {
 // Save booking to backend
 async function saveBookingToBackend(bookingData: any) {
   try {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const res = await fetch(`${API_URL}/api/bookings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bookingData),
-    });
-    if (!res.ok) throw new Error('Booking save failed');
-    const saved = await res.json();
-    console.log('✅ Booking saved:', saved);
+    // Use the proper API service instead of hardcoded URL
+    const { createBooking } = await import('@/services/api');
+    const response = await createBooking(bookingData);
+    
+    if (response.success) {
+      console.log('✅ Booking saved successfully:', response);
+      return response;
+    } else {
+      throw new Error(response.error?.message || 'Booking save failed');
+    }
   } catch (err) {
     console.error('❌ Error saving booking:', err);
+    throw err; // Re-throw to handle in the calling function
   }
 }
 
@@ -160,48 +162,62 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const handleConfirmPrint = async () => {
     setShowPrintModal(false);
     
-    // Prepare tickets array for the backend
-    const tickets = selectedSeats.map(seat => ({
-      id: seat.id,
-      classLabel: seat.classLabel,
-      price: seat.price,
-    }));
-    
-    // Calculate totals
-    const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
-    const totalTickets = selectedSeats.length;
-    
-    // Prepare booking data in the correct format
-    const bookingData = {
-      tickets: tickets,
-      total: total,
-      totalTickets: totalTickets,
-      timestamp: new Date().toISOString(),
-      show: selectedShow.toUpperCase(),
-      screen: 'Screen 1',
-      movie: 'KALANK',
-      date: selectedDate,
-      source: 'LOCAL'
-    };
-    
-    console.log('Sending booking to backend:', bookingData);
-    await saveBookingToBackend(bookingData);
-    
-    // Mark all selected seats as booked in the store
-    selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
-    
-    // Show success message
-    toast({
-      title: 'Tickets Printed Successfully!',
-      description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
-      duration: 4000,
-    });
-    setSelectedGroupIdxs([]);
-    
-    // Notify parent to complete booking (with delay to avoid React warnings)
-    setTimeout(() => {
-      if (onBookingComplete) onBookingComplete();
-    }, 100);
+    try {
+      // Prepare tickets array for the backend
+      const tickets = selectedSeats.map(seat => ({
+        id: seat.id,
+        row: seat.row,
+        number: seat.number,
+        classLabel: seat.classLabel,
+        price: seat.price,
+      }));
+      
+      // Calculate totals
+      const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+      const totalTickets = selectedSeats.length;
+      
+      // Prepare booking data in the correct format
+      const bookingData = {
+        tickets: tickets,
+        total: total,
+        totalTickets: totalTickets,
+        timestamp: new Date().toISOString(),
+        show: selectedShow.toUpperCase(),
+        screen: 'Screen 1',
+        movie: 'KALANK',
+        date: selectedDate,
+        source: 'LOCAL'
+      };
+      
+      console.log('Sending booking to backend:', bookingData);
+      const response = await saveBookingToBackend(bookingData);
+      
+      if (response && response.success) {
+        // Mark all selected seats as booked in the store
+        selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
+        
+        // Show success message
+        toast({
+          title: 'Tickets Printed Successfully!',
+          description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
+          duration: 4000,
+        });
+        setSelectedGroupIdxs([]);
+        
+        // Notify parent to complete booking (with delay to avoid React warnings)
+        setTimeout(() => {
+          if (onBookingComplete) onBookingComplete();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Failed to save booking:', error);
+      toast({
+        title: 'Booking Failed',
+        description: 'Failed to save booking to database. Please try again.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    }
   };
 
   return (
