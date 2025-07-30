@@ -15,7 +15,17 @@ export const SimpleTimePicker: React.FC<SimpleTimePickerProps> = ({
 }) => {
   // Convert 24-hour format to 12-hour format for display
   const convertTo12Hour = (time24h: string): { hour: number; minute: number; period: 'AM' | 'PM' } => {
+    if (!time24h || typeof time24h !== 'string') {
+      return { hour: 12, minute: 0, period: 'AM' };
+    }
+    
     const [hours, minutes] = time24h.split(':').map(Number);
+    
+    // Validate the parsed values
+    if (isNaN(hours) || isNaN(minutes)) {
+      return { hour: 12, minute: 0, period: 'AM' };
+    }
+    
     const period = hours >= 12 ? 'PM' : 'AM';
     const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     

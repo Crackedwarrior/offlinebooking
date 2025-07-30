@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Loader2 } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus } from '@/services/api';
@@ -15,9 +15,11 @@ export const seatSegments = SEAT_CLASSES.map(cls => ({
 
 interface SeatGridProps {
   onProceed?: (data: any) => void;
+  hideProceedButton?: boolean;
+  hideRefreshButton?: boolean;
 }
 
-const SeatGrid = ({ onProceed }: SeatGridProps) => {
+const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false }: SeatGridProps) => {
   const { seats, toggleSeatStatus, selectedDate, selectedShow } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
   const { toast } = useToast();
@@ -172,8 +174,30 @@ const SeatGrid = ({ onProceed }: SeatGridProps) => {
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">Seat Selection</h3>
         </div>
-        <div className="text-sm text-gray-600">
-          Screen 1 • Total: {seats.length} seats
+        <div className="flex items-center gap-4">
+          {!hideRefreshButton && (
+            <Button
+              onClick={fetchSeatStatus}
+              disabled={loadingSeats}
+              size="sm"
+              variant="outline"
+            >
+              {loadingSeats ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Refresh Seats
+                </>
+              )}
+            </Button>
+          )}
+          <div className="text-sm text-gray-600">
+            Screen 1 • Total: {seats.length} seats
+          </div>
         </div>
       </div>
 
@@ -260,38 +284,40 @@ const SeatGrid = ({ onProceed }: SeatGridProps) => {
 
 
 
-      {/* Fixed Bottom Panel */}
-      <div className={
-        `fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
-        ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
-        left-0 w-full md:left-auto md:w-auto`
-      } style={{ zIndex: 9999, position: 'fixed', bottom: 0 }}>
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
-          style={{ 
-            backgroundColor: '#2563eb',
-            color: 'white',
-            border: 'none',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
-            zIndex: 9999
-          }}
-          onClick={() => {
-            console.log('Proceed button clicked!');
-            console.log('onProceed function:', onProceed);
-            console.log('selectedSeats:', selectedSeats);
-            if (onProceed) {
-              onProceed({ selectedSeats, totalAmount, seats });
-            }
-          }}
-        >
-          Proceed to Checkout
-        </Button>
-        <div className="flex flex-row items-center gap-4 ml-4">
-          <span className="font-medium text-gray-700">Selected: {selectedSeats.length} seats</span>
-          <span className="font-medium text-gray-700">Total: ₹{totalAmount}</span>
+      {/* Fixed Bottom Panel - Only show if not hidden */}
+      {!hideProceedButton && (
+        <div className={
+          `fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
+          ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
+          left-0 w-full md:left-auto md:w-auto`
+        } style={{ zIndex: 9999, position: 'fixed', bottom: 0 }}>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
+            style={{ 
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              pointerEvents: 'auto',
+              zIndex: 9999
+            }}
+            onClick={() => {
+              console.log('Proceed button clicked!');
+              console.log('onProceed function:', onProceed);
+              console.log('selectedSeats:', selectedSeats);
+              if (onProceed) {
+                onProceed({ selectedSeats, totalAmount, seats });
+              }
+            }}
+          >
+            Proceed to Checkout
+          </Button>
+          <div className="flex flex-row items-center gap-4 ml-4">
+            <span className="font-medium text-gray-700">Selected: {selectedSeats.length} seats</span>
+            <span className="font-medium text-gray-700">Total: ₹{totalAmount}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

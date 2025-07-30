@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
@@ -129,6 +130,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const selectedShow = useBookingStore(state => state.selectedShow);
   const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
+  const { getMovieForShow } = useSettingsStore();
 
   const toggleGroupSelection = (idx: number) => {
     setSelectedGroupIdxs(prev =>
@@ -176,6 +178,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
       const totalTickets = selectedSeats.length;
       
+      // Get movie for current show
+      const currentMovie = getMovieForShow(selectedShow) || {
+        name: 'KALANK',
+        language: 'HINDI',
+        screen: 'Screen 1'
+      };
+
       // Prepare booking data in the correct format
       const bookingData = {
         tickets: tickets,
@@ -183,8 +192,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         totalTickets: totalTickets,
         timestamp: new Date().toISOString(),
         show: selectedShow.toUpperCase(),
-        screen: 'Screen 1',
-        movie: 'KALANK',
+        screen: currentMovie.screen,
+        movie: currentMovie.name,
         date: selectedDate,
         source: 'LOCAL'
       };

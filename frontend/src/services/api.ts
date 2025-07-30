@@ -129,6 +129,14 @@ class ApiService {
     return this.get<SeatStatusResponse>(`/api/seats/status?${queryString}`);
   }
 
+  async updateBooking(id: string, data: any): Promise<ApiResponse<BookingData>> {
+    return this.put<BookingData>(`/api/bookings/${id}`, data);
+  }
+
+  async deleteBooking(id: string): Promise<ApiResponse<null>> {
+    return this.delete<null>(`/api/bookings/${id}`);
+  }
+
   // Health check
   async healthCheck(): Promise<ApiResponse<HealthCheckResponse>> {
     return this.get<HealthCheckResponse>('/api/health');
@@ -143,6 +151,8 @@ export const createBooking = (data: CreateBookingRequest) => apiService.createBo
 export const getBookings = (params?: BookingQueryParams) => apiService.getBookings(params);
 export const getBookingStats = (params?: BookingQueryParams) => apiService.getBookingStats(params);
 export const getSeatStatus = (params: SeatStatusQueryParams) => apiService.getSeatStatus(params);
+export const updateBooking = (id: string, data: any) => apiService.updateBooking(id, data);
+export const deleteBooking = (id: string) => apiService.deleteBooking(id);
 export const healthCheck = () => apiService.healthCheck();
 
 export default apiService; 

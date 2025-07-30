@@ -111,7 +111,7 @@ interface CheckoutProps {
 
 const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats } = useBookingStore();
-  const { movie, getPriceForClass } = useSettingsStore();
+  const { getPriceForClass, getMovieForShow } = useSettingsStore();
   const [showDropdownOpen, setShowDropdownOpen] = useState(false);
   const showDropdownRef = useRef<HTMLDivElement>(null);
   // Add state for dynamic seat selection count per class
@@ -194,8 +194,8 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     const bookingData = {
       date: selectedDate,
       show: selectedShow,
-      movie: movie.name,
-      screen: movie.screen,
+      movie: currentMovie.name,
+      screen: currentMovie.screen,
       seats: selectedSeats.map(seat => ({
         id: seat.id,
         classLabel: getSeatClassByRow(seat.row)?.label || 'UNKNOWN',
@@ -401,8 +401,12 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     setSelectedCount(prev => ({ ...prev, [classKey]: 0 }));
   };
 
-  const movieName = 'KALANK';
-  const movieLanguage = 'HINDI';
+  // Get movie for current show
+  const currentMovie = getMovieForShow(selectedShow) || {
+    name: 'KALANK',
+    language: 'HINDI',
+    screen: 'Screen 1'
+  };
 
   return (
     <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
@@ -415,7 +419,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
               onDoubleClick={() => setShowDropdownOpen((open) => !open)}
               ref={showDropdownRef}
             >
-              <span className="font-bold text-lg mb-1 inline whitespace-nowrap">{`${movie.name} (${movie.language})`}</span>
+              <span className="font-bold text-lg mb-1 inline whitespace-nowrap">{`${currentMovie.name} (${currentMovie.language})`}</span>
               <span className="text-sm font-semibold text-blue-600 mb-1">{SHOW_DETAILS[selectedShow]?.label || selectedShow}</span>
               <span className="text-sm mb-2 whitespace-nowrap">{SHOW_DETAILS[selectedShow]?.timing || ''}</span>
               <span className="absolute right-3 bottom-2 text-base font-semibold">{(() => {

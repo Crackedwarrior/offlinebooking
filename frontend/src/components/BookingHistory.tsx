@@ -3,10 +3,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
+import SeatGridPreview from './SeatGridPreview';
 import { formatSafeDate } from '../utils/formatDate';
 import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 import { getBookings } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
+import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
 
 const showOrder: { key: ShowTime; label: string }[] = SHOW_TIMES.map(show => ({
   key: show.enumValue,
@@ -26,6 +28,10 @@ const BookingHistory = () => {
   const [databaseBookings, setDatabaseBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowTime | null>(null);
+  
+  // Seat Grid Preview Modal State
+  const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
+  const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
 
   // Fetch bookings from database
   const fetchBookings = useCallback(async (date: string) => {
@@ -251,12 +257,17 @@ const BookingHistory = () => {
 
   // Gross income (sum of all bookings for the date and selected show)
   const grossIncome = (() => {
+    // Only show data when a show is selected
+    if (!selectedShow) {
+      return 0;
+    }
+    
     const dateObj = new Date(selectedDate);
     const dateISO = dateObj.toISOString().split('T')[0];
     
     return (databaseBookings || []).reduce((sum, b) => {
       const dbDate = new Date(b.date).toISOString().split('T')[0];
-      const showMatches = selectedShow ? b.show === selectedShow : true;
+      const showMatches = b.show === selectedShow;
       if (dbDate === dateISO && showMatches) {
         return sum + (b.totalPrice || 0);
       }
@@ -266,17 +277,26 @@ const BookingHistory = () => {
 
   // Calculate class counts once for the selected date and show
   const classCountsData = useMemo(() => {
+    // Only show data when a show is selected
+    if (!selectedShow) {
+      return [];
+    }
     return getClassCounts(null);
   }, [selectedDate, selectedShow, databaseBookings]);
 
   // Recent bookings (last 3 for the date and selected show)
   const recentBookings = (() => {
+    // Only show data when a show is selected
+    if (!selectedShow) {
+      return [];
+    }
+    
     const dateObj = new Date(selectedDate);
     const dateISO = dateObj.toISOString().split('T')[0];
     
     const filteredBookings = (databaseBookings || []).filter(b => {
       const dbDate = new Date(b.date).toISOString().split('T')[0];
-      const showMatches = selectedShow ? b.show === selectedShow : true;
+      const showMatches = b.show === selectedShow;
       return dbDate === dateISO && showMatches;
     });
     
@@ -284,54 +304,66 @@ const BookingHistory = () => {
   })();
 
   // Handle PDF download for a specific show
-  const handleDownloadPDF = (showKey: ShowTime, date: string) => {
-    const booking = getBooking(date, showKey);
-    if (!booking) {
-      console.log('No booking data available for PDF generation');
-      return;
+  const handleDownloadPDF = async (showKey: ShowTime, date: string) => {
+    try {
+      // Get show label
+      const showLabel = showOrder.find(s => s.key === showKey)?.label || showKey;
+      
+      // Get stats for this show
+      const stats = allStats[showKey] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };
+      
+      // Get bookings for this specific show
+      const showBookings = databaseBookings.filter(booking => booking.show === showKey);
+      
+      // Get class counts for this show
+      const classCounts = getClassCounts({ 
+        date, 
+        show: showKey, 
+        bookedSeats: showBookings.flatMap(b => b.bookedSeats || [])
+      });
+      
+      // Prepare report data
+      const reportData = {
+        date,
+        show: showKey,
+        showLabel,
+        stats: {
+          total: stats.total,
+          available: stats.available,
+          booked: stats.booked,
+          bms: stats.bms,
+          occupancy: stats.occupancy
+        },
+        bookings: showBookings.map(booking => ({
+          id: booking.id,
+          customerName: booking.customerName,
+          customerPhone: booking.customerPhone,
+          bookedSeats: booking.bookedSeats || [],
+          classLabel: booking.classLabel,
+          totalPrice: booking.totalPrice,
+          status: booking.status,
+          movie: booking.movie,
+          movieLanguage: booking.movieLanguage
+        })),
+        classCounts
+      };
+      
+      // Generate and download PDF
+      await downloadShowReportPdf(reportData);
+      
+      toast({
+        title: 'Success',
+        description: `PDF report downloaded for ${showLabel}`,
+      });
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate PDF report',
+        variant: 'destructive',
+      });
     }
-    
-    // Generate PDF content
-    const pdfContent = generatePDFContent(booking, showKey);
-    
-    // Create and download PDF
-    const blob = new Blob([pdfContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `booking-${showKey}-${date}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Generate PDF content (placeholder - replace with actual PDF generation)
-  const generatePDFContent = (booking: any, showKey: ShowTime) => {
-    const stats = allStats[showKey] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };
-    const classCounts = getClassCounts(booking);
-    
-    return `
-BOOKING REPORT - ${showKey.toUpperCase()} SHOW
-Date: ${formatSafeDate(booking.date)}
-Generated: ${new Date().toLocaleString()}
-
-SUMMARY:
-Total Seats: ${stats.total}
-Available: ${stats.available}
-Booked: ${stats.booked}
-BMS: ${stats.bms}
-Occupancy: ${stats.occupancy}%
-
-SEAT CLASS BREAKDOWN:
-${classCounts.map(cls => `${cls.label}: ${cls.count} seats`).join('\n')}
-
-BOOKED SEATS:
-${booking.bookedSeats ? booking.bookedSeats.join(', ') : 'No seats'}
-
----
-Generated by Theater Management System
-    `.trim();
   };
 
   // UI
@@ -398,6 +430,11 @@ Generated by Theater Management System
               </span>
             )}
           </div>
+          {!selectedShow && (
+            <div className="text-sm text-gray-500 italic mb-2">
+              Select a show card to view booking details
+            </div>
+          )}
           <table className="w-full border rounded overflow-hidden text-sm">
             <thead>
               <tr className="bg-gray-100">
@@ -503,17 +540,20 @@ Generated by Theater Management System
                 <div className="mt-3 flex gap-2">
                   <button
                     className="flex-1 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors"
-                    onClick={() => { 
-                      const booking = getBooking(selectedDate, show.key);
-                      setSelectedBooking(booking); 
-                      setViewerOpen(true); 
+                    onClick={(e) => { 
+                      e.stopPropagation(); // Prevent card selection
+                      setPreviewShow(show);
+                      setSeatGridPreviewOpen(true);
                     }}
                   >
                     View
                   </button>
                   <button
                     className="flex-1 px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-semibold text-xs transition-colors"
-                    onClick={() => handleDownloadPDF(show.key, selectedDate)}
+                    onClick={async (e) => {
+                      e.stopPropagation(); // Prevent card selection
+                      await handleDownloadPDF(show.key, selectedDate);
+                    }}
                   >
                     PDF
                   </button>
@@ -536,6 +576,20 @@ Generated by Theater Management System
               return acc;
             }, {});
           })()}
+        />
+      )}
+      
+      {/* Seat Grid Preview Modal */}
+      {previewShow && (
+        <SeatGridPreview
+          isOpen={seatGridPreviewOpen}
+          onClose={() => {
+            setSeatGridPreviewOpen(false);
+            setPreviewShow(null);
+          }}
+          date={selectedDate}
+          show={previewShow.key}
+          showLabel={previewShow.label}
         />
       )}
     </div>

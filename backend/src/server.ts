@@ -217,8 +217,8 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
   
   console.log('📤 Sending response:', {
     success: response.success,
-    dataLength: response.data.length,
-    sampleBooking: response.data[0]
+    dataLength: response.data?.length || 0,
+    sampleBooking: response.data?.[0]
   });
   
   res.json(response);
@@ -347,6 +347,92 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
       bookedSeats,
       totalBooked: bookedSeats.length
     }
+  };
+  
+  res.json(response);
+}));
+
+// Update a booking
+app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updateData = req.body;
+  
+  console.log('📝 Updating booking:', { id, updateData });
+  
+  // Validate booking exists
+  const existingBooking = await prisma.booking.findUnique({
+    where: { id }
+  });
+  
+  if (!existingBooking) {
+    throw new NotFoundError(`Booking with ID ${id} not found`);
+  }
+  
+  // Update the booking
+  const updatedBooking = await prisma.booking.update({
+    where: { id },
+    data: {
+      movie: updateData.movie,
+      movieLanguage: updateData.movieLanguage,
+      pricePerSeat: updateData.pricePerSeat,
+      totalPrice: updateData.pricePerSeat * existingBooking.seatCount,
+      status: updateData.status,
+      updatedAt: new Date()
+    }
+  });
+  
+  console.log('✅ Booking updated successfully:', { id, updatedBooking });
+  
+  const response: ApiResponse<BookingData> = {
+    success: true,
+    data: {
+      ...updatedBooking,
+      date: updatedBooking.date.toISOString(),
+      createdAt: updatedBooking.createdAt.toISOString(),
+      updatedAt: updatedBooking.updatedAt.toISOString(),
+      bookedAt: updatedBooking.bookedAt.toISOString(),
+      bookedSeats: Array.isArray(updatedBooking.bookedSeats) ? (updatedBooking.bookedSeats as string[]) : [],
+      customerName: updatedBooking.customerName || undefined,
+      customerPhone: updatedBooking.customerPhone || undefined,
+      customerEmail: updatedBooking.customerEmail || undefined,
+      notes: updatedBooking.notes || undefined,
+      totalIncome: updatedBooking.totalIncome || undefined,
+      localIncome: updatedBooking.localIncome || undefined,
+      bmsIncome: updatedBooking.bmsIncome || undefined,
+      vipIncome: updatedBooking.vipIncome || undefined
+    },
+    message: 'Booking updated successfully'
+  };
+  
+  res.json(response);
+}));
+
+// Delete a booking
+app.delete('/api/bookings/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  console.log('🗑️ Deleting booking:', { id });
+  
+  // Validate booking exists
+  const existingBooking = await prisma.booking.findUnique({
+    where: { id }
+  });
+  
+  if (!existingBooking) {
+    throw new NotFoundError(`Booking with ID ${id} not found`);
+  }
+  
+  // Delete the booking
+  await prisma.booking.delete({
+    where: { id }
+  });
+  
+  console.log('✅ Booking deleted successfully:', { id });
+  
+  const response: ApiResponse<null> = {
+    success: true,
+    data: null,
+    message: 'Booking deleted successfully'
   };
   
   res.json(response);

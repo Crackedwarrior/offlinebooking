@@ -4,7 +4,7 @@ import { Show } from '@prisma/client';
 
 // Define enum types as string literals
 export type BookingStatus = 'CONFIRMED' | 'CANCELLED' | 'PENDING' | 'REFUNDED';
-export type BookingSource = 'LOCAL' | 'BMS' | 'ONLINE' | 'PHONE';
+export type BookingSource = 'LOCAL' | 'BMS' | 'VIP' | 'ONLINE';
 export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'BMS_BOOKED' | 'SELECTED';
 
 // Base API Response Types

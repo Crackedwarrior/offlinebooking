@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
+import MovieManagement from './MovieManagement';
 import { SEAT_CLASSES } from '@/lib/config';
 import { seatsByRow } from '@/lib/seatMatrix';
 import { Button } from '@/components/ui/button';
@@ -12,11 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Settings as SettingsIcon, Save, RotateCcw, Film, DollarSign, Clock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { SimpleTimePicker } from './SimpleTimePicker';
+import BookingManagement from './BookingManagement';
 
 const Settings = () => {
   console.log('Settings component rendering...');
-  const { movie, pricing, showTimes, updateMovie, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
-  const [localMovie, setLocalMovie] = useState(movie);
+  const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
   const [localPricing, setLocalPricing] = useState(pricing);
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [isDirty, setIsDirty] = useState(false);
@@ -42,16 +43,9 @@ const Settings = () => {
 
   // Check if any changes have been made
   const checkDirty = () => {
-    const movieChanged = JSON.stringify(localMovie) !== JSON.stringify(movie);
     const pricingChanged = JSON.stringify(localPricing) !== JSON.stringify(pricing);
     const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
-    setIsDirty(movieChanged || pricingChanged || showTimesChanged);
-  };
-
-  // Handle movie settings changes
-  const handleMovieChange = (field: keyof typeof movie, value: string) => {
-    setLocalMovie(prev => ({ ...prev, [field]: value }));
-    checkDirty();
+    setIsDirty(pricingChanged || showTimesChanged);
   };
 
   // Handle pricing changes
@@ -71,9 +65,6 @@ const Settings = () => {
 
   // Save all changes
   const handleSave = () => {
-    // Update movie settings
-    updateMovie(localMovie);
-    
     // Update pricing settings
     Object.entries(localPricing).forEach(([classLabel, price]) => {
       updatePricing(classLabel, price);
@@ -87,7 +78,7 @@ const Settings = () => {
     setIsDirty(false);
     toast({
       title: 'Settings Saved',
-      description: 'Your movie, pricing, and show time settings have been updated.',
+      description: 'Your pricing and show time settings have been updated.',
     });
   };
 
@@ -95,7 +86,6 @@ const Settings = () => {
   const handleReset = () => {
     if (window.confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
       resetToDefaults();
-      setLocalMovie(movie);
       setLocalPricing(pricing);
       setLocalShowTimes(showTimes);
       setIsDirty(false);
@@ -170,94 +160,50 @@ const Settings = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Movie Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Film className="w-5 h-5" />
-              Movie Details
-            </CardTitle>
-            <CardDescription>
-              Configure the current movie information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="movieName">Movie Name</Label>
-              <Input
-                id="movieName"
-                value={localMovie.name}
-                onChange={(e) => handleMovieChange('name', e.target.value)}
-                placeholder="Enter movie name"
-              />
+      {/* Pricing Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5" />
+            Pricing Overview
+          </CardTitle>
+          <CardDescription>
+            Summary of current pricing configuration
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="font-semibold text-gray-700">Total Seats</div>
+              <div className="text-2xl font-bold text-blue-600">{totalSeats}</div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="movieLanguage">Language</Label>
-              <Input
-                id="movieLanguage"
-                value={localMovie.language}
-                onChange={(e) => handleMovieChange('language', e.target.value)}
-                placeholder="e.g., HINDI, ENGLISH"
-              />
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="font-semibold text-gray-700">Max Revenue</div>
+              <div className="text-2xl font-bold text-green-600">₹{maxRevenue.toLocaleString()}</div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="screenName">Screen</Label>
-              <Input
-                id="screenName"
-                value={localMovie.screen}
-                onChange={(e) => handleMovieChange('screen', e.target.value)}
-                placeholder="e.g., Screen 1"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pricing Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Pricing Overview
-            </CardTitle>
-            <CardDescription>
-              Summary of current pricing configuration
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="font-semibold text-gray-700">Total Seats</div>
-                <div className="text-2xl font-bold text-blue-600">{totalSeats}</div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <div className="text-sm font-semibold text-gray-700">Current Pricing:</div>
+            {SEAT_CLASSES.map((cls) => (
+              <div key={cls.label} className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">{cls.label}</span>
+                <span className="font-semibold">₹{localPricing[cls.label]}</span>
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="font-semibold text-gray-700">Max Revenue</div>
-                <div className="text-2xl font-bold text-green-600">₹{maxRevenue.toLocaleString()}</div>
+            ))}
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <div className="text-sm font-semibold text-gray-700">Seats by Class:</div>
+            {SEAT_CLASSES.map((cls) => (
+              <div key={cls.label} className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">{cls.label}</span>
+                <span className="font-semibold">{seatsByClass[cls.label] || 0} seats</span>
               </div>
-            </div>
-            <Separator />
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-gray-700">Current Pricing:</div>
-              {SEAT_CLASSES.map((cls) => (
-                <div key={cls.label} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">{cls.label}</span>
-                  <span className="font-semibold">₹{localPricing[cls.label]}</span>
-                </div>
-              ))}
-            </div>
-            <Separator />
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-gray-700">Seats by Class:</div>
-              {SEAT_CLASSES.map((cls) => (
-                <div key={cls.label} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">{cls.label}</span>
-                  <span className="font-semibold">{seatsByClass[cls.label] || 0} seats</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Pricing Settings */}
       <Card>
@@ -367,6 +313,12 @@ const Settings = () => {
                  </div>
         </CardContent>
       </Card>
+
+      {/* Movie Management */}
+      <MovieManagement />
+
+      {/* Booking Management */}
+      <BookingManagement />
 
       {/* Save Status */}
       {isDirty && (

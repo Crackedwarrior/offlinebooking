@@ -3,10 +3,19 @@ import { persist } from 'zustand/middleware';
 import { SEAT_CLASSES, SHOW_TIMES } from '@/lib/config';
 
 export interface MovieSettings {
+  id: string;
   name: string;
   language: string;
   screen: string;
+  showAssignments: {
+    MORNING: boolean;
+    MATINEE: boolean;
+    EVENING: boolean;
+    NIGHT: boolean;
+  };
 }
+
+
 
 export interface PricingSettings {
   [key: string]: number; // seat class label -> price
@@ -21,12 +30,17 @@ export interface ShowTimeSettings {
 }
 
 export interface SettingsState {
-  movie: MovieSettings;
+  movies: MovieSettings[];
   pricing: PricingSettings;
   showTimes: ShowTimeSettings[];
   
   // Actions
-  updateMovie: (settings: Partial<MovieSettings>) => void;
+  addMovie: (movie: MovieSettings) => void;
+  updateMovie: (id: string, settings: Partial<MovieSettings>) => void;
+  deleteMovie: (id: string) => void;
+  updateShowAssignment: (movieId: string, showKey: string, assigned: boolean) => void;
+  getMoviesForShow: (showKey: string) => MovieSettings[];
+  getMovieForShow: (showKey: string) => MovieSettings | null; // Keep for backward compatibility
   updatePricing: (classLabel: string, price: number) => void;
   updateShowTime: (key: string, settings: Partial<ShowTimeSettings>) => void;
   resetToDefaults: () => void;
@@ -34,11 +48,46 @@ export interface SettingsState {
   getShowTimes: () => ShowTimeSettings[];
 }
 
-const defaultMovieSettings: MovieSettings = {
-  name: 'KALANK',
-  language: 'HINDI',
-  screen: 'Screen 1'
-};
+const defaultMovies: MovieSettings[] = [
+  {
+    id: 'movie-1',
+    name: 'KALANK',
+    language: 'HINDI',
+    screen: 'Screen 1',
+    showAssignments: {
+      MORNING: true,
+      MATINEE: false,
+      EVENING: true,
+      NIGHT: false
+    }
+  },
+  {
+    id: 'movie-2',
+    name: 'AVENGERS: ENDGAME',
+    language: 'ENGLISH',
+    screen: 'Screen 1',
+    showAssignments: {
+      MORNING: false,
+      MATINEE: true,
+      EVENING: false,
+      NIGHT: true
+    }
+  },
+  {
+    id: 'movie-3',
+    name: 'PUSHPA',
+    language: 'TELUGU',
+    screen: 'Screen 1',
+    showAssignments: {
+      MORNING: false,
+      MATINEE: false,
+      EVENING: false,
+      NIGHT: false
+    }
+  }
+];
+
+
 
 const defaultPricing: PricingSettings = SEAT_CLASSES.reduce((acc, cls) => {
   acc[cls.label] = cls.price;
@@ -47,12 +96,29 @@ const defaultPricing: PricingSettings = SEAT_CLASSES.reduce((acc, cls) => {
 
 // Helper function to convert 12-hour format to 24-hour format for storage
 function convertTo24Hour(time12h: string): string {
-  const [time, period] = time12h.split(' ');
-  let [hours, minutes] = time.split(':').map(Number);
+  // Handle cases where time12h might be undefined or invalid
+  if (!time12h || typeof time12h !== 'string') {
+    return '10:00';
+  }
   
-  if (period === 'PM' && hours !== 12) {
+  // Parse the time string (e.g., "10:00 AM" or "2:00 PM")
+  const match = time12h.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) {
+    return '10:00';
+  }
+  
+  let [_, hoursStr, minutesStr, period] = match;
+  let hours = parseInt(hoursStr);
+  const minutes = parseInt(minutesStr);
+  
+  // Validate parsed values
+  if (isNaN(hours) || isNaN(minutes)) {
+    return '10:00';
+  }
+  
+  if (period.toUpperCase() === 'PM' && hours !== 12) {
     hours += 12;
-  } else if (period === 'AM' && hours === 12) {
+  } else if (period.toUpperCase() === 'AM' && hours === 12) {
     hours = 0;
   }
   
@@ -61,7 +127,18 @@ function convertTo24Hour(time12h: string): string {
 
 // Helper function to convert 24-hour format to 12-hour format for display
 function convertTo12Hour(time24h: string): string {
+  // Handle cases where time24h might be undefined or invalid
+  if (!time24h || typeof time24h !== 'string') {
+    return '10:00 AM';
+  }
+  
   const [hours, minutes] = time24h.split(':').map(Number);
+  
+  // Validate parsed values
+  if (isNaN(hours) || isNaN(minutes)) {
+    return '10:00 AM';
+  }
+  
   const period = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
   
@@ -73,8 +150,8 @@ const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
   return {
     key: show.key,
     label: show.label,
-    startTime: convertTo24Hour(startTime),
-    endTime: convertTo24Hour(endTime),
+    startTime: convertTo24Hour(startTime.trim()),
+    endTime: convertTo24Hour(endTime.trim()),
     enabled: true
   };
 });
@@ -82,13 +159,81 @@ const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      movie: defaultMovieSettings,
+      movies: defaultMovies,
       pricing: defaultPricing,
       showTimes: defaultShowTimes,
 
-      updateMovie: (settings) => set((state) => ({
-        movie: { ...state.movie, ...settings }
+      addMovie: (movie) => set((state) => ({
+        movies: [...state.movies, movie]
       })),
+
+      updateMovie: (id, settings) => set((state) => ({
+        movies: state.movies.map(movie => 
+          movie.id === id ? { ...movie, ...settings } : movie
+        )
+      })),
+
+      deleteMovie: (id) => set((state) => ({
+        movies: state.movies.filter(movie => movie.id !== id),
+        showMovieMapping: Object.fromEntries(
+          Object.entries(state.showMovieMapping).filter(([_, movieId]) => movieId !== id)
+        )
+      })),
+
+      updateShowAssignment: (movieId, showKey, assigned) => set((state) => {
+        // If assigning a movie to a show, remove all other movies from that show first
+        if (assigned) {
+          // First, remove all movies from this show
+          const moviesWithoutShow = state.movies.map(movie => ({
+            ...movie,
+            showAssignments: {
+              ...movie.showAssignments,
+              [showKey]: false
+            }
+          }));
+          
+          // Then assign the specific movie to this show
+          return {
+            movies: moviesWithoutShow.map(movie => 
+              movie.id === movieId 
+                ? { 
+                    ...movie, 
+                    showAssignments: { 
+                      ...movie.showAssignments, 
+                      [showKey]: true 
+                    } 
+                  }
+                : movie
+            )
+          };
+        } else {
+          // Just remove the movie from the show
+          return {
+            movies: state.movies.map(movie => 
+              movie.id === movieId 
+                ? { 
+                    ...movie, 
+                    showAssignments: { 
+                      ...movie.showAssignments, 
+                      [showKey]: false 
+                    } 
+                  }
+                : movie
+            )
+          };
+        }
+      }),
+
+      getMoviesForShow: (showKey) => {
+        const state = get();
+        return state.movies.filter(movie => movie.showAssignments[showKey as keyof typeof movie.showAssignments]);
+      },
+
+      getMovieForShow: (showKey) => {
+        const state = get();
+        const moviesForShow = state.movies.filter(movie => movie.showAssignments[showKey as keyof typeof movie.showAssignments]);
+        return moviesForShow.length > 0 ? moviesForShow[0] : null; // Return first movie for backward compatibility
+      },
 
       updatePricing: (classLabel, price) => set((state) => ({
         pricing: { ...state.pricing, [classLabel]: price }
@@ -101,7 +246,7 @@ export const useSettingsStore = create<SettingsState>()(
       })),
 
       resetToDefaults: () => set({
-        movie: defaultMovieSettings,
+        movies: defaultMovies,
         pricing: defaultPricing,
         showTimes: defaultShowTimes
       }),
@@ -119,7 +264,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'booking-settings',
       partialize: (state) => ({ 
-        movie: state.movie, 
+        movies: state.movies,
         pricing: state.pricing,
         showTimes: state.showTimes
       })
