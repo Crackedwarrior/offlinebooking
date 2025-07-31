@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
-import { RotateCcw, Loader2 } from 'lucide-react';
+import { RotateCcw, Loader2, Globe, X } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
-import { getSeatStatus } from '@/services/api';
+import { getSeatStatus, saveBmsSeatStatus } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 
 export const seatSegments = SEAT_CLASSES.map(cls => ({
@@ -24,6 +24,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const { getPriceForClass } = useSettingsStore();
   const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
+  const [bmsMode, setBmsMode] = useState(false);
 
   // Fetch seat status from database
   const fetchSeatStatus = async () => {
@@ -39,12 +40,17 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         
         // Update seat status based on database data
         const bookedSeats = response.data.bookedSeats || [];
+        const bmsSeats = response.data.bmsSeats || [];
         const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
+        const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
         
         console.log('🔍 Debugging seat status:');
         console.log('  - Total booked seats from API:', bookedSeats.length);
+        console.log('  - Total BMS seats from API:', bmsSeats.length);
         console.log('  - Booked seat IDs:', Array.from(bookedSeatIds));
+        console.log('  - BMS seat IDs:', Array.from(bmsSeatIds));
         console.log('  - Sample booked seats:', bookedSeats.slice(0, 5));
+        console.log('  - Sample BMS seats:', bmsSeats.slice(0, 5));
         
         // Reset all seats to available first
         useBookingStore.getState().initializeSeats();
@@ -54,13 +60,23 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           useBookingStore.getState().toggleSeatStatus(seatId, 'booked');
         });
         
-        console.log(`✅ Updated ${bookedSeatIds.size} seats as booked`);
+        // Mark BMS seats as bms-booked
+        bmsSeatIds.forEach(seatId => {
+          useBookingStore.getState().toggleSeatStatus(seatId, 'bms-booked');
+        });
+        
+        console.log(`✅ Updated ${bookedSeatIds.size} seats as booked and ${bmsSeatIds.size} seats as BMS`);
         
         // Check if any seat IDs weren't found
         const allSeatIds = seats.map(s => s.id);
-        const notFoundSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id));
-        if (notFoundSeats.length > 0) {
-          console.warn('⚠️ Some seat IDs from API not found in seat matrix:', notFoundSeats);
+        const notFoundBookedSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id));
+        const notFoundBmsSeats = Array.from(bmsSeatIds).filter(id => !allSeatIds.includes(id));
+        
+        if (notFoundBookedSeats.length > 0) {
+          console.warn('⚠️ Some booked seat IDs from API not found in seat matrix:', notFoundBookedSeats);
+        }
+        if (notFoundBmsSeats.length > 0) {
+          console.warn('⚠️ Some BMS seat IDs from API not found in seat matrix:', notFoundBmsSeats);
         }
       }
     } catch (error) {
@@ -79,6 +95,22 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const handleResetSeats = () => {
     if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
       useBookingStore.getState().initializeSeats();
+    }
+  };
+
+  // Toggle BMS mode
+  const toggleBmsMode = () => {
+    setBmsMode(!bmsMode);
+    if (bmsMode) {
+      toast({
+        title: 'BMS Mode Disabled',
+        description: 'Exited BMS marking mode',
+      });
+    } else {
+      toast({
+        title: 'BMS Mode Enabled',
+        description: 'Click seats to mark them as BMS (Book My Show)',
+      });
     }
   };
 
@@ -112,15 +144,54 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     }
   };
 
-  // Simplified seat click handler
-  const handleSeatClick = (seat: Seat) => {
-    // Only allow interaction with available and selected seats
-    if (seat.status === 'available') {
-      toggleSeatStatus(seat.id, 'selected');
-    } else if (seat.status === 'selected') {
-      toggleSeatStatus(seat.id, 'available');
+  // Enhanced seat click handler with BMS mode
+  const handleSeatClick = async (seat: Seat) => {
+    if (bmsMode) {
+      // BMS Mode: Toggle between available and bms-booked
+      if (seat.status === 'available') {
+        toggleSeatStatus(seat.id, 'bms-booked');
+        // Save to backend
+        try {
+          await saveBmsSeatStatus([seat.id], 'BMS_BOOKED');
+          console.log(`✅ Saved BMS status for seat ${seat.id}`);
+        } catch (error) {
+          console.error('❌ Failed to save BMS status:', error);
+          // Revert the change if backend save failed
+          toggleSeatStatus(seat.id, 'available');
+          toast({
+            title: 'Error',
+            description: 'Failed to save BMS status. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      } else if (seat.status === 'bms-booked') {
+        toggleSeatStatus(seat.id, 'available');
+        // Save to backend
+        try {
+          await saveBmsSeatStatus([seat.id], 'AVAILABLE');
+          console.log(`✅ Removed BMS status for seat ${seat.id}`);
+        } catch (error) {
+          console.error('❌ Failed to remove BMS status:', error);
+          // Revert the change if backend save failed
+          toggleSeatStatus(seat.id, 'bms-booked');
+          toast({
+            title: 'Error',
+            description: 'Failed to remove BMS status. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      }
+      // Don't allow BMS marking on already booked or selected seats
+    } else {
+      // Normal Mode: Only allow interaction with available and selected seats
+      // BMS seats should NOT be bookable in normal mode
+      if (seat.status === 'available') {
+        toggleSeatStatus(seat.id, 'selected');
+      } else if (seat.status === 'selected') {
+        toggleSeatStatus(seat.id, 'available');
+      }
+      // Ignore clicks on booked, blocked, or bms-booked seats in normal mode
     }
-    // Ignore clicks on booked, blocked, or bms-booked seats
   };
 
   // Helper to get class label for a seat
@@ -173,24 +244,31 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">Seat Selection</h3>
+          {bmsMode && (
+            <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              <Globe className="w-4 h-4" />
+              BMS Mode Active
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           {!hideRefreshButton && (
             <Button
-              onClick={fetchSeatStatus}
+              onClick={toggleBmsMode}
               disabled={loadingSeats}
               size="sm"
-              variant="outline"
+              variant={bmsMode ? "default" : "outline"}
+              className={bmsMode ? "bg-blue-600 hover:bg-blue-700" : ""}
             >
-              {loadingSeats ? (
+              {bmsMode ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Refreshing...
+                  <X className="w-4 h-4 mr-2" />
+                  Exit BMS Mode
                 </>
               ) : (
                 <>
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Refresh Seats
+                  <Globe className="w-4 h-4 mr-2" />
+                  Mark BMS
                 </>
               )}
             </Button>
@@ -200,6 +278,20 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           </div>
         </div>
       </div>
+
+      {/* BMS Mode Instructions */}
+      {bmsMode && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Globe className="w-5 h-5 text-blue-600" />
+            <h4 className="font-medium text-blue-800">BMS Marking Mode</h4>
+          </div>
+          <p className="text-sm text-blue-700">
+            Click on available seats to mark them as BMS (Book My Show) booked. 
+            Click again on BMS seats to unmark them. BMS seats will appear in blue and cannot be booked in normal mode.
+          </p>
+        </div>
+      )}
 
       {/* Seat Segments with Headers */}
       <div className="w-full overflow-x-auto">
@@ -228,10 +320,14 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                           return (
                             <button
                               key={seat.id || `${row}-${seatNum}`}
-                              className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${getSeatColor(seat.status)}`}
-                              title={`${seat.id} - ${seat.status}`}
+                              className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${
+                                bmsMode && seat.status === 'bms-booked' 
+                                  ? 'bg-blue-500 text-white cursor-pointer hover:bg-blue-600' 
+                                  : getSeatColor(seat.status)
+                              }`}
+                              title={`${seat.id} - ${seat.status}${bmsMode ? ' (BMS Mode)' : ''}`}
                               onClick={() => handleSeatClick(seat)}
-                              disabled={seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'bms-booked'}
+                              disabled={seat.status === 'booked' || seat.status === 'blocked' || (!bmsMode && seat.status === 'bms-booked')}
                             >
                               <div className="text-xs">{seat.number}</div>
                               <div className="text-xs">{getSeatIcon(seat.status)}</div>
@@ -251,8 +347,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         </div>
       </div>
 
-      {/* Simplified Legend */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* Enhanced Legend */}
+      <div className="grid grid-cols-5 gap-4 mb-6">
         <div className="flex items-center space-x-2">
           <div className="w-4 h-4 bg-green-500 rounded"></div>
           <span className="text-sm">Available</span>
@@ -273,6 +369,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           <span className="text-sm">BMS Booked</span>
           <span className="text-xs text-gray-500 font-mono">({bmsBookedCount})</span>
         </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 bg-gray-400 rounded"></div>
+          <span className="text-sm">Blocked</span>
+          <span className="text-xs text-gray-500 font-mono">({blockedCount})</span>
+        </div>
       </div>
 
       {/* Screen Indicator */}
@@ -281,8 +382,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           <span className="text-lg font-medium">🎬 SCREEN</span>
         </div>
       </div>
-
-
 
       {/* Fixed Bottom Panel - Only show if not hidden */}
       {!hideProceedButton && (

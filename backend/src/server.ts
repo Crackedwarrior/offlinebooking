@@ -75,77 +75,76 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
     notes
   } = bookingRequest;
 
-  // Group tickets by class for separate bookings
-  const ticketGroups: Record<string, any[]> = tickets.reduce((groups: Record<string, any[]>, ticket: any) => {
-    const classLabel = ticket.classLabel || 'UNKNOWN';
-    if (!groups[classLabel]) {
-      groups[classLabel] = [];
-    }
-    groups[classLabel].push(ticket);
-    return groups;
-  }, {});
+  console.log('📝 Creating booking with data:', {
+    tickets: tickets.length,
+    total,
+    show,
+    screen,
+    movie,
+    date,
+    seatIds: tickets.map((t: any) => t.id)
+  });
 
-  const bookings = [];
+  try {
+    // Create a single booking record instead of multiple class-based bookings
+    // This prevents duplicate bookings for the same seats
+    const newBooking = await prisma.booking.create({
+      data: {
+        date: date ? new Date(date) : new Date(timestamp),
+        show: show as any,
+        screen,
+        movie,
+        bookedSeats: tickets.map((t: any) => t.id),
+        classLabel: tickets[0]?.classLabel || 'MIXED', // Use first ticket's class or 'MIXED' for multiple classes
+        seatCount: tickets.length,
+        pricePerSeat: Math.round(total / tickets.length),
+        totalPrice: total,
+        synced: false,
+      }
+    });
+    
+    console.log('✅ Booking created successfully:', newBooking.id);
+    
+    // Transform Prisma result to API type
+    const bookingData: BookingData = {
+      id: newBooking.id,
+      date: newBooking.date.toISOString(),
+      show: newBooking.show,
+      screen: newBooking.screen,
+      movie: newBooking.movie,
+      movieLanguage: 'HINDI', // Default value
+      bookedSeats: newBooking.bookedSeats as string[],
+      seatCount: tickets.length,
+      classLabel: newBooking.classLabel,
+      pricePerSeat: newBooking.pricePerSeat,
+      totalPrice: newBooking.totalPrice,
+      status: 'CONFIRMED',
+      source: 'LOCAL',
+      synced: newBooking.synced,
+      customerName,
+      customerPhone,
+      customerEmail,
+      notes,
+      totalIncome: 0,
+      localIncome: 0,
+      bmsIncome: 0,
+      vipIncome: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      bookedAt: newBooking.bookedAt.toISOString(),
+    };
 
-  for (const [classLabel, classTickets] of Object.entries(ticketGroups)) {
-    const classTotal = classTickets.reduce((sum: number, t: any) => sum + t.price, 0);
-    const pricePerSeat = Math.round(classTotal / classTickets.length);
-
-          // Create booking with current schema fields
-      const newBooking = await prisma.booking.create({
-        data: {
-          date: date ? new Date(date) : new Date(timestamp),
-          show: show as any,
-          screen,
-          movie,
-          bookedSeats: classTickets.map((t: any) => t.id),
-          classLabel: classLabel, // Use 'classLabel' field from current schema
-          seatCount: classTickets.length,
-          pricePerSeat,
-          totalPrice: classTotal,
-          synced: false,
-        }
-      });
-      
-      // Transform Prisma result to API type
-      const bookingData: BookingData = {
-        id: newBooking.id,
-        date: newBooking.date.toISOString(),
-        show: newBooking.show,
-        screen: newBooking.screen,
-        movie: newBooking.movie,
-        movieLanguage: 'HINDI', // Default value
-        bookedSeats: newBooking.bookedSeats as string[],
-        seatCount: classTickets.length,
-        classLabel: newBooking.classLabel,
-        pricePerSeat: newBooking.pricePerSeat,
-        totalPrice: newBooking.totalPrice,
-        status: 'CONFIRMED',
-        source: 'LOCAL',
-        synced: newBooking.synced,
-        customerName,
-        customerPhone,
-        customerEmail,
-        notes,
-        totalIncome: 0,
-        localIncome: 0,
-        bmsIncome: 0,
-        vipIncome: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        bookedAt: newBooking.bookedAt.toISOString(),
-      };
-      
-      bookings.push(bookingData);
+    const response: CreateBookingResponse = {
+      success: true, 
+      bookings: [bookingData], // Return single booking in array for compatibility
+      message: `Created booking successfully`
+    };
+    
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('❌ Error creating booking:', error);
+    throw error; // Let the error handler deal with it
   }
-
-  const response: CreateBookingResponse = {
-    success: true, 
-    bookings,
-    message: `Created ${bookings.length} booking(s) successfully`
-  };
-  
-  res.status(201).json(response);
 }));
 
 app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
@@ -331,12 +330,25 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     }))
   );
   
+  // Get BMS marked seats from the Seat table
+  const bmsSeats = await prisma.seat.findMany({
+    where: {
+      status: 'BMS_BOOKED'
+    },
+    select: {
+      seatId: true,
+      classLabel: true
+    }
+  });
+  
   console.log('📊 Seat status response:', {
     date,
     show,
     bookingsFound: bookings.length,
     totalBookedSeats: bookedSeats.length,
-    sampleBookedSeats: bookedSeats.slice(0, 5)
+    bmsSeatsFound: bmsSeats.length,
+    sampleBookedSeats: bookedSeats.slice(0, 5),
+    sampleBmsSeats: bmsSeats.slice(0, 5)
   });
   
   const response: SeatStatusResponse = {
@@ -345,8 +357,73 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
       date,
       show,
       bookedSeats,
-      totalBooked: bookedSeats.length
+      bmsSeats: bmsSeats.map(seat => ({
+        seatId: seat.seatId,
+        class: seat.classLabel
+      })),
+      totalBooked: bookedSeats.length,
+      totalBms: bmsSeats.length
     }
+  };
+  
+  res.json(response);
+}));
+
+// Save BMS seat status
+app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
+  const { seatIds, status } = req.body;
+  
+  if (!seatIds || !Array.isArray(seatIds)) {
+    throw new ValidationError('seatIds array is required');
+  }
+  
+  if (!status || !['BMS_BOOKED', 'AVAILABLE'].includes(status)) {
+    throw new ValidationError('status must be BMS_BOOKED or AVAILABLE');
+  }
+  
+  console.log('📝 Saving BMS seat status:', { seatIds, status });
+  
+  // Update or create seat records
+  const results = await Promise.all(
+    seatIds.map(async (seatId: string) => {
+      // Extract row and number from seatId (e.g., "SC-D1" -> row: "SC-D", number: 1)
+      const match = seatId.match(/^([A-Z]+-\w+)(\d+)$/);
+      if (!match) {
+        throw new ValidationError(`Invalid seat ID format: ${seatId}`);
+      }
+      
+      const [, row, numberStr] = match;
+      const number = parseInt(numberStr);
+      
+      // Determine class label based on row
+      let classLabel = 'STAR CLASS'; // default
+      if (row.startsWith('BOX')) classLabel = 'BOX';
+      else if (row.startsWith('SC')) classLabel = 'STAR CLASS';
+      
+      // Upsert seat record
+      return await prisma.seat.upsert({
+        where: { seatId },
+        update: { 
+          status: status as any,
+          updatedAt: new Date()
+        },
+        create: {
+          seatId,
+          row,
+          number,
+          classLabel,
+          status: status as any
+        }
+      });
+    })
+  );
+  
+  console.log(`✅ Updated ${results.length} seats to status: ${status}`);
+  
+  const response = {
+    success: true,
+    message: `Updated ${results.length} seats to ${status}`,
+    data: results
   };
   
   res.json(response);

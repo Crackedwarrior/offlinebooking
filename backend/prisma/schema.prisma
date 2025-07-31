@@ -92,6 +92,9 @@ model Booking {
   @@index([source])
   @@index([classLabel])
   @@index([createdAt])
+  
+  // Unique constraint to prevent duplicate bookings for the same seats on the same date and show
+  @@unique([date, show, bookedSeats])
 }
 
 // Seat tracking model for real-time seat status
