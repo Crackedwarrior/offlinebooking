@@ -29,6 +29,7 @@ export interface BookingState {
   saveBooking: () => void;
   loadBookingForDate: (date: string, show: ShowTime) => void;
   initializeSeats: () => void;
+  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[]) => void;
   getBookingStats: () => {
     total: number;
     available: number;
@@ -106,6 +107,43 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
   
   initializeSeats: () => set({ seats: createInitialSeats() }),
+  
+  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[]) => {
+    const state = get();
+    const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'selected');
+    
+    // Create new seats array with all seats reset to available
+    const newSeats = createInitialSeats();
+    
+    // Mark booked seats as booked
+    bookedSeatIds.forEach(seatId => {
+      const seatIndex = newSeats.findIndex(s => s.id === seatId);
+      if (seatIndex !== -1) {
+        newSeats[seatIndex].status = 'booked';
+      }
+    });
+    
+    // Mark BMS seats as bms-booked
+    bmsSeatIds.forEach(seatId => {
+      const seatIndex = newSeats.findIndex(s => s.id === seatId);
+      if (seatIndex !== -1) {
+        newSeats[seatIndex].status = 'bms-booked';
+      }
+    });
+    
+    // Restore selected seats that are still available (not booked or BMS)
+    currentlySelectedSeats.forEach(seat => {
+      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id)) {
+        const seatIndex = newSeats.findIndex(s => s.id === seat.id);
+        if (seatIndex !== -1) {
+          newSeats[seatIndex].status = 'selected';
+        }
+      }
+    });
+    
+    // Update the state with the new seats array
+    set({ seats: newSeats });
+  },
   
   getBookingStats: () => {
     const { seats } = get();

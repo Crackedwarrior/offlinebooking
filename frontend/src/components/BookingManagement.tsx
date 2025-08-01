@@ -198,7 +198,7 @@ const BookingManagement = () => {
               <BookingSummary bookings={bookings} onDelete={handleDelete} />
               
               {/* Seat Grid */}
-              <SeatGrid hideProceedButton={true} />
+              <SeatGrid hideProceedButton={true} showRefreshButton={true} />
             </>
           )}
           

@@ -86,6 +86,64 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
   });
 
   try {
+    // Check if a booking with the same seats already exists for this date and show
+    // Since bookedSeats is a JSON array, we need to check differently
+    const existingBookings = await prisma.booking.findMany({
+      where: {
+        date: date ? new Date(date) : new Date(timestamp),
+        show: show as any,
+      }
+    });
+
+    // Check if any existing booking has the same seat IDs
+    const seatIds = tickets.map((t: any) => t.id);
+    const existingBooking = existingBookings.find(booking => {
+      const bookingSeats = booking.bookedSeats as string[];
+      return bookingSeats.length === seatIds.length && 
+             seatIds.every(id => bookingSeats.includes(id));
+    });
+
+    if (existingBooking) {
+      console.log('⚠️ Booking already exists for these seats:', existingBooking.id);
+      
+      // Return the existing booking instead of creating a duplicate
+      const existingBookingData: BookingData = {
+        id: existingBooking.id,
+        date: existingBooking.date.toISOString(),
+        show: existingBooking.show,
+        screen: existingBooking.screen,
+        movie: existingBooking.movie,
+        movieLanguage: 'HINDI',
+        bookedSeats: existingBooking.bookedSeats as string[],
+        seatCount: existingBooking.seatCount,
+        classLabel: existingBooking.classLabel,
+        pricePerSeat: existingBooking.pricePerSeat,
+        totalPrice: existingBooking.totalPrice,
+        status: existingBooking.status,
+        source: existingBooking.source,
+        synced: existingBooking.synced,
+        customerName: existingBooking.customerName || undefined,
+        customerPhone: existingBooking.customerPhone || undefined,
+        customerEmail: existingBooking.customerEmail || undefined,
+        notes: existingBooking.notes || undefined,
+        totalIncome: existingBooking.totalIncome || undefined,
+        localIncome: existingBooking.localIncome || undefined,
+        bmsIncome: existingBooking.bmsIncome || undefined,
+        vipIncome: existingBooking.vipIncome || undefined,
+        createdAt: existingBooking.createdAt.toISOString(),
+        updatedAt: existingBooking.updatedAt.toISOString(),
+        bookedAt: existingBooking.bookedAt.toISOString(),
+      };
+
+      const response: CreateBookingResponse = {
+        success: true,
+        bookings: [existingBookingData],
+        message: `Booking already exists for these seats`
+      };
+      
+      return res.status(200).json(response);
+    }
+
     // Create a single booking record instead of multiple class-based bookings
     // This prevents duplicate bookings for the same seats
     const newBooking = await prisma.booking.create({
@@ -387,7 +445,8 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
   const results = await Promise.all(
     seatIds.map(async (seatId: string) => {
       // Extract row and number from seatId (e.g., "SC-D1" -> row: "SC-D", number: 1)
-      const match = seatId.match(/^([A-Z]+-\w+)(\d+)$/);
+      // Also handles "SC2-A1" -> row: "SC2-A", number: 1
+      const match = seatId.match(/^([A-Z0-9]+-[A-Z0-9]+)(\d+)$/);
       if (!match) {
         throw new ValidationError(`Invalid seat ID format: ${seatId}`);
       }
@@ -398,7 +457,10 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
       // Determine class label based on row
       let classLabel = 'STAR CLASS'; // default
       if (row.startsWith('BOX')) classLabel = 'BOX';
+      else if (row.startsWith('SC2')) classLabel = 'SECOND CLASS';
       else if (row.startsWith('SC')) classLabel = 'STAR CLASS';
+      else if (row.startsWith('CB')) classLabel = 'CLASSIC';
+      else if (row.startsWith('FC')) classLabel = 'FIRST CLASS';
       
       // Upsert seat record
       return await prisma.seat.upsert({

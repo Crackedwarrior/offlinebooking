@@ -45,16 +45,18 @@ const SeatStatusPanel: React.FC<SeatStatusPanelProps> = ({
   const seats = useBookingStore(state => state.seats);
   const selectedSeats = seats.filter(seat => seat.status === 'selected');
   const bookedSeats = seats.filter(seat => seat.status === 'booked');
+  const bmsSeats = seats.filter(seat => seat.status === 'bms-booked');
 
   // Fetch seat status from backend
   const fetchSeatStatus = async () => {
     setLoading(true);
     try {
-      // For now, use local state since API types need to be aligned
-      const totalSeats = 100;
+      // Calculate stats from local state
+      const totalSeats = seats.length;
       const bookedCount = bookedSeats.length;
-      const availableCount = totalSeats - bookedCount;
-      const occupancyRate = (bookedCount / totalSeats) * 100;
+      const bmsCount = bmsSeats.length;
+      const availableCount = totalSeats - bookedCount - bmsCount;
+      const occupancyRate = ((bookedCount + bmsCount) / totalSeats) * 100;
       
       setStats({
         totalSeats,
@@ -154,7 +156,7 @@ const SeatStatusPanel: React.FC<SeatStatusPanelProps> = ({
       
       <CardContent className="space-y-4">
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="text-center p-3 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">{stats.totalSeats}</div>
             <div className="text-sm text-blue-600">Total Seats</div>
@@ -168,6 +170,11 @@ const SeatStatusPanel: React.FC<SeatStatusPanelProps> = ({
           <div className="text-center p-3 bg-red-50 rounded-lg">
             <div className="text-2xl font-bold text-red-600">{stats.bookedSeats}</div>
             <div className="text-sm text-red-600">Booked</div>
+          </div>
+          
+          <div className="text-center p-3 bg-purple-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-600">{bmsSeats.length}</div>
+            <div className="text-sm text-purple-600">BMS Seats</div>
           </div>
           
           <div className="text-center p-3 bg-yellow-50 rounded-lg">
@@ -214,6 +221,10 @@ const SeatStatusPanel: React.FC<SeatStatusPanelProps> = ({
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
               <span className="text-sm">Booked</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-sm">BMS Marked</span>
             </div>
           </div>
         </div>

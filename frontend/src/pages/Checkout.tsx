@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import type { ShowTime } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,8 @@ import TicketPrint from '@/components/TicketPrint';
 import { useRef } from 'react';
 import { SEAT_CLASSES, SHOW_TIMES, MOVIE_CONFIG, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
+import { getSeatStatus } from '@/services/api';
+import { toast } from '@/hooks/use-toast';
 
 const CLASS_INFO = SEAT_CLASSES.map(cls => ({
   key: cls.key,
@@ -107,18 +109,95 @@ function getCurrentShowKey() {
 
 interface CheckoutProps {
   onBookingComplete?: (bookingData: any) => void;
+  checkoutData?: any;
 }
 
-const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
-  const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats } = useBookingStore();
+const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) => {
+  const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats, syncSeatStatus } = useBookingStore();
   const { getPriceForClass, getMovieForShow } = useSettingsStore();
   const [showDropdownOpen, setShowDropdownOpen] = useState(false);
   const showDropdownRef = useRef<HTMLDivElement>(null);
-  // Add state for dynamic seat selection count per class
-  const [selectedCount, setSelectedCount] = useState<Record<string, number>>({});
   // Add state for decoupled seat IDs
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
+  // Add state to track if booking was just completed
+  const [bookingCompleted, setBookingCompleted] = useState(false);
 
+  // Debug: Log the props and store state (only when there are changes)
+  useEffect(() => {
+    console.log('🔍 Checkout component render:', {
+      checkoutDataExists: !!checkoutData,
+      checkoutDataSelectedSeats: checkoutData?.selectedSeats?.length || 0,
+      storeSeatsLength: seats.length,
+      storeSelectedSeats: seats.filter(s => s.status === 'selected').length,
+      storeSelectedSeatIds: seats.filter(s => s.status === 'selected').map(s => s.id)
+    });
+  }, [checkoutData, seats]);
+
+  // Use checkoutData if available, otherwise fall back to global state
+  const selectedSeats = useMemo(() => {
+    // If we have checkoutData with selected seats, use it
+    // Otherwise, use store data (for when seats are selected after checkoutData is set)
+    const storeSelectedSeats = seats.filter(seat => seat.status === 'selected');
+    
+    // Only use checkoutData if it exists and has selected seats
+    const hasCheckoutSeats = checkoutData && 
+                            checkoutData.selectedSeats && 
+                            Array.isArray(checkoutData.selectedSeats) && 
+                            checkoutData.selectedSeats.length > 0;
+    
+    const result = hasCheckoutSeats ? checkoutData.selectedSeats : storeSelectedSeats;
+    
+    // Only log when there are actual changes to avoid spam
+    if (result.length > 0 || storeSelectedSeats.length > 0) {
+      console.log('🔍 selectedSeats calculation:', {
+        checkoutDataExists: !!checkoutData,
+        hasCheckoutSeats,
+        checkoutDataSelectedCount: checkoutData?.selectedSeats?.length || 0,
+        storeSelectedCount: storeSelectedSeats.length,
+        selectedSeatsCount: result.length,
+        selectedSeatIds: result.map(s => s.id)
+      });
+    }
+    return result;
+  }, [checkoutData, seats]);
+
+  // Reset booking completed state when checkout data is cleared
+  useEffect(() => {
+    if (!checkoutData && bookingCompleted) {
+      setBookingCompleted(false);
+    }
+  }, [checkoutData, bookingCompleted]);
+  
+  // Fetch current seat status from backend when component mounts or date/show changes
+  useEffect(() => {
+    const fetchCurrentSeatStatus = async () => {
+      try {
+        console.log('🔄 Fetching seat status for checkout page:', { date: selectedDate, show: selectedShow });
+        const response = await getSeatStatus(selectedDate, selectedShow);
+        
+        if (response.success && response.data) {
+          const { bookedSeats, bmsSeats } = response.data;
+          
+          // Use the new syncSeatStatus function to properly sync seat status
+          const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+          const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+          syncSeatStatus(bookedSeatIds, bmsSeatIds);
+          
+          console.log(`✅ Updated ${bookedSeats.length} booked seats and ${bmsSeats.length} BMS seats in checkout`);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching seat status in checkout:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load current seat status.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    fetchCurrentSeatStatus();
+  }, [selectedDate, selectedShow]);
+  
   // Get reactive show details
   const SHOW_DETAILS = getShowDetails();
   const showOptions = Object.keys(SHOW_DETAILS);
@@ -146,14 +225,22 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     setShowDropdownOpen(false);
   };
 
-  // Group selected seats by class
-  const selectedSeats = seats.filter(seat => seat.status === 'selected');
   const classCounts = CLASS_INFO.map(cls => {
     const count = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
     const price = getPriceForClass(cls.label);
     return { ...cls, count, price };
   });
   const total = classCounts.reduce((sum, cls: any) => sum + cls.count * cls.price, 0);
+
+  // Debug logging (only when there are selected seats)
+  useEffect(() => {
+    if (selectedSeats.length > 0) {
+      console.log('🔍 Debug: Selected seats:', selectedSeats.length);
+      console.log('🔍 Debug: Selected seats details:', selectedSeats.map(s => `${s.id} (${s.status})`));
+      console.log('🔍 Debug: Class counts:', classCounts.map(c => `${c.label}: ${c.count} * ₹${c.price} = ₹${c.count * c.price}`));
+      console.log('🔍 Debug: Total:', total);
+    }
+  }, [selectedSeats, classCounts, total]);
 
   // For TicketPrint: map to required format
   const ticketSeats = selectedSeats
@@ -190,6 +277,14 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
 
   // Handler for booking complete
   const handleBookingComplete = () => {
+    // Mark selected seats as booked first
+    selectedSeats.forEach(seat => {
+      toggleSeatStatus(seat.id, 'booked');
+    });
+    
+    // Set booking completed state
+    setBookingCompleted(true);
+    
     // Prepare booking data for confirmation
     const bookingData = {
       date: selectedDate,
@@ -206,13 +301,31 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
       timestamp: new Date().toISOString()
     };
 
-    // Call the callback if provided
+    // Call the parent's onBookingComplete callback
     if (onBookingComplete) {
       onBookingComplete(bookingData);
-    } else {
-      // Fallback: Reset seats
-      initializeSeats();
     }
+  };
+
+  // Handler to reset checkout state for new booking
+  const handleResetForNewBooking = () => {
+    // Clear all selected seats
+    selectedSeats.forEach(seat => {
+      toggleSeatStatus(seat.id, 'available');
+    });
+    
+    // Clear decoupled seat IDs
+    setDecoupledSeatIds([]);
+    
+    // Reset booking completed state
+    setBookingCompleted(false);
+    
+    // Show success message
+    toast({
+      title: 'Ready for New Booking',
+      description: 'Checkout has been reset. You can now select new seats.',
+      duration: 3000,
+    });
   };
 
   // Helper to get the first valid contiguous block in a class
@@ -264,6 +377,14 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
   const handleClassCardClick = (cls: any) => {
     const classKey = cls.key || cls.label;
     
+    console.log(`🎯 Class card clicked: ${classKey}`);
+    console.log(`🎯 Available seats in ${classKey}:`, seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'available').map(s => s.id));
+    
+    // Reset booking completed state when new seats are selected
+    if (bookingCompleted) {
+      setBookingCompleted(false);
+    }
+    
     // Get currently selected seats in this class
     const previouslySelected = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'selected');
     const currentCount = previouslySelected.length;
@@ -272,28 +393,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     console.log(`Class card clicked: ${classKey}, current count: ${currentCount}, new count: ${newCount}`);
     console.log('Previously selected seats:', previouslySelected.map(s => s.id));
     
-    // CASE 1: Nothing selected yet — find next available block after last booking
+    // CASE 1: Nothing selected yet — find next available block
     if (previouslySelected.length === 0) {
       console.log('Case 1: Starting fresh - looking for next available block');
       
-      // Find the last booked seat in this class to know where to start
-      const allSeatsInClass = seats.filter(seat => cls.rows.includes(seat.row));
-      const bookedSeatsInClass = allSeatsInClass.filter(seat => seat.status === 'booked');
-      
-      let lastBookedSeatNumber = 0;
-      let lastBookedRow = cls.rows[0];
-      
-      if (bookedSeatsInClass.length > 0) {
-        // Find the highest seat number among booked seats
-        const highestBooked = bookedSeatsInClass.reduce((max, seat) => 
-          seat.number > max.number ? seat : max
-        );
-        lastBookedSeatNumber = highestBooked.number;
-        lastBookedRow = highestBooked.row;
-        console.log(`Last booked seat: ${lastBookedRow}${lastBookedSeatNumber}`);
-      }
-      
-      // Try to find N contiguous seats starting after the last booked seat
+      // Try to find N contiguous seats starting from the first available seat
       for (const row of cls.rows) {
         console.log(`Checking row: ${row}`);
         
@@ -304,33 +408,29 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
         
         console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
         
-        let startIndex = 0;
-        
-        // If this is the same row as the last booking, start after the last booked seat
-        if (row === lastBookedRow && lastBookedSeatNumber > 0) {
-          // Find the first available seat that comes after the last booked seat
-          const nextAvailableSeat = rowSeats.find(seat => seat.number > lastBookedSeatNumber);
-          if (nextAvailableSeat) {
-            startIndex = rowSeats.indexOf(nextAvailableSeat);
-            console.log(`Starting from index ${startIndex} (seat ${nextAvailableSeat.row}${nextAvailableSeat.number} after ${lastBookedSeatNumber})`);
-          } else {
-            // No seats available after last booking in this row
-            console.log(`No seats available after ${lastBookedSeatNumber} in row ${row}`);
-            continue; // Try next row
-          }
-        }
-        
-        const block = findContiguousBlock(rowSeats, newCount, startIndex);
+        const block = findContiguousBlock(rowSeats, newCount, 0);
         if (block) {
           console.log(`Found next available block:`, block.map(s => s.id));
-          block.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
-          setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
+          console.log(`🎯 Marking seats as selected:`, block.map(s => s.id));
+          block.forEach(seat => {
+            console.log(`🎯 Toggling seat ${seat.id} to selected`);
+            toggleSeatStatus(seat.id, 'selected');
+          });
+          
+          // Add a small delay to ensure store updates are processed
+          setTimeout(() => {
+            console.log('🔍 After delay - Store state:', {
+              selectedSeats: seats.filter(s => s.status === 'selected').length,
+              selectedSeatIds: seats.filter(s => s.status === 'selected').map(s => s.id)
+            });
+          }, 100);
+          
           return;
         }
       }
       
-      // No block found, reset to 0
-      setSelectedCount(prev => ({ ...prev, [classKey]: 0 }));
+      // No block found
+      console.log('No available block found');
       return;
     }
     
@@ -343,17 +443,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     
     console.log(`All seats in current row:`, allSeatsInCurrentRowSorted.map(s => `${s.row}${s.number} (${s.status})`));
     
-    // Find the lowest and highest seat numbers among currently selected seats
+    // Find the lowest seat number among currently selected seats
     const lowestSelectedSeat = previouslySelected.reduce((min, seat) => 
       seat.number < min.number ? seat : min
     );
-    const highestSelectedSeat = previouslySelected.reduce((max, seat) => 
-      seat.number > max.number ? seat : max
-    );
-    console.log(`Selected range: ${lowestSelectedSeat.row}${lowestSelectedSeat.number} to ${highestSelectedSeat.row}${highestSelectedSeat.number}`);
+    console.log(`Lowest selected seat: ${lowestSelectedSeat.row}${lowestSelectedSeat.number}`);
     
     // Try to find a larger contiguous block that includes the current selection
-    // We need to find a block of 'newCount' seats that starts from the lowest selected seat
     const startIndex = allSeatsInCurrentRowSorted.findIndex(seat => seat.number === lowestSelectedSeat.number);
     const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount, startIndex);
     if (grownBlock) {
@@ -362,7 +458,6 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
       // Deselect current seats and select the grown block
       previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
       grownBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
-      setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
       return;
     }
     
@@ -383,14 +478,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
       
       console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
       
-      const newBlock = findContiguousBlock(rowSeats, newCount);
+      const newBlock = findContiguousBlock(rowSeats, newCount, 0);
       if (newBlock) {
         console.log(`Found new block in ${row}:`, newBlock.map(s => s.id));
         
         // Deselect current seats and select the new block
         previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
         newBlock.forEach(seat => toggleSeatStatus(seat.id, 'selected'));
-        setSelectedCount(prev => ({ ...prev, [classKey]: newCount }));
         return;
       }
     }
@@ -398,7 +492,6 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
     // CASE 4: No valid block found anywhere — reset to 0
     console.log('Case 4: No valid block found, resetting to 0');
     previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'available'));
-    setSelectedCount(prev => ({ ...prev, [classKey]: 0 }));
   };
 
   // Get movie for current show
@@ -420,17 +513,17 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
               ref={showDropdownRef}
             >
               <span className="font-bold text-lg mb-1 inline whitespace-nowrap">{`${currentMovie.name} (${currentMovie.language})`}</span>
-              <span className="text-sm font-semibold text-blue-600 mb-1">{SHOW_DETAILS[selectedShow]?.label || selectedShow}</span>
-              <span className="text-sm mb-2 whitespace-nowrap">{SHOW_DETAILS[selectedShow]?.timing || ''}</span>
+              <span className="text-sm font-semibold text-blue-600 mb-1">{getShowDetails()[selectedShow]?.label || selectedShow}</span>
+              <span className="text-sm mb-2 whitespace-nowrap">{getShowDetails()[selectedShow]?.timing || ''}</span>
               <span className="absolute right-3 bottom-2 text-base font-semibold">{(() => {
                 const totalSeats = seats.length;
-                const bookedSeats = seats.filter(seat => seat.status === 'booked').length;
-                return `${bookedSeats}/${totalSeats}`;
+                const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
+                return `${availableSeats}/${totalSeats}`;
               })()}</span>
               {/* Dropdown for show selection */}
               {showDropdownOpen && (
                 <div className="absolute top-full left-0 mt-2 w-[220px] bg-white rounded-xl shadow-lg border z-50 p-2 space-y-2" style={{minWidth: 200}}>
-                  {Object.keys(SHOW_DETAILS).map((showKey) => (
+                  {Object.keys(getShowDetails()).map((showKey) => (
                     <div
                       key={showKey}
                       className={`p-3 rounded-lg cursor-pointer flex flex-col border transition-all ${selectedShow === showKey ? 'bg-blue-100 border-blue-400' : 'hover:bg-gray-100 border-transparent'}`}
@@ -439,14 +532,14 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
                         handleShowSelect(showKey);
                       }}
                     >
-                      <span className="font-bold text-base">{SHOW_DETAILS[showKey].label}</span>
-                      <span className="text-xs text-gray-600">{SHOW_DETAILS[showKey].timing}</span>
+                      <span className="font-bold text-base">{getShowDetails()[showKey].label}</span>
+                      <span className="text-xs text-gray-600">{getShowDetails()[showKey].timing}</span>
                       <span className="text-xs text-gray-500 mt-1">{(() => {
                         // Show seat stats for this show
                         if (showKey === selectedShow) {
                           const totalSeats = seats.length;
-                          const bookedSeats = seats.filter(seat => seat.status === 'booked').length;
-                          return `Booked: ${bookedSeats}/${totalSeats}`;
+                          const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
+                          return `Available: ${availableSeats}/${totalSeats}`;
                         } else {
                           return '';
                         }
@@ -459,8 +552,10 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
             {/* Class Boxes */}
             {CLASS_INFO.map((cls, i) => {
               const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
-              const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'booked').length;
+              const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'booked' && seat.status !== 'bms-booked').length;
               const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'booked').length;
+              const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'bms-booked').length;
+              const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
               const price = getPriceForClass(cls.label);
               
               // Original color mapping
@@ -487,6 +582,12 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
                   <div>
                     <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>
                     <span className="block text-sm text-gray-700 text-left">{total} ({available})</span>
+                    {bmsBooked > 0 && (
+                      <span className="block text-xs text-blue-600 text-left">BMS: {bmsBooked}</span>
+                    )}
+                    {selected > 0 && (
+                      <span className="block text-xs text-green-600 font-semibold text-left">Selected: {selected}</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between w-full absolute left-0 bottom-2 px-6">
                     <span className="text-[10px] font-semibold">{sold}</span>
@@ -517,6 +618,42 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete }) => {
           selectedDate={selectedDate}
           onBookingComplete={handleBookingComplete}
         />
+        
+        {/* Success Message - Show when booking was completed */}
+        {bookingCompleted && selectedSeats.length === 0 && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-green-800 mb-2">✅ Booking Completed Successfully!</h3>
+              <p className="text-sm text-green-600 mb-4">
+                Your tickets have been printed and saved. You can now start a new booking.
+              </p>
+              <Button
+                onClick={handleResetForNewBooking}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Start New Booking
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {/* New Booking Button - Show when no seats are selected and no booking was just completed */}
+        {!bookingCompleted && selectedSeats.length === 0 && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-blue-800 mb-2">Ready for New Booking</h3>
+              <p className="text-sm text-blue-600 mb-4">
+                All seats have been cleared. You can now select new seats for booking.
+              </p>
+              <Button
+                onClick={handleResetForNewBooking}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Start New Booking
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

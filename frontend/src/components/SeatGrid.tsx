@@ -17,10 +17,11 @@ interface SeatGridProps {
   onProceed?: (data: any) => void;
   hideProceedButton?: boolean;
   hideRefreshButton?: boolean;
+  showRefreshButton?: boolean;
 }
 
-const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false }: SeatGridProps) => {
-  const { seats, toggleSeatStatus, selectedDate, selectedShow } = useBookingStore();
+const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false }: SeatGridProps) => {
+  const { seats, toggleSeatStatus, selectedDate, selectedShow, syncSeatStatus } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
   const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
@@ -52,18 +53,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         console.log('  - Sample booked seats:', bookedSeats.slice(0, 5));
         console.log('  - Sample BMS seats:', bmsSeats.slice(0, 5));
         
-        // Reset all seats to available first
-        useBookingStore.getState().initializeSeats();
-        
-        // Mark booked seats as booked
-        bookedSeatIds.forEach(seatId => {
-          useBookingStore.getState().toggleSeatStatus(seatId, 'booked');
-        });
-        
-        // Mark BMS seats as bms-booked
-        bmsSeatIds.forEach(seatId => {
-          useBookingStore.getState().toggleSeatStatus(seatId, 'bms-booked');
-        });
+        // Use the new syncSeatStatus function to properly sync seat status
+        syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds));
         
         console.log(`✅ Updated ${bookedSeatIds.size} seats as booked and ${bmsSeatIds.size} seats as BMS`);
         
@@ -232,6 +223,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       console.log('  - Current date:', selectedDate);
       console.log('  - Current show:', selectedShow);
       console.log('  - Effect triggered for show:', selectedShow);
+      console.log('  - Current selected seats:', seats.filter(s => s.status === 'selected').length);
       fetchSeatStatus();
     } else {
       console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
@@ -252,7 +244,17 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           )}
         </div>
         <div className="flex items-center gap-4">
-          {!hideRefreshButton && (
+          {showRefreshButton ? (
+            <Button
+              onClick={fetchSeatStatus}
+              disabled={loadingSeats}
+              size="sm"
+              variant="outline"
+            >
+              <RotateCcw className={`w-4 h-4 mr-2 ${loadingSeats ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          ) : !hideRefreshButton && (
             <Button
               onClick={toggleBmsMode}
               disabled={loadingSeats}

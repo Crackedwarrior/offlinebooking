@@ -127,6 +127,16 @@ const Index = () => {
           duration: 3000,
         });
         
+        // Mark the booked seats as booked in the store (don't reset all seats)
+        const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
+        bookingData.seats.forEach((seat: any) => {
+          toggleSeatStatus(seat.id, 'booked');
+        });
+        
+        // Clear checkout data completely after booking to avoid infinite loops
+        setCheckoutData(null);
+        
+        // Stay on checkout page - user can manually navigate back when ready
         // Note: BookingHistory will automatically refetch data when the date changes
         // or when the user navigates to the history page
       } else {
@@ -141,9 +151,6 @@ const Index = () => {
         duration: 5000,
       });
     }
-    
-    // Stay on checkout page - no page switch
-    // User can manually navigate back when ready
   };
 
 
@@ -289,7 +296,7 @@ const Index = () => {
           )}
           {activeView === 'settings' && <Settings />}
           {activeView === 'checkout' && (
-            <Checkout onBookingComplete={handleBookingComplete} />
+            <Checkout onBookingComplete={handleBookingComplete} checkoutData={checkoutData} />
           )}
 
         </div>
