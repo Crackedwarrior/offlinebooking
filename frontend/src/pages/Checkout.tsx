@@ -93,10 +93,10 @@ function getCurrentShowKey() {
     return showTimes[0]?.key || 'EVENING';
   } catch {
     // Fallback to static configuration
-  const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
     
     if (totalMinutes >= 600 && totalMinutes < 720) return 'MORNING';
     if (totalMinutes >= 840 && totalMinutes < 1020) return 'MATINEE';
@@ -173,10 +173,10 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     const fetchCurrentSeatStatus = async () => {
       try {
         console.log('🔄 Fetching seat status for checkout page:', { date: selectedDate, show: selectedShow });
-        const response = await getSeatStatus(selectedDate, selectedShow);
+        const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
         
         if (response.success && response.data) {
-          const { bookedSeats, bmsSeats } = response.data;
+          const { bookedSeats, bmsSeats } = response.data as any;
           
           // Use the new syncSeatStatus function to properly sync seat status
           const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
@@ -196,7 +196,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     };
 
     fetchCurrentSeatStatus();
-  }, [selectedDate, selectedShow]);
+  }, [selectedDate, selectedShow, syncSeatStatus]);
   
   // Get reactive show details
   const SHOW_DETAILS = getShowDetails();
