@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { getBookings, updateBooking, deleteBooking } from '@/services/api';
 import { SHOW_TIMES } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -35,20 +34,23 @@ interface BookingData {
 }
 
 const BookingManagement = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedShow, setSelectedShow] = useState<string>('MORNING');
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const { setSelectedDate: setBookingDate, setSelectedShow: setBookingShow } = useBookingStore();
+  const { 
+    selectedDate, 
+    selectedShow, 
+    setSelectedDate: setBookingDate, 
+    setSelectedShow: setBookingShow 
+  } = useBookingStore();
+  
+  // Memoize the store state to prevent unnecessary re-renders
+  const storeState = useMemo(() => ({ selectedDate, selectedShow }), [selectedDate, selectedShow]);
 
   // Load bookings for selected date and show
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     setLoading(true);
     try {
-      // Update the booking store with selected date and show
-      setBookingDate(selectedDate);
-      setBookingShow(selectedShow as any);
       
       const response = await getBookings({ 
         date: selectedDate, 
@@ -56,17 +58,6 @@ const BookingManagement = () => {
       });
       
       if (response.success) {
-        console.log('🔍 API Response:', response);
-        console.log('📊 Bookings data:', response.data);
-        
-        // Debug: Check movie names in the response
-        if (response.data && response.data.length > 0) {
-          console.log('🎬 Movie names in response:');
-          response.data.forEach((booking, index) => {
-            console.log(`  ${index + 1}. "${booking.movie}" (ID: ${booking.id})`);
-          });
-        }
-        
         setBookings(response.data || []);
         setIsLoaded(true);
         toast({
@@ -86,10 +77,10 @@ const BookingManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, selectedShow, storeState]);
 
   // Delete a booking
-  const handleDelete = async (booking: BookingData) => {
+  const handleDelete = useCallback(async (booking: BookingData) => {
     if (!window.confirm(`Are you sure you want to delete this booking? This action cannot be undone.`)) {
       return;
     }
@@ -121,9 +112,23 @@ const BookingManagement = () => {
         variant: 'destructive',
       });
     }
+  }, [selectedDate, selectedShow, setBookingDate, setBookingShow]);
+
+  // Handle show selection change
+  const handleShowChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newShow = e.target.value as 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
+    setBookingShow(newShow);
   };
 
+  // Monitor selectedShow changes
+  useEffect(() => {
+  }, [selectedShow]);
 
+  // Monitor component mount/unmount
+  useEffect(() => {
+    return () => {
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -146,23 +151,35 @@ const BookingManagement = () => {
                 id="date"
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => setBookingDate(e.target.value)}
               />
             </div>
             <div className="flex-1">
               <Label htmlFor="show">Show</Label>
-              <Select value={selectedShow} onValueChange={setSelectedShow}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SHOW_TIMES.map(show => (
-                    <SelectItem key={show.key} value={show.key}>
-                      {show.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                id="show"
+                value={selectedShow}
+                onChange={handleShowChange}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {SHOW_TIMES.map(show => (
+                  <option key={show.key} value={show.key}>
+                    {show.label}
+                  </option>
+                ))}
+              </select>
+              <div className="text-xs text-gray-500 mt-1">
+                Current: {selectedShow} - {SHOW_TIMES.find(s => s.key === selectedShow)?.label}
+                <button 
+                  onClick={() => {
+                    console.log('🔍 Test button clicked, setting to EVENING');
+                    setBookingShow('EVENING' as 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT');
+                  }}
+                  className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded"
+                >
+                  Test: Set to Evening
+                </button>
+              </div>
             </div>
             <Button 
               onClick={loadBookings} 
@@ -241,7 +258,6 @@ const BookingSummary = ({
       
       <div className="space-y-3">
         {bookings.map((booking) => {
-          console.log('🎬 Rendering booking:', { id: booking.id, movie: booking.movie });
           return (
             <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
               <div className="flex-1">

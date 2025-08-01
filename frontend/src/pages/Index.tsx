@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Calendar, Clock, History, Download, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Settings as SettingsIcon, Users } from 'lucide-react';
 import SeatGrid from '@/components/SeatGrid';
 import ShowSelector from '@/components/ShowSelector';
@@ -6,6 +6,7 @@ import DateSelector from '@/components/DateSelector';
 import BookingHistory from '@/components/BookingHistory';
 import ReportPreview from '@/components/ReportPreview';
 import SeatStatusPanel from '@/components/SeatStatusPanel';
+import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
 
 import { useBookingStore } from '@/store/bookingStore';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -39,8 +40,14 @@ const Index = () => {
   const [checkoutData, setCheckoutData] = useState(null);
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
 
+  // Memoize the current show and time update function
+  const updateCurrentShowAndTime = useCallback(() => {
+    setCurrentShow(getCurrentShowLabel());
+    setCurrentTime(new Date());
+  }, []);
+
   // Function to deselect seats
-  const deselectSeats = (seatsToDeselect: any[]) => {
+  const deselectSeats = useCallback((seatsToDeselect: any[]) => {
     const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
     seatsToDeselect.forEach(seat => {
       toggleSeatStatus(seat.id, 'available');
@@ -65,10 +72,10 @@ const Index = () => {
         totalAmount
       });
     }
-  };
+  }, [checkoutData, getPriceForClass]);
 
   // Function to decouple tickets (remove grouped and add back as individual)
-  const decoupleTickets = async (seatsToDecouple: any[]) => {
+  const decoupleTickets = useCallback(async (seatsToDecouple: any[]) => {
     const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
     // Set all to available
     seatsToDecouple.forEach(seat => {
@@ -82,26 +89,23 @@ const Index = () => {
     });
     // Add these seat IDs to decoupledSeatIds
     setDecoupledSeatIds(prev => [...prev, ...seatsToDecouple.map(seat => seat.id)]);
-  };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentShow(getCurrentShowLabel());
-      setCurrentTime(new Date());
-    }, 1000); // update every second
-    return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(updateCurrentShowAndTime, 1000); // update every second
+    return () => clearInterval(interval);
+  }, [updateCurrentShowAndTime]);
+
   // Floating Reset Button handler
-  const handleResetSeats = () => {
+  const handleResetSeats = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
       initializeSeats();
       toast({
         title: 'Seats Reset',
-        description: 'All seats have been reset to available status.',
+        description: 'All seats have been reset to available.',
       });
     }
-  };
+  }, [initializeSeats]);
 
   // Handle booking completion
   const handleBookingComplete = async (bookingData: any) => {
@@ -287,13 +291,7 @@ const Index = () => {
             </div>
           )}
           {activeView === 'history' && <BookingHistory />}
-          {activeView === 'reports' && (
-            <div className="text-center py-12">
-              <Download className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">Reports Dashboard</h3>
-              <p className="text-gray-500">Detailed analytics and reporting features coming soon</p>
-            </div>
-          )}
+          {activeView === 'reports' && <BoxVsOnlineReport />}
           {activeView === 'settings' && <Settings />}
           {activeView === 'checkout' && (
             <Checkout onBookingComplete={handleBookingComplete} checkoutData={checkoutData} />

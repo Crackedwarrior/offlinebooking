@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/server.ts"
+    "start": "ts-node src/server.ts",
+    "dev": "ts-node src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +17,8 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.6.2",
-    "prisma": "^6.11.1"
+    "prisma": "^6.11.1",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",

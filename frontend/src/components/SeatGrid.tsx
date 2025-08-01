@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
@@ -21,14 +21,21 @@ interface SeatGridProps {
 }
 
 const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false }: SeatGridProps) => {
-  const { seats, toggleSeatStatus, selectedDate, selectedShow, syncSeatStatus } = useBookingStore();
+  const { 
+    selectedDate, 
+    selectedShow, 
+    seats, 
+    syncSeatStatus, 
+    toggleSeatStatus, 
+    getBookingStats 
+  } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
   const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [bmsMode, setBmsMode] = useState(false);
 
-  // Fetch seat status from database
-  const fetchSeatStatus = async () => {
+  // Memoize fetchSeatStatus to prevent unnecessary re-creations
+  const fetchSeatStatus = useCallback(async () => {
     if (!selectedDate || !selectedShow) return;
     
     setLoadingSeats(true);
@@ -44,14 +51,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         const bmsSeats = response.data.bmsSeats || [];
         const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
         const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
-        
-        console.log('🔍 Debugging seat status:');
-        console.log('  - Total booked seats from API:', bookedSeats.length);
-        console.log('  - Total BMS seats from API:', bmsSeats.length);
-        console.log('  - Booked seat IDs:', Array.from(bookedSeatIds));
-        console.log('  - BMS seat IDs:', Array.from(bmsSeatIds));
-        console.log('  - Sample booked seats:', bookedSeats.slice(0, 5));
-        console.log('  - Sample BMS seats:', bmsSeats.slice(0, 5));
         
         // Use the new syncSeatStatus function to properly sync seat status
         syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds));
@@ -80,17 +79,16 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     } finally {
       setLoadingSeats(false);
     }
-  };
+  }, [selectedDate, selectedShow, seats, syncSeatStatus]);
 
-  // Simplified reset handler
-  const handleResetSeats = () => {
+  // Memoize other functions
+  const handleResetSeats = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
       useBookingStore.getState().initializeSeats();
     }
-  };
+  }, []);
 
-  // Toggle BMS mode
-  const toggleBmsMode = () => {
+  const toggleBmsMode = useCallback(() => {
     setBmsMode(!bmsMode);
     if (bmsMode) {
       toast({
@@ -103,16 +101,19 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         description: 'Click seats to mark them as BMS (Book My Show)',
       });
     }
-  };
+  }, [bmsMode]);
 
-  // Map seats for quick lookup
-  const seatMap = seats.reduce((acc, seat) => {
-    acc[`${seat.row}${seat.number}`] = seat;
-    return acc;
-  }, {} as Record<string, Seat>);
+  // Memoize seat map for performance
+  const seatMap = useMemo(() => 
+    seats.reduce((acc, seat) => {
+      acc[`${seat.row}${seat.number}`] = seat;
+      return acc;
+    }, {} as Record<string, Seat>), 
+    [seats]
+  );
 
-  // Simplified seat color logic
-  const getSeatColor = (status: SeatStatus) => {
+  // Memoize seat color and icon functions
+  const getSeatColor = useCallback((status: SeatStatus) => {
     switch (status) {
       case 'available': return 'bg-green-500 hover:bg-green-600 text-white cursor-pointer';
       case 'selected': return 'bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer';
@@ -121,19 +122,18 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       case 'bms-booked': return 'bg-blue-500 text-white cursor-not-allowed opacity-70';
       default: return 'bg-gray-300 cursor-not-allowed';
     }
-  };
+  }, []);
 
-  // Simplified seat icon logic
-  const getSeatIcon = (status: SeatStatus) => {
+  const getSeatIcon = useCallback((status: SeatStatus) => {
     switch (status) {
       case 'available': return '✓';
-      case 'selected': return '●';
+      case 'selected': return '✓';
       case 'booked': return '✗';
-      case 'blocked': return '⚠';
+      case 'blocked': return '✗';
       case 'bms-booked': return '🌐';
-      default: return '';
+      default: return '?';
     }
-  };
+  }, []);
 
   // Enhanced seat click handler with BMS mode
   const handleSeatClick = async (seat: Seat) => {
@@ -143,7 +143,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         toggleSeatStatus(seat.id, 'bms-booked');
         // Save to backend
         try {
-          await saveBmsSeatStatus([seat.id], 'BMS_BOOKED');
+          await saveBmsSeatStatus([seat.id], 'BMS_BOOKED', selectedDate, selectedShow);
           console.log(`✅ Saved BMS status for seat ${seat.id}`);
         } catch (error) {
           console.error('❌ Failed to save BMS status:', error);
@@ -159,7 +159,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         toggleSeatStatus(seat.id, 'available');
         // Save to backend
         try {
-          await saveBmsSeatStatus([seat.id], 'AVAILABLE');
+          await saveBmsSeatStatus([seat.id], 'AVAILABLE', selectedDate, selectedShow);
           console.log(`✅ Removed BMS status for seat ${seat.id}`);
         } catch (error) {
           console.error('❌ Failed to remove BMS status:', error);
@@ -219,16 +219,13 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   // Fetch seat status when component mounts or date/show changes
   useEffect(() => {
     if (selectedDate && selectedShow) {
-      console.log('🔄 SeatGrid: Date or show changed, fetching seat status');
-      console.log('  - Current date:', selectedDate);
-      console.log('  - Current show:', selectedShow);
-      console.log('  - Effect triggered for show:', selectedShow);
-      console.log('  - Current selected seats:', seats.filter(s => s.status === 'selected').length);
+      // Reduced logging to prevent console spam
+      console.log('🔄 SeatGrid: Fetching seat status for:', { date: selectedDate, show: selectedShow });
       fetchSeatStatus();
     } else {
       console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
     }
-  }, [selectedDate, selectedShow]);
+  }, [selectedDate, selectedShow, fetchSeatStatus]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">

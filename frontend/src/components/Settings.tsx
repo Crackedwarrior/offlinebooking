@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
 import SeatLayoutManager from './SeatLayoutManager';
@@ -31,13 +31,47 @@ import BookingManagement from './BookingManagement';
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' | 'layout';
 
 const Settings = () => {
-  console.log('Settings component rendering...');
   const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
   const [localPricing, setLocalPricing] = useState(pricing);
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
+
+  // Memoize the dirty check to prevent infinite re-renders
+  const checkDirty = useCallback(() => {
+    const pricingChanged = JSON.stringify(localPricing) !== JSON.stringify(pricing);
+    const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
+    setIsDirty(pricingChanged || showTimesChanged);
+  }, [localPricing, localShowTimes, pricing, showTimes]);
+
+  // Use useEffect to check dirty state when dependencies change
+  useEffect(() => {
+    checkDirty();
+  }, [checkDirty]);
+
+  // Memoize seat counts calculation
+  const seatCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    
+    SEAT_CLASSES.forEach(seatClass => {
+      let totalSeats = 0;
+      seatClass.rows.forEach(row => {
+        const rowSeats = seatsByRow[row];
+        if (rowSeats) {
+          totalSeats += rowSeats.filter(seat => typeof seat === 'number').length;
+        }
+      });
+      counts[seatClass.label] = totalSeats;
+    });
+    
+    return counts;
+  }, []);
+
+  const totalSeats = useMemo(() => 
+    Object.values(seatCounts).reduce((sum, count) => sum + count, 0), 
+    [seatCounts]
+  );
 
   // Add error boundary
   if (error) {
@@ -57,30 +91,21 @@ const Settings = () => {
     );
   }
 
-  // Check if any changes have been made
-  const checkDirty = () => {
-    const pricingChanged = JSON.stringify(localPricing) !== JSON.stringify(pricing);
-    const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
-    setIsDirty(pricingChanged || showTimesChanged);
-  };
-
   // Handle pricing changes
-  const handlePricingChange = (classLabel: string, value: string) => {
+  const handlePricingChange = useCallback((classLabel: string, value: string) => {
     const price = parseInt(value) || 0;
     setLocalPricing(prev => ({ ...prev, [classLabel]: price }));
-    checkDirty();
-  };
+  }, []);
 
   // Handle show time changes
-  const handleShowTimeChange = (key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
+  const handleShowTimeChange = useCallback((key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
     setLocalShowTimes(prev => prev.map(show => 
       show.key === key ? { ...show, [field]: value } : show
     ));
-    checkDirty();
-  };
+  }, []);
 
   // Save all changes
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     // Update pricing settings
     Object.entries(localPricing).forEach(([classLabel, price]) => {
       updatePricing(classLabel, price);
@@ -96,10 +121,10 @@ const Settings = () => {
       title: 'Settings Saved',
       description: 'Your pricing and show time settings have been updated.',
     });
-  };
+  }, [localPricing, localShowTimes, updatePricing, updateShowTime]);
 
   // Reset to defaults
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
       resetToDefaults();
       setLocalPricing(pricing);
@@ -110,30 +135,10 @@ const Settings = () => {
         description: 'All settings have been reset to their default values.',
       });
     }
-  };
+  }, [resetToDefaults, pricing, showTimes]);
 
-  // Calculate seat counts for overview
-  const calculateSeatCounts = () => {
-    const counts: Record<string, number> = {};
-    
-    SEAT_CLASSES.forEach(seatClass => {
-      let totalSeats = 0;
-      seatClass.rows.forEach(row => {
-        const rowSeats = seatsByRow[row];
-        if (rowSeats) {
-          totalSeats += rowSeats.filter(seat => typeof seat === 'number').length;
-        }
-      });
-      counts[seatClass.label] = totalSeats;
-    });
-    
-    return counts;
-  };
-
-  const seatCounts = calculateSeatCounts();
-  const totalSeats = Object.values(seatCounts).reduce((sum, count) => sum + count, 0);
-
-  const OverviewTab = () => (
+  // Memoize tab components to prevent remounting
+  const OverviewTab = useMemo(() => () => (
     <div className="space-y-6">
       {/* System Overview */}
       <Card>
@@ -147,163 +152,132 @@ const Settings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{totalSeats}</div>
-              <div className="text-sm text-gray-600">Total Seats</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{SEAT_CLASSES.length}</div>
-              <div className="text-sm text-gray-600">Seat Classes</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">{showTimes.filter(s => s.enabled).length}</div>
-              <div className="text-sm text-gray-600">Active Shows</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Seat Class Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Seat Class Summary
-          </CardTitle>
-          <CardDescription>
-            Breakdown of seats by class and pricing
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {SEAT_CLASSES.map(seatClass => (
-              <div key={seatClass.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className={`w-4 h-4 rounded ${seatClass.color}`}></div>
-                  <div>
-                    <div className="font-medium">{seatClass.label}</div>
-                    <div className="text-sm text-gray-600">{seatClass.rows.join(', ')}</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold">₹{pricing[seatClass.label] || seatClass.price}</div>
-                  <div className="text-sm text-gray-600">{seatCounts[seatClass.label]} seats</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Show Times Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Show Times Summary
-          </CardTitle>
-          <CardDescription>
-            Current show time configuration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {showTimes.map(show => (
-              <div key={show.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium">{show.label}</div>
-                  <div className="text-sm text-gray-600">{show.startTime} - {show.endTime}</div>
+                  <p className="text-sm font-medium text-blue-600">Total Seats</p>
+                  <p className="text-2xl font-bold text-blue-800">{totalSeats}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={show.enabled ? "default" : "secondary"}>
-                    {show.enabled ? "Active" : "Inactive"}
-                  </Badge>
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-4 h-4 text-blue-600" />
                 </div>
               </div>
-            ))}
+            </div>
+            
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-600">Seat Classes</p>
+                  <p className="text-2xl font-bold text-green-800">{SEAT_CLASSES.length}</p>
+                </div>
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <SettingsIcon className="w-4 h-4 text-green-600" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-purple-600">Show Times</p>
+                  <p className="text-2xl font-bold text-purple-800">{showTimes.filter(s => s.enabled).length}</p>
+                </div>
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-purple-600" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-orange-600">Movies</p>
+                  <p className="text-2xl font-bold text-orange-800">{localShowTimes.length}</p>
+                </div>
+                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Film className="w-4 h-4 text-orange-600" />
+                </div>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <SettingsIcon className="w-5 h-5" />
-            Quick Actions
-          </CardTitle>
-          <CardDescription>
-            Common settings operations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleSave}
-              disabled={!isDirty}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
-            </Button>
-            <Button
-              onClick={handleReset}
-              variant="outline"
-              className="text-red-600 hover:text-red-700"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset to Defaults
-            </Button>
+          
+          <Separator className="my-6" />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Seat Distribution</h3>
+              <div className="space-y-3">
+                {Object.entries(seatCounts).map(([classLabel, count]) => (
+                  <div key={classLabel} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="font-medium">{classLabel}</span>
+                    <Badge variant="secondary">{count} seats</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Active Show Times</h3>
+              <div className="space-y-3">
+                {localShowTimes.filter(show => show.enabled).map(show => (
+                  <div key={show.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="font-medium">{show.label}</span>
+                      <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
+                    </div>
+                    <Badge variant="outline">Active</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
     </div>
-  );
+  ), [totalSeats, seatCounts, localShowTimes]);
 
-  const PricingTab = () => (
+  const PricingTab = useMemo(() => () => (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="w-5 h-5" />
-            Seat Pricing Configuration
+            Pricing Configuration
           </CardTitle>
           <CardDescription>
             Set pricing for different seat classes
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {SEAT_CLASSES.map(seatClass => (
-              <div key={seatClass.key} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className={`w-4 h-4 rounded ${seatClass.color}`}></div>
-                  <div>
-                    <div className="font-medium">{seatClass.label}</div>
-                    <div className="text-sm text-gray-600">{seatCounts[seatClass.label]} seats</div>
-                  </div>
+              <div key={seatClass.label} className="space-y-4">
+                <div>
+                  <Label htmlFor={seatClass.label} className="text-base font-medium">
+                    {seatClass.label}
+                  </Label>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {seatClass.rows.join(', ')}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={`price-${seatClass.key}`} className="text-sm">₹</Label>
-                  <Input
-                    id={`price-${seatClass.key}`}
-                    type="number"
-                    value={localPricing[seatClass.label] || seatClass.price}
-                    onChange={(e) => handlePricingChange(seatClass.label, e.target.value)}
-                    className="w-24"
-                    min="0"
-                  />
-                </div>
+                <Input
+                  id={seatClass.label}
+                  type="number"
+                  value={localPricing[seatClass.label] || 0}
+                  onChange={(e) => handlePricingChange(seatClass.label, e.target.value)}
+                  placeholder="Enter price"
+                  min="0"
+                />
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
     </div>
-  );
+  ), [localPricing, handlePricingChange]);
 
-  const ShowTimesTab = () => (
+  const ShowTimesTab = useMemo(() => () => (
     <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -312,38 +286,34 @@ const Settings = () => {
             Show Time Configuration
           </CardTitle>
           <CardDescription>
-            Configure show times and their availability
+            Configure show times and their settings
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {localShowTimes.map(show => (
               <div key={show.key} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-medium">{show.label}</h3>
-                    <p className="text-sm text-gray-600">{show.key}</p>
+                    <h3 className="text-lg font-semibold">{show.label}</h3>
+                    <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`enabled-${show.key}`} className="text-sm">Enabled</Label>
-                    <Switch
-                      id={`enabled-${show.key}`}
-                      checked={show.enabled}
-                      onCheckedChange={(checked) => handleShowTimeChange(show.key, 'enabled', checked)}
-                    />
-                  </div>
+                  <Switch
+                    checked={show.enabled}
+                    onCheckedChange={(checked) => handleShowTimeChange(show.key, 'enabled', checked)}
+                  />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`start-${show.key}`}>Start Time</Label>
+                    <Label htmlFor={`${show.key}-start`}>Start Time</Label>
                     <SimpleTimePicker
                       value={show.startTime}
                       onChange={(time) => handleShowTimeChange(show.key, 'startTime', time)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor={`end-${show.key}`}>End Time</Label>
+                    <Label htmlFor={`${show.key}-end`}>End Time</Label>
                     <SimpleTimePicker
                       value={show.endTime}
                       onChange={(time) => handleShowTimeChange(show.key, 'endTime', time)}
@@ -356,28 +326,15 @@ const Settings = () => {
         </CardContent>
       </Card>
     </div>
-  );
+  ), [localShowTimes, handleShowTimeChange]);
 
-  const MoviesTab = () => (
+  const MoviesTab = useMemo(() => () => (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Film className="w-5 h-5" />
-            Movie Management
-          </CardTitle>
-          <CardDescription>
-            Manage movies and their show assignments
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MovieManagement />
-        </CardContent>
-      </Card>
+      <MovieManagement />
     </div>
-  );
+  ), []);
 
-  const BookingsTab = () => (
+  const BookingsTab = useMemo(() => () => (
     <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -394,9 +351,9 @@ const Settings = () => {
         </CardContent>
       </Card>
     </div>
-  );
+  ), []);
 
-  const LayoutTab = () => (
+  const LayoutTab = useMemo(() => () => (
     <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -413,7 +370,7 @@ const Settings = () => {
         </CardContent>
       </Card>
     </div>
-  );
+  ), []);
 
   return (
     <div className="p-6">

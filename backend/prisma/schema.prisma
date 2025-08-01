@@ -121,6 +121,29 @@ model Seat {
   @@index([bookingId])
 }
 
+// BMS Booking model for show-specific BMS seat tracking
+model BmsBooking {
+  id        String   @id @default(uuid())
+  seatId    String   // e.g., "BOX-A1", "SC-B2"
+  date      DateTime
+  show      Show
+  classLabel String   // e.g., "BOX", "STAR CLASS"
+  status    SeatStatus @default(BMS_BOOKED)
+  
+  // Timestamps
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  // Indexes
+  @@index([seatId])
+  @@index([date, show])
+  @@index([classLabel])
+  @@index([status])
+  
+  // Unique constraint to prevent duplicate BMS bookings for the same seat on the same date and show
+  @@unique([seatId, date, show])
+}
+
 // Movie configuration model
 model Movie {
   id          String   @id @default(uuid())

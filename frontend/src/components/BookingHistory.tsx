@@ -6,7 +6,7 @@ import BookingViewerModal from './BookingViewerModal';
 import SeatGridPreview from './SeatGridPreview';
 import { formatSafeDate } from '../utils/formatDate';
 import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
-import { getBookings } from '@/services/api';
+import { getBookings, getSeatStatus } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
 
@@ -26,6 +26,7 @@ const BookingHistory = () => {
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [databaseBookings, setDatabaseBookings] = useState<any[]>([]);
+  const [seatStatusData, setSeatStatusData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowTime | null>(null);
   
@@ -33,56 +34,53 @@ const BookingHistory = () => {
   const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
   const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
 
-  // Fetch bookings from database
+  // Fetch bookings and seat status from database
   const fetchBookings = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      console.log('🔍 Fetching bookings for date:', date);
-      const response = await getBookings({ date });
-      console.log('📊 Fetched bookings for date:', date, response);
-      console.log('📊 Response structure:', {
-        success: response.success,
-        dataType: typeof response.data,
-        dataIsArray: Array.isArray(response.data),
-        dataKeys: response.data ? Object.keys(response.data) : 'null',
-        dataValue: response.data
-      });
+      console.log('🔍 Fetching bookings and seat status for date:', date);
       
-      // Log the actual response structure
-      console.log('📊 Full response:', JSON.stringify(response, null, 2));
-      console.log('📊 Response.data:', response.data);
-      console.log('📊 Response.data type:', typeof response.data);
-      if (response.data && typeof response.data === 'object') {
-        console.log('📊 Response.data keys:', Object.keys(response.data));
-        console.log('📊 Response.data values:', Object.values(response.data));
-      }
+      // Fetch bookings
+      const bookingsResponse = await getBookings({ date });
+      console.log('📊 Fetched bookings for date:', date, bookingsResponse);
       
-      // Test direct access
-      console.log('📊 Testing direct access:');
-      console.log('  - response.success:', response.success);
-      console.log('  - response.data:', response.data);
-      console.log('  - Array.isArray(response.data):', Array.isArray(response.data));
-      if (response.data && Array.isArray(response.data)) {
-        console.log('  - response.data.length:', response.data.length);
-        console.log('  - First booking:', response.data[0]);
-      }
-      
-      if (response.success) {
-        // The API service returns the data directly
-        const bookings = Array.isArray(response.data) ? response.data : [];
+      if (bookingsResponse.success) {
+        const bookings = Array.isArray(bookingsResponse.data) ? bookingsResponse.data : [];
         console.log('📊 Setting database bookings:', bookings);
         console.log('📊 Number of bookings:', bookings.length);
         setDatabaseBookings(bookings);
       } else {
-        console.error('Failed to fetch bookings:', response);
+        console.error('Failed to fetch bookings:', bookingsResponse);
         toast({
           title: 'Error',
           description: 'Failed to load booking history from database.',
           variant: 'destructive',
         });
       }
+      
+      // Fetch seat status for all shows
+      const shows = ['MORNING', 'MATINEE', 'EVENING', 'NIGHT'] as const;
+      const seatStatusPromises = shows.map(show => 
+        getSeatStatus({ date, show }).catch(error => {
+          console.warn(`Failed to fetch seat status for ${show}:`, error);
+          return { success: false, data: null };
+        })
+      );
+      
+      const seatStatusResponses = await Promise.all(seatStatusPromises);
+      const seatStatusMap: Record<string, any> = {};
+      
+      seatStatusResponses.forEach((response, index) => {
+        if (response.success && response.data) {
+          seatStatusMap[shows[index]] = response.data;
+          console.log(`📊 Seat status for ${shows[index]}:`, response.data);
+        }
+      });
+      
+      setSeatStatusData(seatStatusMap);
+      
     } catch (error) {
-      console.error('❌ Error fetching bookings:', error);
+      console.error('❌ Error fetching data:', error);
       console.error('❌ Error details:', {
         name: error.name,
         message: error.message,
@@ -100,8 +98,9 @@ const BookingHistory = () => {
 
   // Fetch bookings when date changes
   useEffect(() => {
+    console.log('🔄 Loading data for date:', selectedDate);
     fetchBookings(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, fetchBookings]);
 
   // Debug selected show changes
   useEffect(() => {
@@ -158,8 +157,12 @@ const BookingHistory = () => {
         }
       });
       const booked = uniqueBookedSeats.size;
-      const available = total - booked;
-      const bms = 0; // No BMS bookings yet
+      
+      // Get BMS seats from seat status data
+      const showSeatStatus = seatStatusData[show.key];
+      const bms = showSeatStatus?.bmsSeats?.length || 0;
+      
+      const available = total - booked - bms;
       const blocked = 0; // No blocked seats yet
       const occupancy = ((booked + bms) / (total || 1) * 100).toFixed(1);
       
@@ -173,13 +176,15 @@ const BookingHistory = () => {
           showBookings: showBookings.length,
           showBookingsData: showBookings,
           totalBookedSeats: showBookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
-          individualBookings: showBookings.map(b => ({ id: b.id, seatCount: b.seatCount, bookedSeats: b.bookedSeats }))
+          individualBookings: showBookings.map(b => ({ id: b.id, seatCount: b.seatCount, bookedSeats: b.bookedSeats })),
+          bmsSeats: bms,
+          seatStatusData: showSeatStatus
         });
       }
     });
     
     return stats;
-  }, [selectedDate, databaseBookings]);
+  }, [selectedDate, databaseBookings, seatStatusData]);
 
   // Helper to get seat class breakdown for a booking or fallback to current seats
   const getClassCounts = (booking: any) => {
@@ -189,34 +194,104 @@ const BookingHistory = () => {
       const dateObj = new Date(selectedDate);
       const dateISO = dateObj.toISOString().split('T')[0];
       
-      const classCounts: Record<string, number> = {};
-      const uniqueSeatsByClass: Record<string, Set<string>> = {};
+      const classCounts: Record<string, { regular: number; bms: number }> = {};
+      const uniqueSeatsByClass: Record<string, { regular: Set<string>; bms: Set<string> }> = {};
       
-      (databaseBookings || []).forEach(b => {
+      console.log('🔍 getClassCounts - Starting calculation:', {
+        selectedDate,
+        dateISO,
+        selectedShow: selectedShow || 'ALL SHOWS',
+        totalBookings: databaseBookings.length
+      });
+      
+      // Process regular bookings from database
+      (databaseBookings || []).forEach((b, index) => {
         const dbDate = new Date(b.date).toISOString().split('T')[0];
         const showMatches = selectedShow ? b.show === selectedShow : true;
+        
+        console.log(`🔍 Booking ${index}:`, {
+          dbDate,
+          show: b.show,
+          showMatches,
+          classLabel: b.classLabel,
+          bookedSeats: b.bookedSeats?.length || 0,
+          totalPrice: b.totalPrice,
+          source: b.source
+        });
+        
         if (dbDate === dateISO && showMatches && b.classLabel) {
-          // Initialize set for this class if not exists
+          // Initialize sets for this class if not exists
           if (!uniqueSeatsByClass[b.classLabel]) {
-            uniqueSeatsByClass[b.classLabel] = new Set<string>();
+            uniqueSeatsByClass[b.classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
           }
           
-          // Add unique seats for this class
+          // Add unique seats for this class based on source
           if (b.bookedSeats && Array.isArray(b.bookedSeats)) {
+            const isBMS = b.source === 'BMS' || b.source === 'bms';
             b.bookedSeats.forEach(seatId => {
-              uniqueSeatsByClass[b.classLabel].add(seatId);
+              if (isBMS) {
+                uniqueSeatsByClass[b.classLabel].bms.add(seatId);
+              } else {
+                uniqueSeatsByClass[b.classLabel].regular.add(seatId);
+              }
             });
           }
         }
       });
       
+      // Process BMS seats from seat status data
+      if (selectedShow) {
+        // For specific show, get BMS seats from that show's seat status
+        const showSeatStatus = seatStatusData[selectedShow];
+        if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
+          console.log(`🔍 Processing BMS seats for ${selectedShow}:`, showSeatStatus.bmsSeats);
+          
+          showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+            const seatId = bmsSeat.seatId;
+            // Determine class from seat ID (e.g., "SC-D1" -> "STAR CLASS")
+            const classLabel = getClassFromSeatId(seatId);
+            
+            if (classLabel) {
+              if (!uniqueSeatsByClass[classLabel]) {
+                uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
+              }
+              uniqueSeatsByClass[classLabel].bms.add(seatId);
+              console.log(`🔍 Added BMS seat ${seatId} to class ${classLabel}`);
+            }
+          });
+        }
+      } else {
+        // For all shows, aggregate BMS seats from all shows
+        Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
+          if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
+            console.log(`🔍 Processing BMS seats for ${showKey}:`, showSeatStatus.bmsSeats);
+            
+            showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+              const seatId = bmsSeat.seatId;
+              const classLabel = getClassFromSeatId(seatId);
+              
+              if (classLabel) {
+                if (!uniqueSeatsByClass[classLabel]) {
+                  uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
+                }
+                uniqueSeatsByClass[classLabel].bms.add(seatId);
+                console.log(`🔍 Added BMS seat ${seatId} to class ${classLabel}`);
+              }
+            });
+          }
+        });
+      }
+      
       // Convert sets to counts
-      Object.entries(uniqueSeatsByClass).forEach(([classLabel, seatSet]) => {
-        classCounts[classLabel] = seatSet.size;
+      Object.entries(uniqueSeatsByClass).forEach(([classLabel, seatSets]) => {
+        classCounts[classLabel] = {
+          regular: seatSets.regular.size,
+          bms: seatSets.bms.size
+        };
       });
       
       // Add debug logging
-      console.log(`🔍 getClassCounts:`, {
+      console.log(`🔍 getClassCounts - Final results:`, {
         dateISO,
         selectedShow: selectedShow || 'ALL SHOWS',
         databaseBookings: databaseBookings.length,
@@ -227,9 +302,12 @@ const BookingHistory = () => {
         }).length,
         classCounts,
         uniqueSeatsByClass: Object.fromEntries(
-          Object.entries(uniqueSeatsByClass).map(([classLabel, seatSet]) => [
+          Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
             classLabel, 
-            Array.from(seatSet)
+            {
+              regular: Array.from(seatSets.regular),
+              bms: Array.from(seatSets.bms)
+            }
           ])
         )
       });
@@ -239,69 +317,121 @@ const BookingHistory = () => {
       console.log('🔍 Seat segments expected:', seatSegments.map(seg => seg.label));
       
       return seatSegments.map(seg => {
-        const count = classCounts[seg.label] || 0;
-        console.log(`🔍 Class ${seg.label}: ${count} seats`);
+        const counts = classCounts[seg.label] || { regular: 0, bms: 0 };
+        console.log(`🔍 Class ${seg.label}: ${counts.regular} regular, ${counts.bms} BMS seats`);
         return {
           label: classLabelMap[seg.label] || seg.label,
-          count: count,
+          regular: counts.regular,
+          bms: counts.bms,
+          total: counts.regular + counts.bms
         };
       });
     } else {
       // Fallback to current seats
-      return seatSegments.map(seg => ({
-        label: classLabelMap[seg.label] || seg.label,
-        count: seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'booked').length,
-      }));
+      return seatSegments.map(seg => {
+        const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'booked').length;
+        const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'bms-booked').length;
+        return {
+          label: classLabelMap[seg.label] || seg.label,
+          regular: regularSeats,
+          bms: bmsSeats,
+          total: regularSeats + bmsSeats
+        };
+      });
     }
   };
 
-  // Gross income (sum of all bookings for the date and selected show)
-  const grossIncome = (() => {
-    // Only show data when a show is selected
-    if (!selectedShow) {
-      return 0;
-    }
+  // Helper function to determine class from seat ID
+  const getClassFromSeatId = (seatId: string): string | null => {
+    // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
+    const rowPrefix = seatId.split('-')[0];
     
+    // Map row prefixes to class labels
+    const classMapping: Record<string, string> = {
+      'BOX': 'BOX',
+      'SC': 'STAR CLASS',
+      'CB': 'CLASSIC',
+      'FC': 'FIRST CLASS',
+      'SC2': 'SECOND CLASS'
+    };
+    
+    return classMapping[rowPrefix] || null;
+  };
+
+  // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
+  const incomeBreakdown = (() => {
     const dateObj = new Date(selectedDate);
     const dateISO = dateObj.toISOString().split('T')[0];
     
-    return (databaseBookings || []).reduce((sum, b) => {
+    let onlineIncome = 0;
+    let bmsIncome = 0;
+    
+    // Calculate income from database bookings
+    (databaseBookings || []).forEach(b => {
       const dbDate = new Date(b.date).toISOString().split('T')[0];
-      const showMatches = b.show === selectedShow;
+      const showMatches = selectedShow ? b.show === selectedShow : true; // Show all if no show selected
       if (dbDate === dateISO && showMatches) {
-        return sum + (b.totalPrice || 0);
+        const isBMS = b.source === 'BMS' || b.source === 'bms';
+        if (isBMS) {
+          bmsIncome += (b.totalPrice || 0);
+        } else {
+          onlineIncome += (b.totalPrice || 0);
+        }
       }
-      return sum;
-    }, 0);
+    });
+    
+    // Calculate additional BMS income from seat status data
+    if (selectedShow) {
+      // For specific show, get BMS seats from that show's seat status
+      const showSeatStatus = seatStatusData[selectedShow];
+      if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
+        showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+          const seatId = bmsSeat.seatId;
+          const classLabel = getClassFromSeatId(seatId);
+          if (classLabel) {
+            // Get price for this seat class
+            const seatClass = SEAT_CLASSES.find(cls => cls.label === classLabel);
+            if (seatClass) {
+              bmsIncome += seatClass.price;
+            }
+          }
+        });
+      }
+    } else {
+      // For all shows, aggregate BMS income from all shows
+      Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
+        if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
+          showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+            const seatId = bmsSeat.seatId;
+            const classLabel = getClassFromSeatId(seatId);
+            if (classLabel) {
+              // Get price for this seat class
+              const seatClass = SEAT_CLASSES.find(cls => cls.label === classLabel);
+              if (seatClass) {
+                bmsIncome += seatClass.price;
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    return {
+      online: onlineIncome,
+      bms: bmsIncome,
+      total: onlineIncome + bmsIncome
+    };
   })();
 
-  // Calculate class counts once for the selected date and show
+  // Keep the old grossIncome for backward compatibility
+  const grossIncome = incomeBreakdown.total;
+
+  // Calculate class counts once for the selected date and show (or all shows if none selected)
   const classCountsData = useMemo(() => {
-    // Only show data when a show is selected
-    if (!selectedShow) {
-      return [];
-    }
     return getClassCounts(null);
   }, [selectedDate, selectedShow, databaseBookings]);
 
-  // Recent bookings (last 3 for the date and selected show)
-  const recentBookings = (() => {
-    // Only show data when a show is selected
-    if (!selectedShow) {
-      return [];
-    }
-    
-    const dateObj = new Date(selectedDate);
-    const dateISO = dateObj.toISOString().split('T')[0];
-    
-    const filteredBookings = (databaseBookings || []).filter(b => {
-      const dbDate = new Date(b.date).toISOString().split('T')[0];
-      const showMatches = b.show === selectedShow;
-      return dbDate === dateISO && showMatches;
-    });
-    
-    return filteredBookings.slice(-3).reverse();
-  })();
+
 
   // Handle PDF download for a specific show
   const handleDownloadPDF = async (showKey: ShowTime, date: string) => {
@@ -368,201 +498,305 @@ const BookingHistory = () => {
 
   // UI
   return (
-    <div className="flex flex-col md:flex-row gap-8 p-8">
-      {/* Left panel: Date picker, class table, recent bookings */}
-      <div className="w-full md:w-1/3 space-y-6">
-        {/* Date Picker */}
+    <div className="p-4 space-y-4 max-w-7xl mx-auto">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block font-semibold">Select Date</label>
-            <button
-              onClick={() => fetchBookings(selectedDate)}
-              disabled={loading}
-              className="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-            >
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-          
-          {/* Show Selection Info */}
-          {selectedShow && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium text-blue-800">
-                    Showing data for: <span className="font-bold">{showOrder.find(s => s.key === selectedShow)?.label}</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedShow(null)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="mt-2">
-            <button
-              onClick={() => {
-                console.log('🔍 Manual fetch triggered');
-                fetchBookings(selectedDate);
-              }}
-              className="text-sm text-green-600 hover:text-green-800"
-            >
-              Manual Fetch
-            </button>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
+          <p className="text-gray-600">View and manage all bookings</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Date:</label>
           <input
             type="date"
-            className="border rounded px-3 py-2 w-full"
             value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
+            onChange={(e) => {
+              const newDate = e.target.value;
+              console.log('📅 Date changed to:', newDate);
+              setSelectedDate(newDate);
+            }}
+            min="2020-01-01"
+            max="2030-12-31"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
           />
-        </div>
-        {/* Seats Booked by Class Table */}
-        <div>
-          <div className="font-semibold mb-2">
-            Seats Booked by Class
-            {selectedShow && (
-              <span className="text-sm font-normal text-gray-600 ml-2">
-                ({showOrder.find(s => s.key === selectedShow)?.label})
-              </span>
-            )}
-          </div>
-          {!selectedShow && (
-            <div className="text-sm text-gray-500 italic mb-2">
-              Select a show card to view booking details
-            </div>
-          )}
-          <table className="w-full border rounded overflow-hidden text-sm">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="py-2 px-3 text-left">Seat Class</th>
-                <th className="py-2 px-3 text-right">Seats Booked</th>
-              </tr>
-            </thead>
-            <tbody>
-              {classCountsData.map((row, i) => (
-                <tr key={row.label} className="border-b last:border-b-0">
-                  <td className="py-2 px-3">{row.label}</td>
-                  <td className="py-2 px-3 text-right">{row.count}</td>
-                </tr>
-              ))}
-              <tr className="font-bold bg-gray-50">
-                <td className="py-2 px-3">Total</td>
-                <td className="py-2 px-3 text-right">{classCountsData.reduce((sum, r) => sum + r.count, 0)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        {/* Recent Bookings */}
-        {recentBookings.length > 0 && (
-          <div>
-            <div className="font-semibold mb-2 mt-6">
-              Recent Bookings
-              {selectedShow && (
-                <span className="text-sm font-normal text-gray-600 ml-2">
-                  ({showOrder.find(s => s.key === selectedShow)?.label})
-                </span>
-              )}
-            </div>
-            <ul className="space-y-2">
-              {recentBookings.map((b, i) => (
-                <li key={i} className="bg-gray-50 rounded p-2 flex flex-col">
-                  <span className="text-xs text-gray-500">{b.show} • {formatSafeDate(b.date)}</span>
-                  <span className="font-semibold">{b.bookedSeats?.length || 0} seats</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {/* Gross Income */}
-        <div className="mt-6">
-          <div className="font-semibold mb-1">
-            Gross Income
-            {selectedShow && (
-              <span className="text-sm font-normal text-gray-600 ml-2">
-                ({showOrder.find(s => s.key === selectedShow)?.label})
-              </span>
-            )}
-          </div>
-          <div className="text-2xl font-bold">₹ {grossIncome}</div>
+          <button
+            onClick={() => {
+              console.log('🔄 Manual refresh for date:', selectedDate);
+              fetchBookings(selectedDate);
+            }}
+            className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            Refresh
+          </button>
         </div>
       </div>
-      {/* Right panel: Show-wise booking stats */}
-      <div className="flex-1 space-y-6">
-        <div className="font-semibold text-lg mb-4">Bookings for {formatSafeDate(selectedDate)}</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* Show Selection Info */}
+      {selectedShow ? (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-blue-800">
+                Showing data for: <span className="font-bold">{showOrder.find(s => s.key === selectedShow)?.label}</span>
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedShow(null)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear Filter
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-green-800">
+                Showing aggregated data for: <span className="font-bold">All Shows</span>
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedShow(showOrder[0]?.key || null)}
+              className="text-xs text-green-600 hover:text-green-800 font-medium"
+            >
+              Filter by Show
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Show Cards - Interactive */}
+      <div>
+        <div className="font-semibold text-lg mb-3">Shows Overview</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {showOrder.map(show => {
             const stats = allStats[show.key] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };
-            const hasBookings = stats.booked > 0;
             const isSelected = selectedShow === show.key;
             return (
               <div 
                 key={show.key} 
-                className={`bg-white rounded-xl shadow p-6 flex flex-col gap-2 border-2 cursor-pointer transition-all hover:shadow-lg ${
-                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-300'
+                className={`bg-white border-2 rounded-lg p-3 shadow-sm cursor-pointer transition-all hover:shadow-md ${
+                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
                 onClick={() => setSelectedShow(selectedShow === show.key ? null : show.key)}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-semibold text-base">{show.label}</span>
-                  <span className="text-xs text-gray-400">
-                    {loading ? 'Loading...' : hasBookings ? 'Live (saved)' : 'No bookings'}
-                  </span>
-                  <span className="text-xs text-blue-500 ml-auto">
-                    {isSelected ? '✓ Selected' : 'Click to filter'}
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-800">{show.label}</div>
+                  {isSelected && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
                 </div>
-                <div className="flex gap-2 text-center">
-                  <div className="flex-1">
-                    <div className="text-lg font-bold">{stats.total}</div>
-                    <div className="text-xs text-gray-500">Total</div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total:</span>
+                    <span className="font-medium">{stats.total}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="text-lg font-bold text-green-600">{stats.available}</div>
-                    <div className="text-xs text-gray-500">Available</div>
+                  <div className="flex justify-between">
+                    <span className="text-green-600">Booked:</span>
+                    <span className="font-medium text-green-700">{stats.booked}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="text-lg font-bold text-red-600">{stats.booked}</div>
-                    <div className="text-xs text-gray-500">Booked</div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-600">Online:</span>
+                    <span className="font-medium text-blue-700">{stats.bms}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="text-lg font-bold text-blue-600">{stats.bms}</div>
-                    <div className="text-xs text-gray-500">BMS</div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Available:</span>
+                    <span className="font-medium">{stats.available}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="text-lg font-bold text-purple-600">{stats.occupancy}%</div>
-                    <div className="text-xs text-gray-500">Occupied</div>
+                  <div className="pt-1 border-t border-gray-100">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Occupancy:</span>
+                      <span className="font-medium">{stats.occupancy}%</span>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    className="flex-1 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors"
-                    onClick={(e) => { 
-                      e.stopPropagation(); // Prevent card selection
-                      setPreviewShow(show);
-                      setSeatGridPreviewOpen(true);
-                    }}
-                  >
-                    View
-                  </button>
-                  <button
-                    className="flex-1 px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-semibold text-xs transition-colors"
-                    onClick={async (e) => {
-                      e.stopPropagation(); // Prevent card selection
-                      await handleDownloadPDF(show.key, selectedDate);
-                    }}
-                  >
-                    PDF
-                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* Main Content - Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left Column: Seats Table */}
+        <div className="lg:col-span-2">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-3 text-base">
+              Seats Booked by Class
+              {selectedShow ? (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  ({showOrder.find(s => s.key === selectedShow)?.label})
+                </span>
+              ) : (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  (All Shows)
+                </span>
+              )}
+            </div>
+            {!selectedShow && (
+              <div className="text-xs text-gray-500 italic mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                Showing aggregated data for all shows on this date
+              </div>
+            )}
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
+                    <th className="py-3 px-3 text-left font-bold text-gray-700 border-r border-gray-300">Class</th>
+                    <th className="py-3 px-3 text-center font-bold text-green-700 border-r border-gray-300">Booking</th>
+                    <th className="py-3 px-3 text-center font-bold text-blue-700 border-r border-gray-300">Online</th>
+                    <th className="py-3 px-3 text-center font-bold text-gray-800">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classCountsData.map((row, i) => (
+                    <tr key={row.label} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                      <td className="py-3 px-3 font-medium text-gray-800 border-r border-gray-200">{row.label}</td>
+                      <td className="py-3 px-3 text-center font-semibold text-green-600 border-r border-gray-200">{row.regular}</td>
+                      <td className="py-3 px-3 text-center font-semibold text-blue-600 border-r border-gray-200">{row.bms}</td>
+                      <td className="py-3 px-3 text-center font-bold text-gray-800">{row.total}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gradient-to-r from-gray-200 to-gray-300 font-bold">
+                    <td className="py-3 px-3 text-gray-800 border-r border-gray-400">TOTAL</td>
+                    <td className="py-3 px-3 text-center text-green-700 border-r border-gray-400">
+                      {classCountsData.reduce((sum, r) => sum + r.regular, 0)}
+                    </td>
+                    <td className="py-3 px-3 text-center text-blue-700 border-r border-gray-400">
+                      {classCountsData.reduce((sum, r) => sum + r.bms, 0)}
+                    </td>
+                    <td className="py-3 px-3 text-center text-gray-800">
+                      {classCountsData.reduce((sum, r) => sum + r.total, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Quick Summary - Moved below table */}
+          <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-3 text-base">Quick Summary</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <div className="text-sm text-green-600 font-medium">TOTAL BOOKING SEATS</div>
+                <div className="text-xl font-bold text-green-700">
+                  {classCountsData.reduce((sum, r) => sum + r.regular, 0)}
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                <div className="text-sm text-blue-600 font-medium">TOTAL ONLINE SEATS</div>
+                <div className="text-xl font-bold text-blue-700">
+                  {classCountsData.reduce((sum, r) => sum + r.bms, 0)}
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                <div className="text-sm text-gray-600 font-medium">TOTAL SEATS</div>
+                <div className="text-xl font-bold text-gray-700">
+                  {classCountsData.reduce((sum, r) => sum + r.total, 0)}
+                </div>
+              </div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+                <div className="text-sm text-purple-600 font-medium">TOTAL INCOME</div>
+                <div className="text-xl font-bold text-purple-700">₹ {incomeBreakdown.total}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Income Breakdown */}
+        <div className="lg:col-span-1">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 text-base">
+              Income Breakdown
+              {selectedShow ? (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  ({showOrder.find(s => s.key === selectedShow)?.label})
+                </span>
+              ) : (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  (All Shows)
+                </span>
+              )}
+            </div>
+            
+            {/* Total Income - Prominent */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+              <div className="text-center">
+                <div className="text-sm text-gray-600 mb-1">TOTAL GROSS INCOME</div>
+                <div className="text-2xl font-bold text-green-700">₹ {incomeBreakdown.total}</div>
+              </div>
+            </div>
+            
+            {/* Income Breakdown Cards */}
+            <div className="space-y-3">
+              <div className="bg-white border-2 border-green-300 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="font-semibold text-green-700 text-sm">BOOKING INCOME</span>
+                  </div>
+                  <div className="text-lg font-bold text-green-700">₹ {incomeBreakdown.online}</div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Direct bookings from your system
+                </div>
+              </div>
+              
+              <div className="bg-white border-2 border-blue-300 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="font-semibold text-blue-700 text-sm">ONLINE INCOME</span>
+                  </div>
+                  <div className="text-lg font-bold text-blue-700">₹ {incomeBreakdown.bms}</div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Book My Show platform bookings
+                </div>
+              </div>
+            </div>
+            
+            {/* Summary and Percentages */}
+            <div className="mt-4 space-y-3">
+              <div className="bg-gray-100 border border-gray-300 rounded-lg p-3">
+                <div className="text-sm font-bold text-gray-800 mb-2">INCOME SUMMARY</div>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Booking:</span>
+                    <span className="font-medium">₹{incomeBreakdown.online}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">+ Online:</span>
+                    <span className="font-medium">₹{incomeBreakdown.bms}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t pt-1 mt-1">
+                    <span className="text-gray-800">= Total:</span>
+                    <span className="text-gray-800">₹{incomeBreakdown.total}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-green-50 border border-green-200 rounded p-3 text-center">
+                  <div className="text-xs text-green-600 font-medium">BOOKING %</div>
+                  <div className="text-lg font-bold text-green-700">
+                    {incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.online / incomeBreakdown.total) * 100) : 0}%
+                  </div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-center">
+                  <div className="text-xs text-blue-600 font-medium">ONLINE %</div>
+                  <div className="text-lg font-bold text-blue-700">
+                    {incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.bms / incomeBreakdown.total) * 100) : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* BookingViewerModal integration */}
       {selectedBooking && (
         <BookingViewerModal
@@ -576,20 +810,6 @@ const BookingHistory = () => {
               return acc;
             }, {});
           })()}
-        />
-      )}
-      
-      {/* Seat Grid Preview Modal */}
-      {previewShow && (
-        <SeatGridPreview
-          isOpen={seatGridPreviewOpen}
-          onClose={() => {
-            setSeatGridPreviewOpen(false);
-            setPreviewShow(null);
-          }}
-          date={selectedDate}
-          show={previewShow.key}
-          showLabel={previewShow.label}
         />
       )}
     </div>

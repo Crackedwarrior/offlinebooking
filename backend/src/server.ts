@@ -357,14 +357,15 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
   
   // Build filter conditions with date range
   const where: any = {};
+  
+  // Parse the date and create a range that covers the entire day
+  // Use UTC to avoid timezone issues
+  const dateObj = new Date(date + 'T00:00:00.000Z');
+  const startOfDay = new Date(dateObj);
+  const endOfDay = new Date(dateObj);
+  endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+  
   if (date) {
-    // Parse the date and create a range that covers the entire day
-    // Use UTC to avoid timezone issues
-    const dateObj = new Date(date + 'T00:00:00.000Z');
-    const startOfDay = new Date(dateObj);
-    const endOfDay = new Date(dateObj);
-    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
-    
     where.date = {
       gte: startOfDay,
       lt: endOfDay
@@ -388,10 +389,14 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     }))
   );
   
-  // Get BMS marked seats from the Seat table
-  const bmsSeats = await prisma.seat.findMany({
+  // Get BMS marked seats from the BmsBooking table for this specific date and show
+  const bmsSeats = await prisma.bmsBooking.findMany({
     where: {
-      status: 'BMS_BOOKED'
+      date: {
+        gte: startOfDay,
+        lt: endOfDay
+      },
+      show: show as any
     },
     select: {
       seatId: true,
@@ -429,7 +434,7 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
 
 // Save BMS seat status
 app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
-  const { seatIds, status } = req.body;
+  const { seatIds, status, date, show } = req.body;
   
   if (!seatIds || !Array.isArray(seatIds)) {
     throw new ValidationError('seatIds array is required');
@@ -439,52 +444,63 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
     throw new ValidationError('status must be BMS_BOOKED or AVAILABLE');
   }
   
-  console.log('📝 Saving BMS seat status:', { seatIds, status });
+  if (!date || !show) {
+    throw new ValidationError('date and show are required');
+  }
   
-  // Update or create seat records
+  console.log('📝 Saving BMS seat status:', { seatIds, status, date, show });
+  
+  // Update or create BMS booking records
   const results = await Promise.all(
     seatIds.map(async (seatId: string) => {
-      // Extract row and number from seatId (e.g., "SC-D1" -> row: "SC-D", number: 1)
-      // Also handles "SC2-A1" -> row: "SC2-A", number: 1
-      const match = seatId.match(/^([A-Z0-9]+-[A-Z0-9]+)(\d+)$/);
-      if (!match) {
-        throw new ValidationError(`Invalid seat ID format: ${seatId}`);
-      }
-      
-      const [, row, numberStr] = match;
-      const number = parseInt(numberStr);
-      
-      // Determine class label based on row
+      // Determine class label based on seat ID
       let classLabel = 'STAR CLASS'; // default
-      if (row.startsWith('BOX')) classLabel = 'BOX';
-      else if (row.startsWith('SC2')) classLabel = 'SECOND CLASS';
-      else if (row.startsWith('SC')) classLabel = 'STAR CLASS';
-      else if (row.startsWith('CB')) classLabel = 'CLASSIC';
-      else if (row.startsWith('FC')) classLabel = 'FIRST CLASS';
+      if (seatId.startsWith('BOX')) classLabel = 'BOX';
+      else if (seatId.startsWith('SC2')) classLabel = 'SECOND CLASS';
+      else if (seatId.startsWith('SC')) classLabel = 'STAR CLASS';
+      else if (seatId.startsWith('CB')) classLabel = 'CLASSIC';
+      else if (seatId.startsWith('FC')) classLabel = 'FIRST CLASS';
       
-      // Upsert seat record
-      return await prisma.seat.upsert({
-        where: { seatId },
-        update: { 
-          status: status as any,
-          updatedAt: new Date()
-        },
-        create: {
-          seatId,
-          row,
-          number,
-          classLabel,
-          status: status as any
-        }
-      });
+      if (status === 'BMS_BOOKED') {
+        // Create BMS booking record
+        return await prisma.bmsBooking.upsert({
+          where: { 
+            seatId_date_show: {
+              seatId,
+              date: new Date(date),
+              show: show as any
+            }
+          },
+          update: { 
+            status: status as any,
+            updatedAt: new Date()
+          },
+          create: {
+            seatId,
+            date: new Date(date),
+            show: show as any,
+            classLabel,
+            status: status as any
+          }
+        });
+      } else {
+        // Remove BMS booking record
+        return await prisma.bmsBooking.deleteMany({
+          where: {
+            seatId,
+            date: new Date(date),
+            show: show as any
+          }
+        });
+      }
     })
   );
   
-  console.log(`✅ Updated ${results.length} seats to status: ${status}`);
+  console.log(`✅ Updated ${results.length} BMS bookings to status: ${status}`);
   
   const response = {
     success: true,
-    message: `Updated ${results.length} seats to ${status}`,
+    message: `Updated ${results.length} BMS bookings to ${status}`,
     data: results
   };
   
