@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw } from 'lucide-react';
+import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import SeatGrid from '@/components/SeatGrid';
 import { useBookingStore } from '@/store/bookingStore';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 interface BookingData {
   id: string;
@@ -44,6 +46,30 @@ const BookingManagement = () => {
     setSelectedShow: setBookingShow 
   } = useBookingStore();
   
+  // Add custom styles for date picker highlighting
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .react-datepicker__day--highlighted {
+        background-color: #10b981 !important;
+        color: white !important;
+        border-radius: 0.375rem !important;
+      }
+      .react-datepicker__day--highlighted:hover {
+        background-color: #059669 !important;
+      }
+      .react-datepicker__day--selected {
+        background-color: #3b82f6 !important;
+        color: white !important;
+      }
+      .react-datepicker__day--selected:hover {
+        background-color: #2563eb !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   // Memoize the store state to prevent unnecessary re-renders
   const storeState = useMemo(() => ({ selectedDate, selectedShow }), [selectedDate, selectedShow]);
 
@@ -120,6 +146,22 @@ const BookingManagement = () => {
     setBookingShow(newShow);
   };
 
+  // Handle date selection
+  const handleDateChange = (date: Date | null) => {
+    console.log('📅 Date picker - handleDateChange called with:', date);
+    if (date) {
+      const dateString = date.toISOString().split('T')[0];
+      console.log('📅 Date picker - setting date to:', dateString);
+      setBookingDate(dateString);
+    }
+  };
+
+  // Check if a date has bookings for highlighting
+  const dayClassName = (date: Date) => {
+    const dateString = date.toISOString().split('T')[0];
+    return ''; // No highlighting for now, can be added later
+  };
+
   // Monitor selectedShow changes
   useEffect(() => {
   }, [selectedShow]);
@@ -131,36 +173,49 @@ const BookingManagement = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Booking Management
-          </CardTitle>
-          <CardDescription>
-            Select date and show, then load bookings to view and manage them visually.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Simple Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1">
-              <Label htmlFor="date">Date</Label>
-              <Input
+    <div className="space-y-12">
+      {/* Controls Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-100 shadow-sm">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Date Selection */}
+            <div className="lg:col-span-3 space-y-2">
+              <Label htmlFor="date" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                Select Date
+              </Label>
+              <DatePicker
                 id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setBookingDate(e.target.value)}
+                selected={new Date(selectedDate)}
+                onChange={handleDateChange}
+                dateFormat="dd/MM/yyyy"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
+                placeholderText="Choose a date"
+                dayClassName={dayClassName}
+                showYearDropdown
+                showMonthDropdown
+                dropdownMode="select"
+                yearDropdownItemNumber={15}
+                scrollableYearDropdown
+                maxDate={new Date()}
+                popperPlacement="bottom-start"
               />
             </div>
-            <div className="flex-1">
-              <Label htmlFor="show">Show</Label>
+
+            {/* Empty space for uniform gap */}
+            <div className="lg:col-span-1"></div>
+
+            {/* Show Selection */}
+            <div className="lg:col-span-3 space-y-2">
+              <Label htmlFor="show" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600" />
+                Select Show
+              </Label>
               <select
                 id="show"
                 value={selectedShow}
                 onChange={handleShowChange}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
               >
                 {SHOW_TIMES.map(show => (
                   <option key={show.key} value={show.key}>
@@ -168,67 +223,78 @@ const BookingManagement = () => {
                   </option>
                 ))}
               </select>
-              <div className="text-xs text-gray-500 mt-1">
-                Current: {selectedShow} - {SHOW_TIMES.find(s => s.key === selectedShow)?.label}
-                <button 
-                  onClick={() => {
-                    console.log('🔍 Test button clicked, setting to EVENING');
-                    setBookingShow('EVENING' as 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT');
-                  }}
-                  className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded"
+            </div>
+
+            {/* Empty space for uniform gap */}
+            <div className="lg:col-span-1"></div>
+
+            {/* Action Buttons */}
+            <div className="lg:col-span-4 space-y-2">
+              <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Search className="w-4 h-4 text-blue-600" />
+                Actions
+              </Label>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={loadBookings} 
+                  disabled={loading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
                 >
-                  Test: Set to Evening
-                </button>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Load Bookings
+                    </>
+                  )}
+                </Button>
+                {isLoaded && (
+                  <Button 
+                    onClick={loadBookings} 
+                    disabled={loading}
+                    variant="outline"
+                    className="px-4 py-3 border-gray-300 hover:bg-gray-50 rounded-lg shadow-sm transition-all duration-200"
+                    title="Refresh Bookings"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </Button>
+                )}
               </div>
             </div>
-            <Button 
-              onClick={loadBookings} 
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                'Load Bookings'
-              )}
-            </Button>
-            {isLoaded && (
-              <Button 
-                onClick={loadBookings} 
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Refresh All
-              </Button>
-            )}
           </div>
+        </div>
+      </div>
 
-          {/* Show Content Only After Loading */}
-          {isLoaded && (
-            <>
-              {/* Booking Summary */}
-              <BookingSummary bookings={bookings} onDelete={handleDelete} />
-              
-              {/* Seat Grid */}
-              <SeatGrid hideProceedButton={true} showRefreshButton={true} />
-            </>
-          )}
-          
-          {/* Initial State */}
-          {!isLoaded && (
-            <div className="text-center py-12 text-gray-500">
-              <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No Bookings Loaded</p>
-              <p>Select date and show, then click "Load Bookings" to view</p>
+      {/* Content Section */}
+      <div className="space-y-12">
+        {/* Show Content Only After Loading */}
+        {isLoaded && (
+          <>
+            {/* Booking Summary */}
+            <BookingSummary bookings={bookings} onDelete={handleDelete} />
+            
+            {/* Seat Grid */}
+            <SeatGrid hideProceedButton={true} showRefreshButton={true} />
+          </>
+        )}
+        
+        {/* Enhanced Empty State */}
+        {!isLoaded && (
+          <div className="text-center py-16 bg-gradient-to-br from-gray-50 via-white to-gray-50 border-2 border-dashed border-gray-200 rounded-xl">
+            <div className="w-24 h-24 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center shadow-sm">
+              <Calendar className="w-12 h-12 text-blue-400" />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h3 className="text-2xl font-semibold mb-4 text-gray-800">No Bookings Loaded</h3>
+            <p className="text-gray-600 max-w-md mx-auto text-lg">
+              Select a date and show from the options above, then click "Load Bookings" to view and manage your bookings.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -256,19 +322,19 @@ const BookingSummary = ({
         Bookings Found: {bookings.length}
       </h3>
       
-      <div className="space-y-3">
+      <div className="space-y-4">
         {bookings.map((booking) => {
           return (
-            <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+            <div key={booking.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-2">
                   <Badge variant={booking.status === 'CONFIRMED' ? 'default' : 'secondary'}>
                     {booking.status}
                   </Badge>
                   <span className="font-medium">{booking.movie}</span>
                   <span className="text-sm text-gray-600">({booking.movieLanguage})</span>
                 </div>
-              <p className="text-sm text-gray-600 mb-1">
+              <p className="text-sm text-gray-600 mb-2">
                 {booking.customerName || 'No Name'} • {booking.customerPhone || 'No Phone'}
               </p>
               <p className="text-sm text-gray-600">

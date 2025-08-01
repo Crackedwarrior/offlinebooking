@@ -79,7 +79,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     } finally {
       setLoadingSeats(false);
     }
-  }, [selectedDate, selectedShow, seats, syncSeatStatus]);
+  }, [selectedDate, selectedShow, syncSeatStatus, seats, toast]);
 
   // Memoize other functions
   const handleResetSeats = useCallback(() => {
@@ -225,7 +225,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     } else {
       console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
     }
-  }, [selectedDate, selectedShow, fetchSeatStatus]);
+  }, [selectedDate, selectedShow]); // Removed fetchSeatStatus from dependencies
 
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">

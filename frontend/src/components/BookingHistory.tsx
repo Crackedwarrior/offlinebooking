@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
@@ -9,6 +9,8 @@ import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 import { getBookings, getSeatStatus } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 const showOrder: { key: ShowTime; label: string }[] = SHOW_TIMES.map(show => ({
   key: show.enumValue,
@@ -33,6 +35,65 @@ const BookingHistory = () => {
   // Seat Grid Preview Modal State
   const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
   const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
+
+
+
+  // Get dates with bookings for highlighting
+  const datesWithBookings = useMemo(() => {
+    const dates = new Set<string>();
+    if (databaseBookings && databaseBookings.length > 0) {
+      databaseBookings.forEach(booking => {
+        const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+        dates.add(bookingDate);
+      });
+    }
+    return dates;
+  }, [databaseBookings]);
+
+  // Handle date selection
+  const handleDateChange = (date: Date | null) => {
+    if (date) {
+      const dateString = date.toISOString().split('T')[0];
+      console.log('📅 Date selected:', dateString);
+      setSelectedDate(dateString);
+    }
+  };
+
+  // Check if a date has bookings for highlighting
+  const dayClassName = (date: Date) => {
+    const dateString = date.toISOString().split('T')[0];
+    return datesWithBookings.has(dateString) ? 'has-bookings' : '';
+  };
+
+
+
+
+
+
+
+  // Add custom styles for date picker highlighting
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .react-datepicker__day--highlighted {
+        background-color: #10b981 !important;
+        color: white !important;
+        border-radius: 0.375rem !important;
+      }
+      .react-datepicker__day--highlighted:hover {
+        background-color: #059669 !important;
+      }
+      .react-datepicker__day--selected {
+        background-color: #3b82f6 !important;
+        color: white !important;
+      }
+      .react-datepicker__day--selected:hover {
+        background-color: #2563eb !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
 
   // Fetch bookings and seat status from database
   const fetchBookings = useCallback(async (date: string) => {
@@ -332,7 +393,7 @@ const BookingHistory = () => {
         const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'booked').length;
         const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'bms-booked').length;
         return {
-          label: classLabelMap[seg.label] || seg.label,
+        label: classLabelMap[seg.label] || seg.label,
           regular: regularSeats,
           bms: bmsSeats,
           total: regularSeats + bmsSeats
@@ -431,8 +492,6 @@ const BookingHistory = () => {
     return getClassCounts(null);
   }, [selectedDate, selectedShow, databaseBookings]);
 
-
-
   // Handle PDF download for a specific show
   const handleDownloadPDF = async (showKey: ShowTime, date: string) => {
     try {
@@ -507,27 +566,45 @@ const BookingHistory = () => {
         </div>
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium text-gray-700">Date:</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => {
-              const newDate = e.target.value;
-              console.log('📅 Date changed to:', newDate);
-              setSelectedDate(newDate);
-            }}
-            min="2020-01-01"
-            max="2030-12-31"
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
-          />
-          <button
-            onClick={() => {
-              console.log('🔄 Manual refresh for date:', selectedDate);
-              fetchBookings(selectedDate);
-            }}
-            className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-          >
-            Refresh
-          </button>
+          <div className="relative">
+            <DatePicker
+              selected={new Date(selectedDate)}
+              onChange={handleDateChange}
+              dateFormat="dd/MM/yyyy"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-0 focus:border-gray-300 hover:border-gray-400 transition-colors w-40"
+              placeholderText="Select date"
+              dayClassName={dayClassName}
+              highlightDates={Array.from(datesWithBookings).map(date => new Date(date))}
+              showYearDropdown
+              showMonthDropdown
+              dropdownMode="select"
+              yearDropdownItemNumber={15}
+              scrollableYearDropdown
+              maxDate={new Date()}
+              popperPlacement="bottom-end"
+              popperModifiers={[
+                {
+                  name: "offset",
+                  options: {
+                    offset: [0, 8],
+                  },
+                },
+                {
+                  name: "preventOverflow",
+                  options: {
+                    boundary: "viewport",
+                    padding: 20,
+                  },
+                },
+                {
+                  name: "flip",
+                  options: {
+                    fallbackPlacements: ["top-end", "bottom-start", "top-start"],
+                  },
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -611,7 +688,7 @@ const BookingHistory = () => {
                     </div>
                   </div>
                 </div>
-              </div>
+          </div>
             );
           })}
         </div>
@@ -623,41 +700,41 @@ const BookingHistory = () => {
         <div className="lg:col-span-2">
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-3 text-base">
-              Seats Booked by Class
-              {selectedShow ? (
-                <span className="text-sm font-normal text-gray-600 ml-2">
-                  ({showOrder.find(s => s.key === selectedShow)?.label})
-                </span>
-              ) : (
-                <span className="text-sm font-normal text-gray-600 ml-2">
-                  (All Shows)
-                </span>
-              )}
-            </div>
-            {!selectedShow && (
-              <div className="text-xs text-gray-500 italic mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                Showing aggregated data for all shows on this date
-              </div>
+            Seats Booked by Class
+            {selectedShow ? (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                ({showOrder.find(s => s.key === selectedShow)?.label})
+              </span>
+            ) : (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                (All Shows)
+              </span>
             )}
+          </div>
+          {!selectedShow && (
+              <div className="text-xs text-gray-500 italic mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+              Showing aggregated data for all shows on this date
+            </div>
+          )}
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead>
+            <thead>
                   <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
                     <th className="py-3 px-3 text-left font-bold text-gray-700 border-r border-gray-300">Class</th>
                     <th className="py-3 px-3 text-center font-bold text-green-700 border-r border-gray-300">Booking</th>
                     <th className="py-3 px-3 text-center font-bold text-blue-700 border-r border-gray-300">Online</th>
                     <th className="py-3 px-3 text-center font-bold text-gray-800">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classCountsData.map((row, i) => (
+              </tr>
+            </thead>
+            <tbody>
+              {classCountsData.map((row, i) => (
                     <tr key={row.label} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                       <td className="py-3 px-3 font-medium text-gray-800 border-r border-gray-200">{row.label}</td>
                       <td className="py-3 px-3 text-center font-semibold text-green-600 border-r border-gray-200">{row.regular}</td>
                       <td className="py-3 px-3 text-center font-semibold text-blue-600 border-r border-gray-200">{row.bms}</td>
                       <td className="py-3 px-3 text-center font-bold text-gray-800">{row.total}</td>
-                    </tr>
-                  ))}
+                </tr>
+              ))}
                   <tr className="bg-gradient-to-r from-gray-200 to-gray-300 font-bold">
                     <td className="py-3 px-3 text-gray-800 border-r border-gray-400">TOTAL</td>
                     <td className="py-3 px-3 text-center text-green-700 border-r border-gray-400">
@@ -669,9 +746,9 @@ const BookingHistory = () => {
                     <td className="py-3 px-3 text-center text-gray-800">
                       {classCountsData.reduce((sum, r) => sum + r.total, 0)}
                     </td>
-                  </tr>
-                </tbody>
-              </table>
+              </tr>
+            </tbody>
+          </table>
             </div>
           </div>
 
@@ -710,24 +787,24 @@ const BookingHistory = () => {
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 text-base">
               Income Breakdown
-              {selectedShow ? (
-                <span className="text-sm font-normal text-gray-600 ml-2">
-                  ({showOrder.find(s => s.key === selectedShow)?.label})
-                </span>
-              ) : (
-                <span className="text-sm font-normal text-gray-600 ml-2">
-                  (All Shows)
-                </span>
-              )}
-            </div>
+            {selectedShow ? (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                ({showOrder.find(s => s.key === selectedShow)?.label})
+              </span>
+            ) : (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                (All Shows)
+              </span>
+            )}
+          </div>
             
             {/* Total Income - Prominent */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-4 mb-4">
               <div className="text-center">
                 <div className="text-sm text-gray-600 mb-1">TOTAL GROSS INCOME</div>
                 <div className="text-2xl font-bold text-green-700">₹ {incomeBreakdown.total}</div>
-              </div>
-            </div>
+        </div>
+      </div>
             
             {/* Income Breakdown Cards */}
             <div className="space-y-3">
