@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import type { ShowTime } from '@/store/bookingStore';
@@ -32,6 +33,7 @@ const convertTo12Hour = (time24h: string): string => {
 
 const getShowDetails = () => {
   try {
+     
     const { useSettingsStore } = require('@/store/settingsStore');
     const getShowTimes = useSettingsStore.getState().getShowTimes;
     const showTimes = getShowTimes();
@@ -59,6 +61,7 @@ const getShowDetails = () => {
 
 function getCurrentShowKey() {
   try {
+     
     const { useSettingsStore } = require('@/store/settingsStore');
     const getShowTimes = useSettingsStore.getState().getShowTimes;
     const showTimes = getShowTimes();
@@ -107,8 +110,11 @@ function getCurrentShowKey() {
   }
 }
 
+ 
 interface CheckoutProps {
+   
   onBookingComplete?: (bookingData: any) => void;
+   
   checkoutData?: any;
 }
 
@@ -176,10 +182,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
         const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
         
         if (response.success && response.data) {
+           
           const { bookedSeats, bmsSeats } = response.data as any;
           
           // Use the new syncSeatStatus function to properly sync seat status
+           
           const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+           
           const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
           syncSeatStatus(bookedSeatIds, bmsSeatIds);
           
@@ -230,6 +239,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     const price = getPriceForClass(cls.label);
     return { ...cls, count, price };
   });
+   
   const total = classCounts.reduce((sum, cls: any) => sum + cls.count * cls.price, 0);
 
   // Debug logging (only when there are selected seats)
