@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
-import SeatLayoutManager from './SeatLayoutManager';
+
 import { SEAT_CLASSES } from '@/lib/config';
 import { seatsByRow } from '@/lib/seatMatrix';
 import { Button } from '@/components/ui/button';
@@ -22,13 +22,13 @@ import {
   Users, 
   BarChart3,
   Calendar,
-  Grid3X3
+
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 
-type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' | 'layout';
+type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings';
 
 const Settings = () => {
   const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
@@ -353,24 +353,7 @@ const Settings = () => {
     </div>
   ), []);
 
-  const LayoutTab = useMemo(() => () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Grid3X3 className="w-5 h-5" />
-            Seat Layout Management
-          </CardTitle>
-          <CardDescription>
-            Configure and manage theater seat layouts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SeatLayoutManager />
-        </CardContent>
-      </Card>
-    </div>
-  ), []);
+
 
   return (
     <div className="p-6">
@@ -380,13 +363,12 @@ const Settings = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTab)}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="showtimes">Show Times</TabsTrigger>
           <TabsTrigger value="movies">Movies</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          <TabsTrigger value="layout">Layout</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -409,9 +391,7 @@ const Settings = () => {
           <BookingsTab />
         </TabsContent>
 
-        <TabsContent value="layout" className="mt-6">
-          <LayoutTab />
-        </TabsContent>
+
       </Tabs>
 
       {/* Global Save Button */}

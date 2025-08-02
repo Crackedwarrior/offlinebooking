@@ -268,9 +268,28 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
 
   // Simplified handlers
   const handleDeleteTickets = (seatIds: string[]) => {
-    seatIds.forEach(id => toggleSeatStatus(id, 'available'));
+    console.log('🗑️ Deleting tickets:', seatIds);
+    
+    if (!seatIds || seatIds.length === 0) {
+      console.warn('⚠️ No seat IDs provided for deletion');
+      return;
+    }
+    
+    // Deselect all provided seats
+    seatIds.forEach(id => {
+      console.log(`🗑️ Deselecting seat: ${id}`);
+      toggleSeatStatus(id, 'available');
+    });
+    
     // Remove from decoupled list if present
     setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
+    
+    // Show success message
+    toast({
+      title: 'Tickets Deleted',
+      description: `${seatIds.length} ticket(s) have been removed from your selection.`,
+      duration: 3000,
+    });
   };
 
   const handleDecoupleTickets = (seatIds: string[]) => {
@@ -647,23 +666,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
           </div>
         )}
         
-        {/* New Booking Button - Show when no seats are selected and no booking was just completed */}
-        {!bookingCompleted && selectedSeats.length === 0 && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-blue-800 mb-2">Ready for New Booking</h3>
-              <p className="text-sm text-blue-600 mb-4">
-                All seats have been cleared. You can now select new seats for booking.
-              </p>
-              <Button
-                onClick={handleResetForNewBooking}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Start New Booking
-              </Button>
-            </div>
-          </div>
-        )}
+        
       </div>
     </div>
   );

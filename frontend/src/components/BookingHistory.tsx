@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
@@ -22,6 +22,78 @@ const classLabelMap: Record<string, string> = SEAT_CLASSES.reduce((acc, cls) => 
   return acc;
 }, {} as Record<string, string>);
 
+// Memoized table row component to prevent unnecessary re-renders
+const TableRow = memo(({ row, index }: { row: any; index: number }) => (
+  <tr className={`border-b border-gray-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+    <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.label}</td>
+    <td className="px-4 py-3 text-sm text-gray-900 text-center">{row.regular}</td>
+    <td className="px-4 py-3 text-sm text-gray-900 text-center">{row.bms}</td>
+    <td className="px-4 py-3 text-sm text-gray-900 text-center">{row.total}</td>
+  </tr>
+));
+
+// Memoized show card component
+const ShowCard = memo(({ 
+  show, 
+  stats, 
+  isSelected, 
+  onSelect,
+  onViewSeats
+}: { 
+  show: { key: ShowTime; label: string }; 
+  stats: any; 
+  isSelected: boolean; 
+  onSelect: (show: ShowTime) => void;
+  onViewSeats: (show: { key: ShowTime; label: string }) => void;
+}) => (
+  <div
+    className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+      isSelected 
+        ? 'border-blue-500 bg-blue-50 shadow-md' 
+        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+    }`}
+  >
+    <div className="flex items-center justify-between mb-2">
+      <h3 
+        className="font-semibold text-gray-900 cursor-pointer"
+        onClick={() => onSelect(show.key)}
+      >
+        {show.label}
+      </h3>
+      {isSelected && (
+        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+      )}
+    </div>
+    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+      <div className="text-center">
+        <div className="text-gray-600">Booked</div>
+        <div className="font-semibold text-green-600">{stats.booked}</div>
+      </div>
+      <div className="text-center">
+        <div className="text-gray-600">BMS</div>
+        <div className="font-semibold text-blue-600">{stats.bms}</div>
+      </div>
+      <div className="text-center">
+        <div className="text-gray-600">Available</div>
+        <div className="font-semibold text-gray-700">{stats.available}</div>
+      </div>
+      <div className="text-center">
+        <div className="text-gray-600">Occupancy</div>
+        <div className="font-semibold text-purple-600">{stats.occupancy}%</div>
+      </div>
+    </div>
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onViewSeats(show);
+      }}
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 px-3 rounded-md transition-colors duration-200"
+    >
+      View Seats
+    </button>
+  </div>
+));
+
 const BookingHistory = () => {
   const { bookingHistory, seats, loadBookingForDate } = useBookingStore();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -36,7 +108,11 @@ const BookingHistory = () => {
   const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
   const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
 
-
+  // Handle view seats for a specific show
+  const handleViewSeats = useCallback((show: { key: ShowTime; label: string }) => {
+    setPreviewShow(show);
+    setSeatGridPreviewOpen(true);
+  }, []);
 
   // Get dates with bookings for highlighting
   const datesWithBookings = useMemo(() => {
@@ -51,25 +127,24 @@ const BookingHistory = () => {
   }, [databaseBookings]);
 
   // Handle date selection
-  const handleDateChange = (date: Date | null) => {
-    if (date) {
-      const dateString = date.toISOString().split('T')[0];
-      console.log('📅 Date selected:', dateString);
-      setSelectedDate(dateString);
+  const handleDateChange = useCallback((date: Date | null) => {
+    try {
+      if (date) {
+        const dateString = date.toISOString().split('T')[0];
+        setSelectedDate(dateString);
+      }
+    } catch (error) {
+      console.error('Error in date change handler:', error);
+      // Fallback to current date if there's an error
+      setSelectedDate(new Date().toISOString().split('T')[0]);
     }
-  };
+  }, []);
 
   // Check if a date has bookings for highlighting
-  const dayClassName = (date: Date) => {
+  const dayClassName = useCallback((date: Date) => {
     const dateString = date.toISOString().split('T')[0];
     return datesWithBookings.has(dateString) ? 'has-bookings' : '';
-  };
-
-
-
-
-
-
+  }, [datesWithBookings]);
 
   // Add custom styles for date picker highlighting
   useEffect(() => {
@@ -92,61 +167,43 @@ const BookingHistory = () => {
       }
     `;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
-  // Fetch bookings and seat status from database
+  // Fetch bookings and seat status data
   const fetchBookings = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      console.log('🔍 Fetching bookings and seat status for date:', date);
-      
       // Fetch bookings
-      const bookingsResponse = await getBookings({ date });
-      console.log('📊 Fetched bookings for date:', date, bookingsResponse);
-      
+      const bookingsResponse = await getBookings(date);
       if (bookingsResponse.success) {
-        const bookings = Array.isArray(bookingsResponse.data) ? bookingsResponse.data : [];
-        console.log('📊 Setting database bookings:', bookings);
-        console.log('📊 Number of bookings:', bookings.length);
-        setDatabaseBookings(bookings);
-      } else {
-        console.error('Failed to fetch bookings:', bookingsResponse);
-        toast({
-          title: 'Error',
-          description: 'Failed to load booking history from database.',
-          variant: 'destructive',
-        });
+        setDatabaseBookings(bookingsResponse.data || []);
       }
-      
+
       // Fetch seat status for all shows
-      const shows = ['MORNING', 'MATINEE', 'EVENING', 'NIGHT'] as const;
-      const seatStatusPromises = shows.map(show => 
-        getSeatStatus({ date, show }).catch(error => {
-          console.warn(`Failed to fetch seat status for ${show}:`, error);
-          return { success: false, data: null };
-        })
-      );
-      
-      const seatStatusResponses = await Promise.all(seatStatusPromises);
-      const seatStatusMap: Record<string, any> = {};
-      
-      seatStatusResponses.forEach((response, index) => {
-        if (response.success && response.data) {
-          seatStatusMap[shows[index]] = response.data;
-          console.log(`📊 Seat status for ${shows[index]}:`, response.data);
+      const seatStatusPromises = showOrder.map(async (show) => {
+        try {
+          const response = await getSeatStatus({ date, show: show.key });
+          return { show: show.key, data: response.success ? response.data : null };
+        } catch (error) {
+          return { show: show.key, data: null };
         }
       });
-      
+
+      const seatStatusResults = await Promise.all(seatStatusPromises);
+      const seatStatusMap: Record<string, any> = {};
+      seatStatusResults.forEach(({ show, data }) => {
+        if (data) {
+          seatStatusMap[show] = data;
+        }
+      });
       setSeatStatusData(seatStatusMap);
-      
+
     } catch (error) {
       console.error('❌ Error fetching data:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
       toast({
         title: 'Error',
         description: 'Failed to connect to database.',
@@ -159,31 +216,14 @@ const BookingHistory = () => {
 
   // Fetch bookings when date changes
   useEffect(() => {
-    console.log('🔄 Loading data for date:', selectedDate);
     fetchBookings(selectedDate);
   }, [selectedDate, fetchBookings]);
-
-  // Debug selected show changes
-  useEffect(() => {
-    if (selectedShow) {
-      console.log(`🎯 Show selected: ${selectedShow}`);
-    }
-  }, [selectedShow]);
-
-  // Remove auto-refresh for now to prevent infinite loop
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     fetchBookings(selectedDate);
-  //   }, 5000);
-    
-  //   return () => clearInterval(interval);
-  // }, [selectedDate, fetchBookings]);
 
   // Helper to get all bookings for a date (from database)
   const bookingsForDate = databaseBookings;
 
   // Helper to get booking for a date and show
-  const getBooking = (date: string, show: ShowTime) => {
+  const getBooking = useCallback((date: string, show: ShowTime) => {
     // Convert date to ISO format for comparison
     const dateObj = new Date(date);
     const dateISO = dateObj.toISOString().split('T')[0];
@@ -193,9 +233,9 @@ const BookingHistory = () => {
       const dbDate = new Date(b.date).toISOString().split('T')[0];
       return dbDate === dateISO && b.show === show;
     });
-  };
+  }, [databaseBookings]);
 
-  // Calculate all stats once for the selected date
+  // Calculate all stats once for the selected date - only when needed
   const allStats = useMemo(() => {
     const dateObj = new Date(selectedDate);
     const dateISO = dateObj.toISOString().split('T')[0];
@@ -228,27 +268,13 @@ const BookingHistory = () => {
       const occupancy = ((booked + bms) / (total || 1) * 100).toFixed(1);
       
       stats[show.key] = { total, available, booked, bms, blocked, occupancy };
-      
-      // Only log for MORNING to avoid spam
-      if (show.key === 'MORNING') {
-        console.log(`📊 Stats for ${show.key}:`, {
-          dateISO,
-          databaseBookings: databaseBookings?.length || 0,
-          showBookings: showBookings.length,
-          showBookingsData: showBookings,
-          totalBookedSeats: showBookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
-          individualBookings: showBookings.map(b => ({ id: b.id, seatCount: b.seatCount, bookedSeats: b.bookedSeats })),
-          bmsSeats: bms,
-          seatStatusData: showSeatStatus
-        });
-      }
     });
     
     return stats;
   }, [selectedDate, databaseBookings, seatStatusData]);
 
   // Helper to get seat class breakdown for a booking or fallback to current seats
-  const getClassCounts = (booking: any) => {
+  const getClassCounts = useCallback((booking: any) => {
     // Always use database bookings when available, regardless of booking parameter
     if (databaseBookings && databaseBookings.length > 0) {
       // Database booking format - count by classLabel for the selected date and show
@@ -258,27 +284,10 @@ const BookingHistory = () => {
       const classCounts: Record<string, { regular: number; bms: number }> = {};
       const uniqueSeatsByClass: Record<string, { regular: Set<string>; bms: Set<string> }> = {};
       
-      console.log('🔍 getClassCounts - Starting calculation:', {
-        selectedDate,
-        dateISO,
-        selectedShow: selectedShow || 'ALL SHOWS',
-        totalBookings: databaseBookings.length
-      });
-      
       // Process regular bookings from database
       (databaseBookings || []).forEach((b, index) => {
         const dbDate = new Date(b.date).toISOString().split('T')[0];
         const showMatches = selectedShow ? b.show === selectedShow : true;
-        
-        console.log(`🔍 Booking ${index}:`, {
-          dbDate,
-          show: b.show,
-          showMatches,
-          classLabel: b.classLabel,
-          bookedSeats: b.bookedSeats?.length || 0,
-          totalPrice: b.totalPrice,
-          source: b.source
-        });
         
         if (dbDate === dateISO && showMatches && b.classLabel) {
           // Initialize sets for this class if not exists
@@ -305,7 +314,6 @@ const BookingHistory = () => {
         // For specific show, get BMS seats from that show's seat status
         const showSeatStatus = seatStatusData[selectedShow];
         if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-          console.log(`🔍 Processing BMS seats for ${selectedShow}:`, showSeatStatus.bmsSeats);
           
           showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
             const seatId = bmsSeat.seatId;
@@ -316,31 +324,48 @@ const BookingHistory = () => {
               if (!uniqueSeatsByClass[classLabel]) {
                 uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
               }
-              uniqueSeatsByClass[classLabel].bms.add(seatId);
-              console.log(`🔍 Added BMS seat ${seatId} to class ${classLabel}`);
+              // Use a unique key that includes the show to avoid deduplication
+              const uniqueKey = `${selectedShow}-${seatId}`;
+              uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
             }
           });
         }
       } else {
         // For all shows, aggregate BMS seats from all shows
-        Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
-          if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-            console.log(`🔍 Processing BMS seats for ${showKey}:`, showSeatStatus.bmsSeats);
-            
-            showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
-              const seatId = bmsSeat.seatId;
-              const classLabel = getClassFromSeatId(seatId);
+        
+        // Only proceed if seatStatusData is populated
+        if (Object.keys(seatStatusData).length > 0) {
+          Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
+            if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
               
-              if (classLabel) {
-                if (!uniqueSeatsByClass[classLabel]) {
-                  uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
+              showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+                const seatId = bmsSeat.seatId;
+                const classLabel = getClassFromSeatId(seatId);
+                
+                if (classLabel) {
+                  if (!uniqueSeatsByClass[classLabel]) {
+                    uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
+                  }
+                  // Don't deduplicate - count each seat from each show separately
+                  // Use a unique key that includes the show to avoid deduplication
+                  const uniqueKey = `${showKey}-${seatId}`;
+                  uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
                 }
-                uniqueSeatsByClass[classLabel].bms.add(seatId);
-                console.log(`🔍 Added BMS seat ${seatId} to class ${classLabel}`);
-              }
-            });
-          }
-        });
+              });
+            }
+          });
+        }
+        
+        // Debug: Log all unique BMS seats by class
+        // console.log('🔍 Final unique BMS seats by class:', Object.fromEntries(
+        //   Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
+        //     classLabel, 
+        //     {
+        //       regular: Array.from(seatSets.regular),
+        //       bms: Array.from(seatSets.bms)
+        //     }
+        //   ])
+        // ));
       }
       
       // Convert sets to counts
@@ -352,34 +377,34 @@ const BookingHistory = () => {
       });
       
       // Add debug logging
-      console.log(`🔍 getClassCounts - Final results:`, {
-        dateISO,
-        selectedShow: selectedShow || 'ALL SHOWS',
-        databaseBookings: databaseBookings.length,
-        filteredBookings: (databaseBookings || []).filter(b => {
-          const dbDate = new Date(b.date).toISOString().split('T')[0];
-          const showMatches = selectedShow ? b.show === selectedShow : true;
-          return dbDate === dateISO && showMatches;
-        }).length,
-        classCounts,
-        uniqueSeatsByClass: Object.fromEntries(
-          Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
-            classLabel, 
-            {
-              regular: Array.from(seatSets.regular),
-              bms: Array.from(seatSets.bms)
-            }
-          ])
-        )
-      });
+      // console.log(`🔍 getClassCounts - Final results:`, {
+      //   dateISO,
+      //   selectedShow: selectedShow || 'ALL SHOWS',
+      //   databaseBookings: databaseBookings.length,
+      //   filteredBookings: (databaseBookings || []).filter(b => {
+      //     const dbDate = new Date(b.date).toISOString().split('T')[0];
+      //     const showMatches = selectedShow ? b.show === selectedShow : true;
+      //     return dbDate === dateISO && showMatches;
+      //   }).length,
+      //   classCounts,
+      //   uniqueSeatsByClass: Object.fromEntries(
+      //     Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
+      //       classLabel, 
+      //       {
+      //         regular: Array.from(seatSets.regular),
+      //         bms: Array.from(seatSets.bms)
+      //       }
+      //     ])
+      //   )
+      // });
       
       // Debug: Log the actual class labels found in database
-      console.log('🔍 Database class labels found:', Object.keys(classCounts));
-      console.log('🔍 Seat segments expected:', seatSegments.map(seg => seg.label));
+      // console.log('🔍 Database class labels found:', Object.keys(classCounts));
+      // console.log('🔍 Seat segments expected:', seatSegments.map(seg => seg.label));
       
       return seatSegments.map(seg => {
         const counts = classCounts[seg.label] || { regular: 0, bms: 0 };
-        console.log(`🔍 Class ${seg.label}: ${counts.regular} regular, ${counts.bms} BMS seats`);
+        // console.log(`🔍 Class ${seg.label}: ${counts.regular} regular, ${counts.bms} BMS seats`);
         return {
           label: classLabelMap[seg.label] || seg.label,
           regular: counts.regular,
@@ -400,27 +425,27 @@ const BookingHistory = () => {
         };
       });
     }
-  };
+  }, [databaseBookings, selectedDate, selectedShow, seats, seatStatusData]);
 
   // Helper function to determine class from seat ID
-  const getClassFromSeatId = (seatId: string): string | null => {
+  const getClassFromSeatId = useCallback((seatId: string): string | null => {
     // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
     const rowPrefix = seatId.split('-')[0];
     
-    // Map row prefixes to class labels
+    // Map row prefixes to class labels - match with BoxVsOnlineReport
     const classMapping: Record<string, string> = {
       'BOX': 'BOX',
       'SC': 'STAR CLASS',
-      'CB': 'CLASSIC',
+      'CB': 'CLASSIC BALCONY',
       'FC': 'FIRST CLASS',
-      'SC2': 'SECOND CLASS'
+      'SEC': 'SECOND CLASS'
     };
     
     return classMapping[rowPrefix] || null;
-  };
+  }, []);
 
   // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
-  const incomeBreakdown = (() => {
+  const incomeBreakdown = useMemo(() => {
     const dateObj = new Date(selectedDate);
     const dateISO = dateObj.toISOString().split('T')[0];
     
@@ -482,18 +507,43 @@ const BookingHistory = () => {
       bms: bmsIncome,
       total: onlineIncome + bmsIncome
     };
-  })();
+  }, [selectedDate, databaseBookings, selectedShow, seatStatusData, getClassFromSeatId]);
 
   // Keep the old grossIncome for backward compatibility
   const grossIncome = incomeBreakdown.total;
 
   // Calculate class counts once for the selected date and show (or all shows if none selected)
   const classCountsData = useMemo(() => {
-    return getClassCounts(null);
-  }, [selectedDate, selectedShow, databaseBookings]);
+    const result = getClassCounts(null);
+    return result;
+  }, [getClassCounts]);
+
+  // Memoize quick summary calculations to prevent recalculation on every render
+  const quickSummaryData = useMemo(() => {
+    const totalBookingSeats = classCountsData.reduce((sum, r) => sum + r.regular, 0);
+    const totalOnlineSeats = classCountsData.reduce((sum, r) => sum + r.bms, 0);
+    const totalSeats = classCountsData.reduce((sum, r) => sum + r.total, 0);
+    
+    return {
+      totalBookingSeats,
+      totalOnlineSeats,
+      totalSeats
+    };
+  }, [classCountsData]);
+
+  // Memoize income percentages to prevent recalculation
+  const incomePercentages = useMemo(() => {
+    const bookingPercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.online / incomeBreakdown.total) * 100) : 0;
+    const onlinePercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.bms / incomeBreakdown.total) * 100) : 0;
+    
+    return {
+      bookingPercentage,
+      onlinePercentage
+    };
+  }, [incomeBreakdown]);
 
   // Handle PDF download for a specific show
-  const handleDownloadPDF = async (showKey: ShowTime, date: string) => {
+  const handleDownloadPDF = useCallback(async (showKey: ShowTime, date: string) => {
     try {
       // Get show label
       const showLabel = showOrder.find(s => s.key === showKey)?.label || showKey;
@@ -553,7 +603,7 @@ const BookingHistory = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [databaseBookings, getClassCounts, allStats, showOrder, downloadShowReportPdf, toast]);
 
   // UI
   return (
@@ -581,67 +631,55 @@ const BookingHistory = () => {
               yearDropdownItemNumber={15}
               scrollableYearDropdown
               maxDate={new Date()}
-              popperPlacement="bottom-end"
-              popperModifiers={[
-                {
-                  name: "offset",
-                  options: {
-                    offset: [0, 8],
-                  },
-                },
-                {
-                  name: "preventOverflow",
-                  options: {
-                    boundary: "viewport",
-                    padding: 20,
-                  },
-                },
-                {
-                  name: "flip",
-                  options: {
-                    fallbackPlacements: ["top-end", "bottom-start", "top-start"],
-                  },
-                },
-              ]}
+              popperPlacement="bottom-start"
+              onCalendarOpen={() => {
+                // Prevent positioning errors by ensuring the calendar opens properly
+                setTimeout(() => {
+                  const calendar = document.querySelector('.react-datepicker');
+                  if (calendar) {
+                    calendar.setAttribute('data-popper-placement', 'bottom-start');
+                  }
+                }, 0);
+              }}
             />
           </div>
         </div>
-      </div>
-
-      {/* Show Selection Info */}
-      {selectedShow ? (
+          </div>
+          
+          {/* Show Selection Info */}
+          {selectedShow ? (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-blue-800">
-                Showing data for: <span className="font-bold">{showOrder.find(s => s.key === selectedShow)?.label}</span>
-              </span>
-            </div>
-            <button
-              onClick={() => setSelectedShow(null)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-blue-800">
+                    Showing data for: <span className="font-bold">{showOrder.find(s => s.key === selectedShow)?.label}</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedShow(null)}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
               Clear Filter
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-green-800">
-                Showing aggregated data for: <span className="font-bold">All Shows</span>
-              </span>
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setSelectedShow(showOrder[0]?.key || null)}
-              className="text-xs text-green-600 hover:text-green-800 font-medium"
-            >
+          ) : (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-green-800">
+                    Showing aggregated data for: <span className="font-bold">All Shows</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedShow(showOrder[0]?.key || null)}
+                  className="text-xs text-green-600 hover:text-green-800 font-medium"
+                >
               Filter by Show
-            </button>
-          </div>
-        </div>
-      )}
+                </button>
+              </div>
+            </div>
+          )}
 
       {/* Show Cards - Interactive */}
       <div>
@@ -651,44 +689,14 @@ const BookingHistory = () => {
             const stats = allStats[show.key] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };
             const isSelected = selectedShow === show.key;
             return (
-              <div 
+              <ShowCard
                 key={show.key} 
-                className={`bg-white border-2 rounded-lg p-3 shadow-sm cursor-pointer transition-all hover:shadow-md ${
-                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSelectedShow(selectedShow === show.key ? null : show.key)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-semibold text-gray-800">{show.label}</div>
-                  {isSelected && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  )}
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total:</span>
-                    <span className="font-medium">{stats.total}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-green-600">Booked:</span>
-                    <span className="font-medium text-green-700">{stats.booked}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-blue-600">Online:</span>
-                    <span className="font-medium text-blue-700">{stats.bms}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Available:</span>
-                    <span className="font-medium">{stats.available}</span>
-                  </div>
-                  <div className="pt-1 border-t border-gray-100">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Occupancy:</span>
-                      <span className="font-medium">{stats.occupancy}%</span>
-                    </div>
-                  </div>
-                </div>
-          </div>
+                show={show} 
+                stats={stats} 
+                isSelected={isSelected} 
+                onSelect={setSelectedShow}
+                onViewSeats={handleViewSeats}
+              />
             );
           })}
         </div>
@@ -727,14 +735,11 @@ const BookingHistory = () => {
               </tr>
             </thead>
             <tbody>
-              {classCountsData.map((row, i) => (
-                    <tr key={row.label} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <td className="py-3 px-3 font-medium text-gray-800 border-r border-gray-200">{row.label}</td>
-                      <td className="py-3 px-3 text-center font-semibold text-green-600 border-r border-gray-200">{row.regular}</td>
-                      <td className="py-3 px-3 text-center font-semibold text-blue-600 border-r border-gray-200">{row.bms}</td>
-                      <td className="py-3 px-3 text-center font-bold text-gray-800">{row.total}</td>
-                </tr>
-              ))}
+              {(() => {
+                return classCountsData.map((row, i) => (
+                  <TableRow key={row.label} row={row} index={i} />
+                ));
+              })()}
                   <tr className="bg-gradient-to-r from-gray-200 to-gray-300 font-bold">
                     <td className="py-3 px-3 text-gray-800 border-r border-gray-400">TOTAL</td>
                     <td className="py-3 px-3 text-center text-green-700 border-r border-gray-400">
@@ -749,33 +754,33 @@ const BookingHistory = () => {
               </tr>
             </tbody>
           </table>
-            </div>
+        </div>
           </div>
 
           {/* Quick Summary - Moved below table */}
           <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-3 text-base">Quick Summary</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                <div className="text-sm text-green-600 font-medium">TOTAL BOOKING SEATS</div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center flex flex-col justify-between h-24">
+                <div className="text-sm text-green-600 font-medium leading-tight">TOTAL BOOKING SEATS</div>
                 <div className="text-xl font-bold text-green-700">
-                  {classCountsData.reduce((sum, r) => sum + r.regular, 0)}
+                  {quickSummaryData.totalBookingSeats}
                 </div>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                <div className="text-sm text-blue-600 font-medium">TOTAL ONLINE SEATS</div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center flex flex-col justify-between h-24">
+                <div className="text-sm text-blue-600 font-medium leading-tight">TOTAL ONLINE SEATS</div>
                 <div className="text-xl font-bold text-blue-700">
-                  {classCountsData.reduce((sum, r) => sum + r.bms, 0)}
+                  {quickSummaryData.totalOnlineSeats}
                 </div>
               </div>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
-                <div className="text-sm text-gray-600 font-medium">TOTAL SEATS</div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center flex flex-col justify-between h-24">
+                <div className="text-sm text-gray-600 font-medium leading-tight">TOTAL SEATS</div>
                 <div className="text-xl font-bold text-gray-700">
-                  {classCountsData.reduce((sum, r) => sum + r.total, 0)}
+                  {quickSummaryData.totalSeats}
                 </div>
               </div>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
-                <div className="text-sm text-purple-600 font-medium">TOTAL INCOME</div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center flex flex-col justify-between h-24">
+                <div className="text-sm text-purple-600 font-medium leading-tight">TOTAL INCOME</div>
                 <div className="text-xl font-bold text-purple-700">₹ {incomeBreakdown.total}</div>
               </div>
             </div>
@@ -859,13 +864,13 @@ const BookingHistory = () => {
                 <div className="bg-green-50 border border-green-200 rounded p-3 text-center">
                   <div className="text-xs text-green-600 font-medium">BOOKING %</div>
                   <div className="text-lg font-bold text-green-700">
-                    {incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.online / incomeBreakdown.total) * 100) : 0}%
+                    {incomePercentages.bookingPercentage}%
                   </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded p-3 text-center">
                   <div className="text-xs text-blue-600 font-medium">ONLINE %</div>
                   <div className="text-lg font-bold text-blue-700">
-                    {incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.bms / incomeBreakdown.total) * 100) : 0}%
+                    {incomePercentages.onlinePercentage}%
                   </div>
                 </div>
               </div>
@@ -887,6 +892,17 @@ const BookingHistory = () => {
               return acc;
             }, {});
           })()}
+        />
+      )}
+
+      {/* SeatGridPreview Modal */}
+      {previewShow && (
+        <SeatGridPreview
+          isOpen={seatGridPreviewOpen}
+          onClose={() => setSeatGridPreviewOpen(false)}
+          date={selectedDate}
+          show={previewShow.key}
+          showLabel={previewShow.label}
         />
       )}
     </div>

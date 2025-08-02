@@ -139,8 +139,23 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   };
 
   const handleDelete = () => {
-    if (!onDelete) return;
+    console.log('🗑️ handleDelete called');
+    console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
+    console.log('🗑️ groups:', groups);
+    
+    if (!onDelete) {
+      console.error('❌ onDelete function not provided');
+      return;
+    }
+    
     const seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
+    console.log('🗑️ seatIdsToDelete:', seatIdsToDelete);
+    
+    if (seatIdsToDelete.length === 0) {
+      console.warn('⚠️ No seats selected for deletion');
+      return;
+    }
+    
     onDelete(seatIdsToDelete);
     setSelectedGroupIdxs([]);
   };
@@ -235,6 +250,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       <div className="font-semibold text-lg px-4 pt-2 pb-3 border-b border-gray-100 mb-3 flex items-center justify-between">
         <span>Tickets</span>
         <div className="flex items-center gap-2">
+          {selectedGroupIdxs.length > 0 && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+              {selectedGroupIdxs.length} selected
+            </span>
+          )}
           {decoupledSeatIds.length > 0 && (
             <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
               {decoupledSeatIds.length} decoupled
@@ -318,9 +338,44 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
             Print Tickets
           </button>
           <button
-            className="bg-red-50 text-red-700 hover:bg-red-100 font-semibold px-5 py-2 rounded-lg border border-red-200 disabled:opacity-50 transition"
-            disabled={selectedGroupIdxs.length === 0}
-            onClick={handleDelete}
+            className="bg-red-100 text-red-700 hover:bg-red-200 font-semibold px-4 py-2 rounded-lg border border-red-300 transition text-sm"
+            onClick={() => {
+              console.log('🗑️ Delete clicked');
+              console.log('🗑️ selectedSeats:', selectedSeats);
+              console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
+              console.log('🗑️ onDelete function exists:', !!onDelete);
+              
+              if (!onDelete || selectedSeats.length === 0) {
+                console.error('❌ Cannot delete: onDelete function missing or no seats selected');
+                return;
+              }
+              
+              // Check if all tickets are from the same class
+              const uniqueClasses = new Set(selectedSeats.map(seat => seat.classLabel));
+              const isSingleClass = uniqueClasses.size === 1;
+              
+              console.log('🗑️ Unique classes:', Array.from(uniqueClasses));
+              console.log('🗑️ Is single class:', isSingleClass);
+              
+              let seatIdsToDelete: string[];
+              
+              if (isSingleClass) {
+                // Single class: Delete ALL tickets
+                seatIdsToDelete = selectedSeats.map(seat => seat.id);
+                console.log('🗑️ Single class detected - deleting ALL tickets:', seatIdsToDelete);
+              } else {
+                // Multiple classes: Delete only SELECTED tickets
+                if (selectedGroupIdxs.length === 0) {
+                  console.warn('⚠️ Multiple classes detected but no tickets selected for deletion');
+                  return;
+                }
+                seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
+                console.log('🗑️ Multiple classes detected - deleting SELECTED tickets:', seatIdsToDelete);
+              }
+              
+              onDelete(seatIdsToDelete);
+              setSelectedGroupIdxs([]);
+            }}
           >
             Delete
           </button>

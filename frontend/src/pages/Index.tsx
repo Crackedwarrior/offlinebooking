@@ -5,7 +5,7 @@ import ShowSelector from '@/components/ShowSelector';
 import DateSelector from '@/components/DateSelector';
 import BookingHistory from '@/components/BookingHistory';
 import ReportPreview from '@/components/ReportPreview';
-import SeatStatusPanel from '@/components/SeatStatusPanel';
+
 import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
 
 import { useBookingStore } from '@/store/bookingStore';
@@ -23,7 +23,6 @@ import { createBooking } from '@/services/api';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
-  { id: 'status', label: 'Seat Status', icon: Users },
   { id: 'history', label: 'Booking History', icon: History },
   { id: 'reports', label: 'Reports', icon: Download },
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -226,7 +225,6 @@ const Index = () => {
               <h2 className="text-xl font-semibold">Booking Confirmation</h2>
             ) : (
               <h2 className="text-xl font-semibold">
-                {activeView === 'status' && 'Seat Status'}
                 {activeView === 'history' && 'Booking History'}
                 {activeView === 'reports' && 'Reports & Analytics'}
                 {activeView === 'settings' && 'Settings'}
@@ -242,16 +240,12 @@ const Index = () => {
                 {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabel()}
               </p>
             )}
-            {activeView === 'status' && (
-              <p className="text-gray-600 mt-1">
-                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {selectedShow} Show
-              </p>
-            )}
+
 
           </div>
           <div className="flex items-center space-x-3">
             {/* Select Show Popover */}
-            {(activeView === 'booking' || activeView === 'status') && (
+            {activeView === 'booking' && (
               <Popover>
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none">
@@ -278,18 +272,7 @@ const Index = () => {
           {activeView === 'booking' && (
             <SeatGrid onProceed={(data) => { setCheckoutData(data); setActiveView('checkout'); }} />
           )}
-          {activeView === 'status' && (
-            <div className="p-6">
-              <SeatStatusPanel 
-                date={selectedDate} 
-                show={selectedShow} 
-                onRefresh={() => {
-                  // Refresh seat status
-                  initializeSeats();
-                }}
-              />
-            </div>
-          )}
+
           {activeView === 'history' && <BookingHistory />}
           {activeView === 'reports' && <BoxVsOnlineReport />}
           {activeView === 'settings' && <Settings />}

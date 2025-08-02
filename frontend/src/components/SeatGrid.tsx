@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
-import { RotateCcw, Loader2, Globe, X } from 'lucide-react';
+import { RotateCcw, Loader2, Globe, X, Move } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus, saveBmsSeatStatus } from '@/services/api';
@@ -33,6 +33,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [bmsMode, setBmsMode] = useState(false);
+  const [moveMode, setMoveMode] = useState(false);
 
   // Memoize fetchSeatStatus to prevent unnecessary re-creations
   const fetchSeatStatus = useCallback(async () => {
@@ -135,8 +136,26 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     }
   }, []);
 
-  // Enhanced seat click handler with BMS mode
+  // Enhanced seat click handler with BMS mode and move mode
   const handleSeatClick = async (seat: Seat) => {
+    if (moveMode) {
+      // Move Mode: Allow deselection of selected seats or moving to available seats
+      if (seat.status === 'selected') {
+        // Allow deselection of selected seats in move mode
+        toggleSeatStatus(seat.id, 'available');
+      } else if (seat.status === 'available') {
+        // Move block to this available seat
+        executeMove(seat);
+      } else {
+        toast({
+          title: 'Invalid Target',
+          description: 'You can only move to available seats or deselect selected seats.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
     if (bmsMode) {
       // BMS Mode: Toggle between available and bms-booked
       if (seat.status === 'available') {
@@ -191,6 +210,95 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     return seatClass?.label || '';
   };
 
+
+
+  const cancelMoveMode = () => {
+    setMoveMode(false);
+    toast({
+      title: 'Move Mode Cancelled',
+      description: 'Move mode has been cancelled.',
+    });
+  };
+
+  const clearSelection = () => {
+    // Deselect all selected seats
+    selectedSeats.forEach(seat => {
+      toggleSeatStatus(seat.id, 'available');
+    });
+    
+    if (moveMode) {
+      setMoveMode(false);
+    }
+    
+    toast({
+      title: 'Selection Cleared',
+      description: 'All selected seats have been cleared.',
+    });
+  };
+
+  const executeMove = (targetSeat: Seat) => {
+    if (!moveMode || selectedSeats.length === 0) return;
+
+    const blockSize = selectedSeats.length;
+    const selectedClass = getClassLabel(selectedSeats[0].row);
+    const targetClass = getClassLabel(targetSeat.row);
+
+    // Check if target is in the same class
+    if (selectedClass !== targetClass) {
+      toast({
+        title: 'Invalid Location',
+        description: 'You can only move seats within the same class.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if there's enough contiguous space starting from target seat
+    const targetRow = targetSeat.row;
+    const targetStartNumber = targetSeat.number;
+    
+    // Check if all required seats are available
+    for (let i = 0; i < blockSize; i++) {
+      const checkSeatNumber = targetStartNumber + i;
+      const checkSeat = seats.find(seat => seat.row === targetRow && seat.number === checkSeatNumber);
+      
+      if (!checkSeat || checkSeat.status !== 'available') {
+        toast({
+          title: 'Insufficient Space',
+          description: 'Not enough contiguous space at this location.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Execute the move
+    const sortedSeats = selectedSeats.sort((a, b) => {
+      if (a.row !== b.row) return a.row.localeCompare(b.row);
+      return a.number - b.number;
+    });
+
+    // Deselect current seats
+    sortedSeats.forEach(seat => {
+      toggleSeatStatus(seat.id, 'available');
+    });
+
+    // Select new seats
+    for (let i = 0; i < blockSize; i++) {
+      const newSeatNumber = targetStartNumber + i;
+      const newSeat = seats.find(seat => seat.row === targetRow && seat.number === newSeatNumber);
+      if (newSeat) {
+        toggleSeatStatus(newSeat.id, 'selected');
+      }
+    }
+
+    setMoveMode(false);
+    toast({
+      title: 'Block Moved',
+      description: `Moved ${blockSize} seats to ${targetRow}${targetStartNumber}-${targetStartNumber + blockSize - 1}`,
+    });
+  };
+
   // Selected seats and total amount
   const selectedSeats = seats.filter(seat => seat.status === 'selected');
   const totalAmount = selectedSeats.reduce((sum, seat) => {
@@ -227,6 +335,53 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     }
   }, [selectedDate, selectedShow]); // Removed fetchSeatStatus from dependencies
 
+  // Handle ESC key to cancel move mode
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && moveMode) {
+        cancelMoveMode();
+      }
+    };
+
+    if (moveMode) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [moveMode]);
+
+  // Auto-enable move mode when contiguous block is selected
+  useEffect(() => {
+    if (selectedSeats.length > 1 && !moveMode && !bmsMode) {
+      // Check if selected seats are contiguous
+      const sortedSeats = selectedSeats.sort((a, b) => {
+        if (a.row !== b.row) return a.row.localeCompare(b.row);
+        return a.number - b.number;
+      });
+
+      // Verify contiguity
+      let isContiguous = true;
+      for (let i = 1; i < sortedSeats.length; i++) {
+        const prev = sortedSeats[i - 1];
+        const curr = sortedSeats[i];
+        if (prev.row !== curr.row || curr.number !== prev.number + 1) {
+          isContiguous = false;
+          break;
+        }
+      }
+
+      if (isContiguous) {
+        setMoveMode(true);
+        toast({
+          title: 'Move Mode Enabled',
+          description: `You've selected ${selectedSeats.length} contiguous seats. Click anywhere to move the block. Press ESC to cancel.`,
+        });
+      }
+    } else if (selectedSeats.length <= 1 && moveMode) {
+      // Exit move mode if less than 2 seats are selected
+      setMoveMode(false);
+    }
+  }, [selectedSeats, moveMode, bmsMode]);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       {/* Header */}
@@ -237,6 +392,12 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
             <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
               <Globe className="w-4 h-4" />
               BMS Mode Active
+            </div>
+          )}
+          {moveMode && (
+            <div className="flex items-center gap-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+              <Move className="w-4 h-4" />
+              Move Mode Active
             </div>
           )}
         </div>
@@ -270,6 +431,31 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                   Mark BMS
                 </>
               )}
+            </Button>
+          )}
+
+          {moveMode && (
+            <Button
+              onClick={cancelMoveMode}
+              disabled={loadingSeats}
+              size="sm"
+              variant="outline"
+              className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancel Move
+            </Button>
+          )}
+          {selectedSeats.length > 0 && (
+            <Button
+              onClick={clearSelection}
+              disabled={loadingSeats}
+              size="sm"
+              variant="outline"
+              className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Clear Selection
             </Button>
           )}
           <div className="text-sm text-gray-600">
