@@ -7,7 +7,7 @@ import SeatGridPreview from './SeatGridPreview';
 import { formatSafeDate } from '../utils/formatDate';
 import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 import { getBookings, getSeatStatus } from '@/services/api';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -47,16 +47,17 @@ const ShowCard = memo(({
   onViewSeats: (show: { key: ShowTime; label: string }) => void;
 }) => (
   <div
-    className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+    data-show-card
+    className={`p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
       isSelected 
         ? 'border-blue-500 bg-blue-50 shadow-md' 
         : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
     }`}
+    onClick={() => onSelect(show.key)}
   >
     <div className="flex items-center justify-between mb-2">
       <h3 
-        className="font-semibold text-gray-900 cursor-pointer"
-        onClick={() => onSelect(show.key)}
+        className="font-semibold text-gray-900"
       >
         {show.label}
       </h3>
@@ -108,11 +109,26 @@ const BookingHistory = () => {
   const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
   const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
 
-  // Handle view seats for a specific show
-  const handleViewSeats = useCallback((show: { key: ShowTime; label: string }) => {
-    setPreviewShow(show);
-    setSeatGridPreviewOpen(true);
-  }, []);
+  // Handle click outside to deselect show cards
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      // Check if click is outside of show cards
+      const isOutsideShowCards = !target.closest('[data-show-card]');
+      const isOutsideDatePicker = !target.closest('.react-datepicker');
+      const isOutsideModal = !target.closest('[data-modal]');
+      
+      if (isOutsideShowCards && isOutsideDatePicker && isOutsideModal && selectedShow !== null) {
+        setSelectedShow(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [selectedShow]);
 
   // Get dates with bookings for highlighting
   const datesWithBookings = useMemo(() => {
@@ -125,6 +141,18 @@ const BookingHistory = () => {
     }
     return dates;
   }, [databaseBookings]);
+
+  // Handle view seats for a specific show
+  const handleViewSeats = useCallback((show: { key: ShowTime; label: string }) => {
+    console.log('🔍 View Seats clicked:', {
+      show,
+      selectedDate,
+      databaseBookings: databaseBookings.length,
+      datesWithBookings: Array.from(datesWithBookings)
+    });
+    setPreviewShow(show);
+    setSeatGridPreviewOpen(true);
+  }, [selectedDate, databaseBookings, datesWithBookings]);
 
   // Handle date selection
   const handleDateChange = useCallback((date: Date | null) => {
@@ -204,11 +232,11 @@ const BookingHistory = () => {
 
     } catch (error) {
       console.error('❌ Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to connect to database.',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to connect to database.',
+      //   variant: 'destructive',
+      // });
     } finally {
       setLoading(false);
     }
@@ -590,20 +618,20 @@ const BookingHistory = () => {
       // Generate and download PDF
       await downloadShowReportPdf(reportData);
       
-      toast({
-        title: 'Success',
-        description: `PDF report downloaded for ${showLabel}`,
-      });
+      // toast({
+      //   title: 'Success',
+      //   description: `PDF report downloaded for ${showLabel}`,
+      // });
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate PDF report',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to generate PDF report',
+      //   variant: 'destructive',
+      // });
     }
-  }, [databaseBookings, getClassCounts, allStats, showOrder, downloadShowReportPdf, toast]);
+  }, [databaseBookings, getClassCounts, allStats, showOrder, downloadShowReportPdf]);
 
   // UI
   return (

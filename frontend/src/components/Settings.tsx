@@ -24,11 +24,20 @@ import {
   Calendar,
 
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings';
+
+// Helper function to convert 24-hour time to 12-hour format
+const convertTo12Hour = (time24h: string): string => {
+  const [hours, minutes] = time24h.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
 
 const Settings = () => {
   const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
@@ -117,10 +126,10 @@ const Settings = () => {
     });
 
     setIsDirty(false);
-    toast({
-      title: 'Settings Saved',
-      description: 'Your pricing and show time settings have been updated.',
-    });
+    // toast({
+    //   title: 'Settings Saved',
+    //   description: 'Your pricing and show time settings have been updated.',
+    // });
   }, [localPricing, localShowTimes, updatePricing, updateShowTime]);
 
   // Reset to defaults
@@ -130,10 +139,10 @@ const Settings = () => {
       setLocalPricing(pricing);
       setLocalShowTimes(showTimes);
       setIsDirty(false);
-      toast({
-        title: 'Settings Reset',
-        description: 'All settings have been reset to their default values.',
-      });
+      // toast({
+      //   title: 'Settings Reset',
+      //   description: 'All settings have been reset to their default values.',
+      // });
     }
   }, [resetToDefaults, pricing, showTimes]);
 
@@ -224,7 +233,7 @@ const Settings = () => {
                   <div key={show.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <span className="font-medium">{show.label}</span>
-                      <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
+                      <p className="text-sm text-gray-600">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</p>
                     </div>
                     <Badge variant="outline">Active</Badge>
                   </div>
@@ -296,7 +305,7 @@ const Settings = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold">{show.label}</h3>
-                    <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
+                    <p className="text-sm text-gray-600">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</p>
                   </div>
                   <Switch
                     checked={show.enabled}

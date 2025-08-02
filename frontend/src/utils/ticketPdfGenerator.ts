@@ -51,7 +51,14 @@ export class TicketPdfGenerator {
       Class: ${ticketData.classLabel}
       Price: ₹${ticketData.price}
       
-      Booked on: ${new Date(ticketData.timestamp).toLocaleString()}
+      Booked on: ${new Date(ticketData.timestamp).toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true 
+      })}
       
       Enjoy your movie!
     `;
@@ -87,7 +94,14 @@ export class TicketPdfGenerator {
       Total Tickets: ${bookingData.totalTickets}
       Total Amount: ₹${bookingData.totalAmount}
       
-      Booked on: ${new Date(bookingData.timestamp).toLocaleString()}
+      Booked on: ${new Date(bookingData.timestamp).toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true 
+      })}
       
       Thank you for your booking!
     `;

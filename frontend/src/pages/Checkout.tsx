@@ -7,11 +7,10 @@ import { format } from 'date-fns';
 import ShowSelector from '@/components/ShowSelector';
 import { getCurrentShowLabel } from '@/lib/utils';
 import TicketPrint from '@/components/TicketPrint';
-import { useRef } from 'react';
 import { SEAT_CLASSES, SHOW_TIMES, MOVIE_CONFIG, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus } from '@/services/api';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 
 const CLASS_INFO = SEAT_CLASSES.map(cls => ({
   key: cls.key,
@@ -31,86 +30,8 @@ const convertTo12Hour = (time24h: string): string => {
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
 };
 
-const getShowDetails = () => {
-  try {
-     
-    const { useSettingsStore } = require('@/store/settingsStore');
-    const getShowTimes = useSettingsStore.getState().getShowTimes;
-    const showTimes = getShowTimes();
-    
-    return showTimes.reduce((acc, show) => {
-      acc[show.key] = { 
-        label: show.label, 
-        timing: `${convertTo12Hour(show.startTime)} - ${convertTo12Hour(show.endTime)}`, 
-        price: 150 // All shows have same base price
-      };
-      return acc;
-    }, {} as Record<string, { label: string; timing: string; price: number }>);
-  } catch {
-    // Fallback to static configuration
-    return SHOW_TIMES.reduce((acc, show) => {
-      acc[show.key] = { 
-        label: show.label, 
-        timing: show.timing, 
-        price: 150
-      };
-      return acc;
-    }, {} as Record<string, { label: string; timing: string; price: number }>);
-  }
-};
+// Remove the local getCurrentShowKey function - use selectedShow from store instead
 
-function getCurrentShowKey() {
-  try {
-     
-    const { useSettingsStore } = require('@/store/settingsStore');
-    const getShowTimes = useSettingsStore.getState().getShowTimes;
-    const showTimes = getShowTimes();
-    
-    if (showTimes.length === 0) {
-      return 'EVENING'; // Default fallback
-    }
-    
-    const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-    
-    // Find the current show based on time ranges
-    for (const show of showTimes) {
-      const [startHour, startMin] = show.startTime.split(':').map(Number);
-      const [endHour, endMin] = show.endTime.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
-      // Handle overnight shows (e.g., 23:30 - 02:30)
-      if (endMinutes < startMinutes) {
-        if (currentTime >= startMinutes || currentTime < endMinutes) {
-          return show.key;
-        }
-      } else {
-        if (currentTime >= startMinutes && currentTime < endMinutes) {
-          return show.key;
-        }
-      }
-    }
-    
-    // Default to first show if no match
-    return showTimes[0]?.key || 'EVENING';
-  } catch {
-    // Fallback to static configuration
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
-    
-    if (totalMinutes >= 600 && totalMinutes < 720) return 'MORNING';
-    if (totalMinutes >= 840 && totalMinutes < 1020) return 'MATINEE';
-    if (totalMinutes >= 1080 && totalMinutes < 1260) return 'EVENING';
-    if (totalMinutes >= 1350 || totalMinutes < 600) return 'NIGHT';
-    
-    return 'EVENING';
-  }
-}
-
- 
 interface CheckoutProps {
    
   onBookingComplete?: (bookingData: any) => void;
@@ -121,12 +42,41 @@ interface CheckoutProps {
 const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats, syncSeatStatus } = useBookingStore();
   const { getPriceForClass, getMovieForShow } = useSettingsStore();
-  const [showDropdownOpen, setShowDropdownOpen] = useState(false);
-  const showDropdownRef = useRef<HTMLDivElement>(null);
+  const showTimes = useSettingsStore(state => state.showTimes); // Get show times for dynamic logic
   // Add state for decoupled seat IDs
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
   // Add state to track if booking was just completed
   const [bookingCompleted, setBookingCompleted] = useState(false);
+  // Add state for show dropdown
+  const [showDropdownOpen, setShowDropdownOpen] = useState(false);
+  const [showDropdownRef, setShowDropdownRef] = useState<HTMLDivElement | null>(null);
+
+  // Dynamic show details from settings
+  const getShowDetails = useMemo(() => {
+    try {
+      const enabledShowTimes = showTimes.filter(show => show.enabled);
+      
+      return enabledShowTimes.reduce((acc, show) => {
+        acc[show.key] = { 
+          label: show.label, 
+          timing: `${convertTo12Hour(show.startTime)} - ${convertTo12Hour(show.endTime)}`, 
+          price: 150
+        };
+        return acc;
+      }, {} as Record<string, { label: string; timing: string; price: number }>);
+    } catch (error) {
+      console.log('❌ Error accessing settings store, using fallback');
+      // Fallback to static configuration
+      return SHOW_TIMES.reduce((acc, show) => {
+        acc[show.enumValue] = { 
+          label: show.label, 
+          timing: show.timing, 
+          price: 150
+        };
+        return acc;
+      }, {} as Record<string, { label: string; timing: string; price: number }>);
+    }
+  }, [showTimes]);
 
   // Debug: Log the props and store state (only when there are changes)
   useEffect(() => {
@@ -135,9 +85,139 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
       checkoutDataSelectedSeats: checkoutData?.selectedSeats?.length || 0,
       storeSeatsLength: seats.length,
       storeSelectedSeats: seats.filter(s => s.status === 'selected').length,
-      storeSelectedSeatIds: seats.filter(s => s.status === 'selected').map(s => s.id)
+      storeSelectedSeatIds: seats.filter(s => s.status === 'selected').map(s => s.id),
+      selectedShow: selectedShow, // Log the selected show from store
+      currentTime: new Date().toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: true 
+      })
     });
-  }, [checkoutData, seats]);
+    
+    // Debug: Show what the current show should be
+    const currentTime = getCurrentTimeMinutes();
+    console.log('🕐 Current time analysis:', {
+      currentTime: `${Math.floor(currentTime/60)}:${(currentTime%60).toString().padStart(2, '0')}`,
+      currentTimeMinutes: currentTime,
+      availableShows: showTimes.map(show => ({
+        label: show.label,
+        startTime: show.startTime,
+        endTime: show.endTime,
+        startMinutes: show.startTime.split(':').map(Number).reduce((h, m) => h * 60 + m),
+        endMinutes: show.endTime.split(':').map(Number).reduce((h, m) => h * 60 + m),
+        isCurrentlyRunning: (() => {
+          const [startHour, startMin] = show.startTime.split(':').map(Number);
+          const [endHour, endMin] = show.endTime.split(':').map(Number);
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+          
+          if (endMinutes < startMinutes) {
+            return currentTime >= startMinutes || currentTime < endMinutes;
+          } else {
+            return currentTime >= startMinutes && currentTime < endMinutes;
+          }
+        })()
+      }))
+    });
+  }, [checkoutData, seats, selectedShow, showTimes]);
+
+  // Remove the problematic initialization logic - let the store handle show selection
+  // The store already has the correct selectedShow value from the main page
+
+  // Handle show dropdown
+  const handleShowCardDoubleClick = () => {
+    setShowDropdownOpen(!showDropdownOpen);
+  };
+
+  const handleShowSelect = (showKey: string) => {
+    console.log(`🔄 Checkout: User selected show: ${showKey}`);
+    setSelectedShow(showKey as any);
+    setShowDropdownOpen(false);
+  };
+
+  // Get current time to determine which shows are accessible
+  const getCurrentTimeMinutes = () => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  };
+
+  // Check if a show is accessible (current or future)
+  const isShowAccessible = (show: any) => {
+    const currentTime = getCurrentTimeMinutes();
+    const [startHour, startMin] = show.startTime.split(':').map(Number);
+    const [endHour, endMin] = show.endTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    // Find the next show's start time to determine when this show should become inaccessible
+    const currentShowIndex = showTimes.findIndex(s => s.key === show.key);
+    const nextShow = showTimes[currentShowIndex + 1];
+    let nextShowStartMinutes = null;
+    
+    if (nextShow) {
+      const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
+      nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
+    }
+    
+    // A show is accessible if:
+    // 1. It's currently running (current time is within the show period)
+    // 2. It's a future show (current time is before the show starts)
+    // 3. It's not blocked by the next show starting
+    
+    let isAccessible;
+    if (endMinutes < startMinutes) {
+      // For overnight shows, check if current time is within the show period OR if it's a future show
+      // This handles shows like 21:00 - 12:00 (9 PM to 12 AM next day)
+      const isCurrentlyRunning = currentTime >= startMinutes || currentTime < endMinutes;
+      const isFutureShow = currentTime < startMinutes;
+      const isBlockedByNextShow = nextShowStartMinutes && currentTime >= nextShowStartMinutes;
+      
+      isAccessible = (isCurrentlyRunning || isFutureShow) && !isBlockedByNextShow;
+    } else {
+      // For normal shows, check if current time is within the show period OR if it's a future show
+      const isCurrentlyRunning = currentTime >= startMinutes && currentTime < endMinutes;
+      const isFutureShow = currentTime < startMinutes;
+      const isBlockedByNextShow = nextShowStartMinutes && currentTime >= nextShowStartMinutes;
+      
+      isAccessible = (isCurrentlyRunning || isFutureShow) && !isBlockedByNextShow;
+    }
+    
+    console.log(`🔍 Show accessibility check for ${show.label}:`, {
+      show: show.label,
+      startTime: show.startTime,
+      endTime: show.endTime,
+      currentTime: `${Math.floor(currentTime/60)}:${(currentTime%60).toString().padStart(2, '0')}`,
+      startMinutes,
+      endMinutes,
+      nextShow: nextShow?.label || 'none',
+      nextShowStartMinutes,
+      isAccessible,
+      reason: endMinutes < startMinutes ? 'overnight' : 'normal',
+      currentTimeMinutes: currentTime,
+      calculation: `isCurrentlyRunning: ${currentTime >= startMinutes && currentTime < endMinutes}, isFutureShow: ${currentTime < startMinutes}, isBlockedByNextShow: ${nextShowStartMinutes && currentTime >= nextShowStartMinutes}`,
+      selectedShow: selectedShow
+    });
+    
+    return isAccessible;
+  };
+
+  // Handle clicks outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showDropdownRef && !showDropdownRef.contains(event.target as Node)) {
+        setShowDropdownOpen(false);
+      }
+    };
+
+    if (showDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownOpen, showDropdownRef]);
 
   // Use checkoutData if available, otherwise fall back to global state
   const selectedSeats = useMemo(() => {
@@ -196,11 +276,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
         }
       } catch (error) {
         console.error('❌ Error fetching seat status in checkout:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load current seat status.',
-          variant: 'destructive',
-        });
+        // toast({
+        //   title: 'Error',
+        //   description: 'Failed to load current seat status.',
+        //   variant: 'destructive',
+        // });
       }
     };
 
@@ -208,31 +288,15 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   }, [selectedDate, selectedShow, syncSeatStatus]);
   
   // Get reactive show details
-  const SHOW_DETAILS = getShowDetails();
-  const showOptions = Object.keys(SHOW_DETAILS);
-
-  // Handle outside click to close dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (showDropdownRef.current && !showDropdownRef.current.contains(event.target as Node)) {
-        setShowDropdownOpen(false);
-      }
-    }
-    if (showDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDropdownOpen]);
+  // const SHOW_DETAILS = getShowDetails();
+  // const showOptions = Object.keys(SHOW_DETAILS);
 
   // Handler for show selection
-  const handleShowSelect = (showKey: string) => {
-    console.log('Show selection changed:', showKey.toUpperCase());
-    setSelectedShow(showKey.toUpperCase() as ShowTime);
-    loadBookingForDate(selectedDate, showKey.toUpperCase() as ShowTime);
-    setShowDropdownOpen(false);
-  };
+  // const handleShowSelect = (showKey: string) => {
+  //   console.log('Show selection changed:', showKey.toUpperCase());
+  //   setSelectedShow(showKey.toUpperCase() as ShowTime);
+  //   loadBookingForDate(selectedDate, showKey.toUpperCase() as ShowTime);
+  // };
 
   const classCounts = CLASS_INFO.map(cls => {
     const count = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
@@ -285,11 +349,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
     
     // Show success message
-    toast({
-      title: 'Tickets Deleted',
-      description: `${seatIds.length} ticket(s) have been removed from your selection.`,
-      duration: 3000,
-    });
+    // toast({
+    //   title: 'Tickets Deleted',
+    //   description: `${seatIds.length} ticket(s) have been removed from your selection.`,
+    //   duration: 3000,
+    // });
   };
 
   const handleDecoupleTickets = (seatIds: string[]) => {
@@ -350,11 +414,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     setBookingCompleted(false);
     
     // Show success message
-    toast({
-      title: 'Ready for New Booking',
-      description: 'Checkout has been reset. You can now select new seats.',
-      duration: 3000,
-    });
+    // toast({
+    //   title: 'Ready for New Booking',
+    //   description: 'Checkout has been reset. You can now select new seats.',
+    //   duration: 3000,
+    // });
   };
 
   // Helper to get the first valid contiguous block in a class
@@ -530,6 +594,26 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     screen: 'Screen 1'
   };
 
+  // Add detailed logging for show card debugging
+  const showDetails = getShowDetails; // Use the memoized value directly
+  const currentShowDetails = showDetails[selectedShow];
+  
+  console.log('🔍 Show Card Debug:', {
+    selectedShow,
+    currentShowDetails,
+    allShowDetails: showDetails,
+    currentMovie,
+    showCardLabel: currentShowDetails?.label || selectedShow,
+    showCardTiming: currentShowDetails?.timing || '',
+    timeNow: new Date().toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: true 
+    }),
+    dateNow: new Date().toLocaleDateString()
+  });
+
   return (
     <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
       <div className="flex-[3] flex flex-col">
@@ -537,44 +621,154 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
         <div className="mt-4">
           <div className="flex w-full max-w-5xl pt-0">
             {/* Show Box */}
-            <div className="flex flex-col border border-gray-200 bg-white w-[200px] h-[120px] px-6 py-2 relative cursor-pointer select-none rounded-l-xl shadow-md transition-transform hover:-translate-y-1 hover:shadow-lg"
-              onDoubleClick={() => setShowDropdownOpen((open) => !open)}
-              ref={showDropdownRef}
+            <div 
+              ref={setShowDropdownRef}
+              className="relative"
             >
-              <span className="font-bold text-lg mb-1 inline whitespace-nowrap">{`${currentMovie.name} (${currentMovie.language})`}</span>
-              <span className="text-sm font-semibold text-blue-600 mb-1">{getShowDetails()[selectedShow]?.label || selectedShow}</span>
-              <span className="text-sm mb-2 whitespace-nowrap">{getShowDetails()[selectedShow]?.timing || ''}</span>
-              <span className="absolute right-3 bottom-2 text-base font-semibold">{(() => {
-                const totalSeats = seats.length;
-                const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
-                return `${availableSeats}/${totalSeats}`;
-              })()}</span>
-              {/* Dropdown for show selection */}
+              <div 
+                className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md cursor-pointer hover:bg-gray-50"
+                onDoubleClick={handleShowCardDoubleClick}
+              >
+                <div className="font-bold text-base mb-1 leading-tight break-words">{currentMovie.name}</div>
+                <div className="text-sm text-gray-600 mb-1">({currentMovie.language})</div>
+                <span className="text-sm font-semibold text-blue-600 mb-1">{showDetails[selectedShow]?.label || selectedShow}</span>
+                <div className="flex justify-between items-center mt-auto">
+                  <span className="text-sm whitespace-nowrap">{showDetails[selectedShow]?.timing || ''}</span>
+                  <span className="text-base font-semibold ml-2">{(() => {
+                    const totalSeats = seats.length;
+                    const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
+                    return `${availableSeats}/${totalSeats}`;
+                  })()}</span>
+                </div>
+              </div>
+              
+              {/* Show Dropdown */}
               {showDropdownOpen && (
-                <div className="absolute top-full left-0 mt-2 w-[220px] bg-white rounded-xl shadow-lg border z-50 p-2 space-y-2" style={{minWidth: 200}}>
-                  {Object.keys(getShowDetails()).map((showKey) => (
-                    <div
-                      key={showKey}
-                      className={`p-3 rounded-lg cursor-pointer flex flex-col border transition-all ${selectedShow === showKey ? 'bg-blue-100 border-blue-400' : 'hover:bg-gray-100 border-transparent'}`}
-                      onClick={() => {
-                        console.log('Dropdown clicked:', showKey);
-                        handleShowSelect(showKey);
-                      }}
-                    >
-                      <span className="font-bold text-base">{getShowDetails()[showKey].label}</span>
-                      <span className="text-xs text-gray-600">{getShowDetails()[showKey].timing}</span>
-                      <span className="text-xs text-gray-500 mt-1">{(() => {
-                        // Show seat stats for this show
-                        if (showKey === selectedShow) {
-                          const totalSeats = seats.length;
-                          const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
-                          return `Available: ${availableSeats}/${totalSeats}`;
-                        } else {
-                          return '';
-                        }
-                      })()}</span>
-                    </div>
-                  ))}
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[800px] max-w-[1000px]">
+                  <div className="p-3 border-b border-gray-100">
+                    <h3 className="font-semibold text-gray-900">Select Show</h3>
+                    <p className="text-xs text-gray-500">Double-click to select a different show</p>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto p-3">
+                    {showTimes.map((show) => {
+                      const isAccessible = isShowAccessible(show);
+                      const isSelected = selectedShow === show.key;
+                      
+                      return (
+                        <div
+                          key={show.key}
+                          className={`mb-4 last:mb-0 ${
+                            !isAccessible ? 'opacity-50' : ''
+                          }`}
+                        >
+                          {/* Show Header */}
+                          <div 
+                            className={`p-3 rounded-t-lg border ${
+                              isSelected 
+                                ? 'bg-blue-50 border-blue-300' 
+                                : isAccessible 
+                                  ? 'bg-gray-50 border-gray-200 hover:bg-gray-100 cursor-pointer' 
+                                  : 'bg-gray-100 border-gray-300 cursor-not-allowed'
+                            }`}
+                            onClick={() => isAccessible && handleShowSelect(show.key)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <div className={`font-medium text-lg ${isSelected ? 'text-blue-700' : isAccessible ? 'text-gray-900' : 'text-gray-500'}`}>
+                                  {show.label}
+                                </div>
+                                <div className={`text-sm ${isSelected ? 'text-blue-600' : isAccessible ? 'text-gray-600' : 'text-gray-400'}`}>
+                                  {convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {!isAccessible && (
+                                  <span className="text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded">
+                                    Past
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                    Current
+                                  </span>
+                                )}
+                                {isAccessible && !isSelected && (
+                                  <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                                    Available
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Show Card Row */}
+                            <div className="flex w-full">
+                              {/* Show Box */}
+                              <div className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md">
+                                <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'KALANK'}</div>
+                                <div className="text-sm text-gray-600 mb-1">({getMovieForShow(show.key)?.language || 'HINDI'})</div>
+                                <span className="text-sm font-semibold text-blue-600 mb-1">{show.label}</span>
+                                <div className="flex justify-between items-center mt-auto">
+                                  <span className="text-sm whitespace-nowrap">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</span>
+                                  <span className="text-base font-semibold ml-2">{(() => {
+                                    const totalSeats = seats.length;
+                                    const availableSeats = seats.filter(seat => seat.status !== 'booked' && seat.status !== 'bms-booked').length;
+                                    return `${availableSeats}/${totalSeats}`;
+                                  })()}</span>
+                                </div>
+                              </div>
+                              
+                              {/* Class Boxes for this show */}
+                              {CLASS_INFO.map((cls, i) => {
+                                const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
+                                const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'booked' && seat.status !== 'bms-booked').length;
+                                const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'booked').length;
+                                const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'bms-booked').length;
+                                const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
+                                const price = getPriceForClass(cls.label);
+                                
+                                // Original color mapping
+                                const colorMap = {
+                                  BOX: 'bg-cyan-200',
+                                  'STAR CLASS': 'bg-cyan-400',
+                                  CLASSIC: 'bg-yellow-200',
+                                  'FIRST CLASS': 'bg-pink-300',
+                                  'SECOND CLASS': 'bg-gray-300',
+                                };
+                                
+                                // Determine border radius and negative margin
+                                let cardClass = '';
+                                if (i === 0) cardClass = 'rounded-none -ml-2';
+                                else if (i === CLASS_INFO.length - 1) cardClass = 'rounded-r-xl -ml-2';
+                                else cardClass = 'rounded-none -ml-2';
+                                
+                                return (
+                                  <div
+                                    key={cls.key}
+                                    className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform ${isAccessible ? 'hover:-translate-y-1 hover:shadow-lg' : ''} ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
+                                  >
+                                    <div>
+                                      <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>
+                                      <span className="block text-sm text-gray-700 text-left">{total} ({available})</span>
+                                      {bmsBooked > 0 && (
+                                        <span className="block text-xs text-blue-600 text-left">BMS: {bmsBooked}</span>
+                                      )}
+                                      {selected > 0 && (
+                                        <span className="block text-xs text-green-600 font-semibold text-left">Selected: {selected}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-between w-full absolute left-0 bottom-2 px-6">
+                                      <span className="text-[10px] font-semibold">{sold}</span>
+                                      <span className="text-lg font-bold text-right">₹{price}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -672,4 +866,4 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   );
 };
 
-export default Checkout; 
+export default Checkout;

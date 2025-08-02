@@ -1,25 +1,21 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Calendar, Clock, History, Download, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Settings as SettingsIcon, Users } from 'lucide-react';
-import SeatGrid from '@/components/SeatGrid';
-import ShowSelector from '@/components/ShowSelector';
-import DateSelector from '@/components/DateSelector';
-import BookingHistory from '@/components/BookingHistory';
-import ReportPreview from '@/components/ReportPreview';
-
-import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
-
+import React, { useState, useEffect, useCallback } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { format } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Checkout from './Checkout';
-import NotFound from './NotFound';
-import { getCurrentShowLabel } from '@/lib/utils';
-import { getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ChevronDown, Clock, Calendar, History, Download, Settings as SettingsIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { getCurrentShowLabel } from '@/lib/utils';
+import SeatGrid from '@/components/SeatGrid';
+import Checkout from '@/pages/Checkout';
+import BookingHistory from '@/components/BookingHistory';
+import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
 import Settings from '@/components/Settings';
+import BookingConfirmation from '@/components/BookingConfirmation';
+import DateSelector from '@/components/DateSelector';
+import ShowSelector from '@/components/ShowSelector';
+import { getSeatClassByRow } from '@/lib/config';
 import { createBooking } from '@/services/api';
+// import { toast } from '@/hooks/use-toast';
 
 const sidebarItems = [
   { id: 'booking', label: 'Seat Booking', icon: Calendar },
@@ -29,21 +25,233 @@ const sidebarItems = [
 ];
 
 const Index = () => {
-  const [activeView, setActiveView] = useState('booking');
+  const { selectedDate, selectedShow, setSelectedShow, seats, toggleSeatStatus, initializeSeats } = useBookingStore();
+  const { getShowTimes, getPriceForClass } = useSettingsStore();
+  const showTimes = useSettingsStore(state => state.showTimes); // Get all show times for dependency
+  const [activeView, setActiveView] = useState<'booking' | 'checkout' | 'confirmation' | 'history' | 'reports' | 'settings'>('booking');
   const [collapsed, setCollapsed] = useState(true);
-  const { selectedDate, selectedShow } = useBookingStore();
-  const [currentShow, setCurrentShow] = useState(getCurrentShowLabel());
   const [currentTime, setCurrentTime] = useState(new Date());
-  const initializeSeats = useBookingStore((state) => state.initializeSeats);
-  const { getPriceForClass } = useSettingsStore();
-  const [checkoutData, setCheckoutData] = useState(null);
+  const [checkoutData, setCheckoutData] = useState<any>(null);
+  const [bookingId, setBookingId] = useState<string>('');
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
 
-  // Memoize the current show and time update function
-  const updateCurrentShowAndTime = useCallback(() => {
-    setCurrentShow(getCurrentShowLabel());
-    setCurrentTime(new Date());
+  // Custom hook to get current show label dynamically
+  const getCurrentShowLabelDynamic = useCallback(() => {
+    try {
+      const enabledShowTimes = showTimes.filter(show => show.enabled);
+      
+      if (enabledShowTimes.length === 0) {
+        return 'No shows available';
+      }
+      
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      
+      // Find the current show based on time ranges
+      for (const show of enabledShowTimes) {
+        const [startHour, startMin] = show.startTime.split(':').map(Number);
+        const [endHour, endMin] = show.endTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        // Handle overnight shows (e.g., 23:30 - 02:30)
+        if (endMinutes < startMinutes) {
+          if (currentTime >= startMinutes || currentTime < endMinutes) {
+            return show.label;
+          }
+        } else {
+          if (currentTime >= startMinutes && currentTime < endMinutes) {
+            return show.label;
+          }
+        }
+      }
+      
+      // Default to first show if no match
+      return enabledShowTimes[0]?.label || 'No shows available';
+    } catch (error) {
+      console.log('❌ Error in getCurrentShowLabelDynamic, using fallback');
+      return getCurrentShowLabel(); // Fallback to static
+    }
+  }, [showTimes]);
+
+  // Update current time every second
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Helper: get current show key based on time (using dynamic settings)
+  const getCurrentShowKey = useCallback(() => {
+    try {
+      // Get enabled show times from the hook
+      const enabledShowTimes = showTimes.filter(show => show.enabled);
+      
+      if (enabledShowTimes.length === 0) {
+        console.log('⚠️ No shows available in settings, using fallback: EVENING');
+        return 'EVENING'; // Default fallback
+      }
+      
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      
+      // Find the current show based on time ranges from settings
+      // A show should remain active until the next show starts
+      for (let i = 0; i < enabledShowTimes.length; i++) {
+        const show = enabledShowTimes[i];
+        const [startHour, startMin] = show.startTime.split(':').map(Number);
+        const [endHour, endMin] = show.endTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        // Find the next show's start time
+        const nextShow = enabledShowTimes[i + 1];
+        let nextShowStartMinutes = null;
+        if (nextShow) {
+          const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
+          nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
+        }
+        
+        // Check if current time is within this show's active period
+        let isInRange = false;
+        if (endMinutes < startMinutes) {
+          // Overnight show (e.g., 23:30 - 02:30)
+          isInRange = currentTime >= startMinutes || currentTime < endMinutes;
+        } else {
+          // Normal show
+          isInRange = currentTime >= startMinutes && currentTime < endMinutes;
+        }
+        
+        // A show is active if:
+        // 1. Current time is within the show's time range, OR
+        // 2. Current time is after the show started but before the next show starts
+        const isAfterShowStart = currentTime >= startMinutes;
+        const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
+        const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
+        
+        // Only log when debugging is needed
+        // console.log(`🔍 Checking show ${show.key}:`, {
+        //   startTime: show.startTime,
+        //   endTime: show.endTime,
+        //   startMinutes,
+        //   endMinutes,
+        //   nextShow: nextShow?.key || 'none',
+        //   nextShowStartMinutes,
+        //   isInRange,
+        //   isAfterShowStart,
+        //   isBeforeNextShow,
+        //   isActive
+        // });
+        
+        if (isActive) {
+          console.log(`✅ Found current show: ${show.key}`);
+          return show.key;
+        }
+      }
+      
+      // If no show is active, find the most recent show that has ended
+      for (let i = enabledShowTimes.length - 1; i >= 0; i--) {
+        const show = enabledShowTimes[i];
+        const [startHour, startMin] = show.startTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        
+        if (currentTime >= startMinutes) {
+          console.log(`✅ Using most recent show: ${show.key} (last active show)`);
+          return show.key;
+        }
+      }
+      
+      // Default to first show if no match
+      console.log(`⚠️ No show found, using first available: ${enabledShowTimes[0]?.key || 'EVENING'}`);
+      return enabledShowTimes[0]?.key || 'EVENING';
+    } catch (error) {
+      console.log('❌ Error accessing settings store, using fallback logic');
+      // Fallback to static configuration
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const totalMinutes = hours * 60 + minutes;
+      
+      console.log('🕐 getCurrentShowKey calculation (fallback):', {
+        currentTime: now.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit', 
+          second: '2-digit',
+          hour12: true 
+        }),
+        totalMinutes: totalMinutes,
+        hours: hours,
+        minutes: minutes
+      });
+      
+      // Use the same logic as getCurrentShowLabel() - hardcoded time ranges
+      if (totalMinutes >= 600 && totalMinutes < 720) {
+        console.log('✅ Found current show: MORNING (10:00 AM - 12:00 PM)');
+        return 'MORNING';
+      }
+      if (totalMinutes >= 840 && totalMinutes < 1020) {
+        console.log('✅ Found current show: MATINEE (2:00 PM - 5:00 PM)');
+        return 'MATINEE';
+      }
+      if (totalMinutes >= 1080 && totalMinutes < 1260) {
+        console.log('✅ Found current show: EVENING (6:00 PM - 9:00 PM)');
+        return 'EVENING';
+      }
+      if (totalMinutes >= 1350 || totalMinutes < 600) {
+        console.log('✅ Found current show: NIGHT (9:30 PM - 12:30 AM)');
+        return 'NIGHT';
+      }
+      
+      // Handle the gap between 12:00 PM and 6:00 PM (720-1080 minutes)
+      if (totalMinutes >= 720 && totalMinutes < 1080) {
+        console.log('✅ Found current show: EVENING (fallback for 12:00 PM - 6:00 PM gap)');
+        return 'EVENING';
+      }
+      
+      console.log('⚠️ No show found, using fallback: EVENING');
+      return 'EVENING'; // fallback
+    }
+  }, [showTimes]); // Add showTimes as dependency
+
+  // Timer to auto-update selected show
+  useEffect(() => {
+    const updateShow = () => {
+      const currentShowKey = getCurrentShowKey();
+      
+      if (selectedShow !== currentShowKey) {
+        console.log(`🔄 Auto-updating selectedShow from '${selectedShow}' to '${currentShowKey}' at ${new Date().toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit', 
+          second: '2-digit',
+          hour12: true 
+        })}`);
+        setSelectedShow(currentShowKey);
+      }
+    };
+    
+    // Auto-update timer should work across all views (booking, checkout, history, etc.)
+    updateShow(); // run on mount
+    
+    // Check every 30 seconds for show changes
+    const interval = setInterval(updateShow, 30000); // every 30s
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [getCurrentShowKey, selectedShow, setSelectedShow, activeView]);
+
+  // Manual test function to debug dynamic show selection
+  const testDynamicShowSelection = () => {
+    console.log('🧪 MANUAL TEST: Testing dynamic show selection');
+    const currentShowKey = getCurrentShowKey();
+    console.log('🧪 MANUAL TEST: Current show key:', currentShowKey);
+    console.log('🧪 MANUAL TEST: Selected show:', selectedShow);
+    console.log('🧪 MANUAL TEST: Will update:', selectedShow !== currentShowKey);
+    
+    if (selectedShow !== currentShowKey) {
+      console.log(`🧪 MANUAL TEST: Updating from '${selectedShow}' to '${currentShowKey}'`);
+      setSelectedShow(currentShowKey);
+    }
+  };
 
   // Function to deselect seats
   const deselectSeats = useCallback((seatsToDeselect: any[]) => {
@@ -90,19 +298,14 @@ const Index = () => {
     setDecoupledSeatIds(prev => [...prev, ...seatsToDecouple.map(seat => seat.id)]);
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(updateCurrentShowAndTime, 1000); // update every second
-    return () => clearInterval(interval);
-  }, [updateCurrentShowAndTime]);
-
   // Floating Reset Button handler
   const handleResetSeats = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all seats to available? This action cannot be undone.')) {
       initializeSeats();
-      toast({
-        title: 'Seats Reset',
-        description: 'All seats have been reset to available.',
-      });
+      // toast({
+      //   title: 'Seats Reset',
+      //   description: 'All seats have been reset to available.',
+      // });
     }
   }, [initializeSeats]);
 
@@ -124,11 +327,11 @@ const Index = () => {
 
       if (response.success) {
         // Show success toast
-        toast({
-          title: 'Tickets Printed Successfully!',
-          description: `${bookingData.totalTickets} ticket(s) have been printed and saved to database.`,
-          duration: 3000,
-        });
+        // toast({
+        //   title: 'Tickets Printed Successfully!',
+        //   description: `${bookingData.totalTickets} ticket(s) have been printed and saved to database.`,
+        //   duration: 3000,
+        // });
         
         // Mark the booked seats as booked in the store (don't reset all seats)
         const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
@@ -147,12 +350,12 @@ const Index = () => {
       }
     } catch (error) {
       console.error('Error saving booking:', error);
-      toast({
-        title: 'Error Saving Booking',
-        description: 'Failed to save booking to database. Please try again.',
-        variant: 'destructive',
-        duration: 5000,
-      });
+      // toast({
+      //   title: 'Error Saving Booking',
+      //   description: 'Failed to save booking to database. Please try again.',
+      //   variant: 'destructive',
+      //   duration: 5000,
+      // });
     }
   };
 
@@ -208,17 +411,7 @@ const Index = () => {
         <div className="flex items-center justify-between w-full">
           <div>
             {activeView === 'booking' ? (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="flex items-center gap-2 text-xl font-semibold focus:outline-none">
-                    Seat Booking
-                    <ChevronDown className="w-5 h-5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="mt-2">
-                  <DateSelector />
-                </PopoverContent>
-              </Popover>
+              <h2 className="text-xl font-semibold">Seat Booking</h2>
             ) : activeView === 'checkout' ? (
               <h2 className="text-xl font-semibold">Checkout</h2>
             ) : activeView === 'confirmation' ? (
@@ -232,34 +425,19 @@ const Index = () => {
             )}
             {activeView === 'booking' && (
               <p className="text-gray-600 mt-1">
-                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {currentShow}
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabelDynamic()}
               </p>
             )}
             {activeView === 'checkout' && (
               <p className="text-gray-600 mt-1">
-                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabel()}
+                {format(new Date(selectedDate), 'dd/MM/yyyy')} • {getCurrentShowLabelDynamic()}
               </p>
             )}
 
 
           </div>
           <div className="flex items-center space-x-3">
-            {/* Select Show Popover */}
-            {activeView === 'booking' && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none">
-                    {selectedShow} Show
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="mt-2">
-                  <ShowSelector />
-                </PopoverContent>
-              </Popover>
-            )}
-            <Clock className="w-5 h-5 text-gray-400" />
-            <span className="text-gray-600">{currentTime.toLocaleTimeString()}</span>
+            <span className="text-gray-600">{currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
           </div>
         </div>
       </div>

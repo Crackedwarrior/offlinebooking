@@ -64,7 +64,14 @@ export async function downloadShowReportPdf(reportData: ShowReportData) {
   yPosition -= 25;
   
   drawText(`Date: ${new Date(reportData.date).toLocaleDateString()}`, 50, yPosition, 12);
-  drawText(`Generated: ${new Date().toLocaleString()}`, width - 200, yPosition, 10);
+  drawText(`Generated: ${new Date().toLocaleString('en-US', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true 
+  })}`, width - 200, yPosition, 10);
   yPosition -= 30;
 
   // Summary Statistics

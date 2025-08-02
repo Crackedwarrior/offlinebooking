@@ -79,7 +79,12 @@ const ReportPreview = () => {
 
       {/* Report Generation Info */}
       <div className="mt-4 text-xs text-gray-500 text-center">
-        Report generated at {new Date().toLocaleTimeString()}
+        Report generated at {new Date().toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit', 
+          second: '2-digit',
+          hour12: true 
+        })}
       </div>
     </div>
   );

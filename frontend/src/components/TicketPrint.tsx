@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
 interface Seat {
@@ -221,11 +221,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
         
         // Show success message
-        toast({
-          title: 'Tickets Printed Successfully!',
-          description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
-          duration: 4000,
-        });
+        // toast({
+        //   title: 'Tickets Printed Successfully!',
+        //   description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
+        //   duration: 4000,
+        // });
         setSelectedGroupIdxs([]);
         
         // Notify parent to complete booking (with delay to avoid React warnings)
@@ -235,12 +235,12 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       }
     } catch (error) {
       console.error('Failed to save booking:', error);
-      toast({
-        title: 'Booking Failed',
-        description: 'Failed to save booking to database. Please try again.',
-        variant: 'destructive',
-        duration: 5000,
-      });
+      // toast({
+      //   title: 'Booking Failed',
+      //   description: 'Failed to save booking to database. Please try again.',
+      //   variant: 'destructive',
+      //   duration: 5000,
+      // });
     }
   };
 

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw, Search } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 import SeatGrid from '@/components/SeatGrid';
 import { useBookingStore } from '@/store/bookingStore';
 import DatePicker from 'react-datepicker';
@@ -86,20 +86,20 @@ const BookingManagement = () => {
       if (response.success) {
         setBookings(response.data || []);
         setIsLoaded(true);
-        toast({
-          title: 'Success',
-          description: `Loaded ${response.data?.length || 0} bookings`,
-        });
+        // toast({
+        //   title: 'Success',
+        //   description: `Loaded ${response.data?.length || 0} bookings`,
+        // });
       } else {
         throw new Error('Failed to fetch bookings');
       }
     } catch (error) {
       console.error('Error fetching bookings:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load bookings',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to load bookings',
+      //   variant: 'destructive',
+      // });
     } finally {
       setLoading(false);
     }
@@ -123,20 +123,20 @@ const BookingManagement = () => {
           setBookingShow(selectedShow as any);
         }, 100);
         
-        toast({
-          title: 'Success',
-          description: 'Booking deleted successfully',
-        });
+        // toast({
+        //   title: 'Success',
+        //   description: 'Booking deleted successfully',
+        // });
       } else {
         throw new Error('Failed to delete booking');
       }
     } catch (error) {
       console.error('Error deleting booking:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete booking',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to delete booking',
+      //   variant: 'destructive',
+      // });
     }
   }, [selectedDate, selectedShow, setBookingDate, setBookingShow]);
 

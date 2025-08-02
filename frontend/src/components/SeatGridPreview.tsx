@@ -28,6 +28,8 @@ const SeatGridPreview = ({ isOpen, onClose, date, show, showLabel }: SeatGridPre
   const loadSeatStatus = async () => {
     setLoading(true);
     try {
+      console.log('🔍 SeatGridPreview loading with:', { date, show, showLabel });
+      
       // Update the booking store with the selected date and show
       setSelectedDate(date);
       setSelectedShow(show as any);
@@ -35,18 +37,36 @@ const SeatGridPreview = ({ isOpen, onClose, date, show, showLabel }: SeatGridPre
       // Fetch seat status from API
       const response = await getSeatStatus({ date, show });
       
-      if (response.success) {
+      if (response.success && response.data) {
         console.log('✅ Seat status loaded for preview:', response.data);
+        
+        // Manually sync the seat status to ensure it's applied
+        const { syncSeatStatus } = useBookingStore.getState();
+        const bookedSeats = response.data.bookedSeats || [];
+        const bmsSeats = response.data.bmsSeats || [];
+        const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+        const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+        
+        console.log('🔄 Preview: Syncing seat status for', { date, show, bookedSeatIds, bmsSeatIds });
+        syncSeatStatus(bookedSeatIds, bmsSeatIds);
+        
+        // Add a small delay to ensure the state is updated before rendering
+        setTimeout(() => {
+          const currentState = useBookingStore.getState();
+          console.log('🔍 Preview: Current seat state after sync:', {
+            totalSeats: currentState.seats.length,
+            bookedSeats: currentState.seats.filter(s => s.status === 'booked').length,
+            bmsSeats: currentState.seats.filter(s => s.status === 'bms-booked').length,
+            sampleBookedSeats: currentState.seats.filter(s => s.status === 'booked').slice(0, 3).map(s => s.id),
+            sampleBmsSeats: currentState.seats.filter(s => s.status === 'bms-booked').slice(0, 3).map(s => s.id)
+          });
+        }, 100);
       } else {
         throw new Error('Failed to load seat status');
       }
     } catch (error) {
       console.error('❌ Error loading seat status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load seat status for preview',
-        variant: 'destructive',
-      });
+      // Removed toast notification as requested
     } finally {
       setLoading(false);
     }
@@ -74,7 +94,7 @@ const SeatGridPreview = ({ isOpen, onClose, date, show, showLabel }: SeatGridPre
             </div>
           ) : (
             <div className="h-full">
-              <SeatGrid hideProceedButton={true} hideRefreshButton={true} />
+              <SeatGrid hideProceedButton={true} hideRefreshButton={true} disableAutoFetch={true} />
             </div>
           )}
         </div>

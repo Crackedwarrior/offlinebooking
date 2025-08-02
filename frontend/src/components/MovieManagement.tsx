@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Film, Plus, Edit, Trash2, Save, X, Calendar } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 
 const MovieManagement = () => {
   const { 
@@ -40,11 +40,11 @@ const MovieManagement = () => {
 
   const handleAddMovie = () => {
     if (!movieForm.name || !movieForm.language) {
-      toast({
-        title: 'Error',
-        description: 'Movie name and language are required',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Movie name and language are required',
+      //   variant: 'destructive',
+      // });
       return;
     }
 
@@ -66,10 +66,10 @@ const MovieManagement = () => {
         NIGHT: false
       }
     });
-    toast({
-      title: 'Success',
-      description: 'Movie added successfully',
-    });
+    // toast({
+    //   title: 'Success',
+    //   description: 'Movie added successfully',
+    // });
   };
 
   const handleEditMovie = (movie: MovieSettings) => {
@@ -86,11 +86,11 @@ const MovieManagement = () => {
     if (!editingMovie) return;
 
     if (!movieForm.name || !movieForm.language) {
-      toast({
-        title: 'Error',
-        description: 'Movie name and language are required',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Movie name and language are required',
+      //   variant: 'destructive',
+      // });
       return;
     }
 
@@ -107,10 +107,10 @@ const MovieManagement = () => {
         NIGHT: false
       }
     });
-    toast({
-      title: 'Success',
-      description: 'Movie updated successfully',
-    });
+    // toast({
+    //   title: 'Success',
+    //   description: 'Movie updated successfully',
+    // });
   };
 
   const handleDeleteMovie = (movie: MovieSettings) => {
@@ -119,10 +119,10 @@ const MovieManagement = () => {
     }
 
     deleteMovie(movie.id);
-    toast({
-      title: 'Success',
-      description: 'Movie deleted successfully',
-    });
+    // toast({
+    //   title: 'Success',
+    //   description: 'Movie deleted successfully',
+    // });
   };
 
 
@@ -281,11 +281,11 @@ const MovieManagement = () => {
                                      // Check if this show already has a movie assigned (excluding current movie)
                                      const existingMovie = getMovieForShow(show.key);
                                      if (existingMovie && existingMovie.id !== movie.id) {
-                                       toast({
-                                         title: 'Conflict',
-                                         description: `${existingMovie.name} is already assigned to ${show.label} Show. Remove it first.`,
-                                         variant: 'destructive',
-                                       });
+                                       // toast({
+                                       //   title: 'Conflict',
+                                       //   description: `${existingMovie.name} is already assigned to ${show.label} Show. Remove it first.`,
+                                       //   variant: 'destructive',
+                                       // });
                                        return;
                                      }
                                    }
@@ -384,26 +384,26 @@ const MovieManagement = () => {
                                      if (currentAssignment) {
                                        // Removing from show
                                        updateShowAssignment(movie.id, show.key, false);
-                                       toast({
-                                         title: 'Success',
-                                         description: `${movie.name} removed from ${show.label} Show`,
-                                       });
+                                       // toast({
+                                       //   title: 'Success',
+                                       //   description: `${movie.name} removed from ${show.label} Show`,
+                                       // });
                                      } else {
                                        // Adding to show - check for conflicts
                                        if (isConflict) {
-                                         toast({
-                                           title: 'Conflict',
-                                           description: `${existingMovie?.name} is already assigned to ${show.label} Show. Remove it first.`,
-                                           variant: 'destructive',
-                                         });
+                                         // toast({
+                                         //   title: 'Conflict',
+                                         //   description: `${existingMovie?.name} is already assigned to ${show.label} Show. Remove it first.`,
+                                         //   variant: 'destructive',
+                                         // });
                                          return;
                                        }
                                        
                                        updateShowAssignment(movie.id, show.key, true);
-                                       toast({
-                                         title: 'Success',
-                                         description: `${movie.name} assigned to ${show.label} Show`,
-                                       });
+                                       // toast({
+                                       //   title: 'Success',
+                                       //   description: `${movie.name} assigned to ${show.label} Show`,
+                                       // });
                                      }
                                    }}
                                    className={`px-3 py-1 text-xs rounded border ${

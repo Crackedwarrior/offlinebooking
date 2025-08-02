@@ -6,7 +6,7 @@ import { RotateCcw, Loader2, Globe, X, Move } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus, saveBmsSeatStatus } from '@/services/api';
-import { useToast } from '@/hooks/use-toast';
+// import { useToast } from '@/hooks/use-toast';
 
 export const seatSegments = SEAT_CLASSES.map(cls => ({
   label: cls.label,
@@ -18,9 +18,10 @@ interface SeatGridProps {
   hideProceedButton?: boolean;
   hideRefreshButton?: boolean;
   showRefreshButton?: boolean;
+  disableAutoFetch?: boolean;
 }
 
-const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false }: SeatGridProps) => {
+const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false, disableAutoFetch = false }: SeatGridProps) => {
   const { 
     selectedDate, 
     selectedShow, 
@@ -30,7 +31,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     getBookingStats 
   } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
-  const { toast } = useToast();
+  // const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [bmsMode, setBmsMode] = useState(false);
   const [moveMode, setMoveMode] = useState(false);
@@ -53,10 +54,42 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
         const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
         
+        console.log('🔍 Debug seat IDs:', {
+          bookedSeats: Array.from(bookedSeatIds),
+          bmsSeats: Array.from(bmsSeatIds),
+          totalSeats: seats.length,
+          sampleSeatIds: seats.slice(0, 5).map(s => s.id),
+          sampleSeatDetails: seats.slice(0, 5).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status }))
+        });
+        
         // Use the new syncSeatStatus function to properly sync seat status
         syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds));
         
         console.log(`✅ Updated ${bookedSeatIds.size} seats as booked and ${bmsSeatIds.size} seats as BMS`);
+        
+        // Debug: Check actual seat statuses after sync
+        const bookedSeatsAfterSync = seats.filter(s => s.status === 'booked');
+        const bmsSeatsAfterSync = seats.filter(s => s.status === 'bms-booked');
+        console.log('🔍 After sync - Actual seat statuses:', {
+          totalSeats: seats.length,
+          bookedSeats: bookedSeatsAfterSync.length,
+          bmsSeats: bmsSeatsAfterSync.length,
+          sampleBookedSeats: bookedSeatsAfterSync.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number })),
+          sampleBmsSeats: bmsSeatsAfterSync.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number }))
+        });
+        
+        // Debug: Check if seats are actually being rendered with correct status
+        console.log('🎯 Seat Grid Debug - Checking seat rendering:', {
+          selectedDate,
+          selectedShow,
+          seatsWithStatus: seats.filter(s => s.status !== 'available').slice(0, 5).map(s => ({
+            id: s.id,
+            row: s.row,
+            number: s.number,
+            status: s.status,
+            color: s.status === 'booked' ? 'red' : s.status === 'bms-booked' ? 'blue' : 'green'
+          }))
+        });
         
         // Check if any seat IDs weren't found
         const allSeatIds = seats.map(s => s.id);
@@ -72,15 +105,15 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       }
     } catch (error) {
       console.error('❌ Error fetching seat status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load seat status from database.',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to load seat status from database.',
+      //   variant: 'destructive',
+      // });
     } finally {
       setLoadingSeats(false);
     }
-  }, [selectedDate, selectedShow, syncSeatStatus, seats, toast]);
+  }, [selectedDate, selectedShow, syncSeatStatus, seats]);
 
   // Memoize other functions
   const handleResetSeats = useCallback(() => {
@@ -92,37 +125,58 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const toggleBmsMode = useCallback(() => {
     setBmsMode(!bmsMode);
     if (bmsMode) {
-      toast({
-        title: 'BMS Mode Disabled',
-        description: 'Exited BMS marking mode',
-      });
+      // toast({
+      //   title: 'BMS Mode Disabled',
+      //   description: 'Exited BMS marking mode',
+      // });
     } else {
-      toast({
-        title: 'BMS Mode Enabled',
-        description: 'Click seats to mark them as BMS (Book My Show)',
-      });
+      // toast({
+      //   title: 'BMS Mode Enabled',
+      //   description: 'Click seats to mark them as BMS (Book My Show)',
+      // });
     }
   }, [bmsMode]);
 
   // Memoize seat map for performance
-  const seatMap = useMemo(() => 
-    seats.reduce((acc, seat) => {
+  const seatMap = useMemo(() => {
+    const map = seats.reduce((acc, seat) => {
       acc[`${seat.row}${seat.number}`] = seat;
       return acc;
-    }, {} as Record<string, Seat>), 
-    [seats]
-  );
+    }, {} as Record<string, Seat>);
+    
+    // Debug: Log seat map details
+    const bookedSeatsInMap = Object.values(map).filter(s => s.status === 'booked');
+    const bmsSeatsInMap = Object.values(map).filter(s => s.status === 'bms-booked');
+    console.log('🗺️ Seat Map Debug:', {
+      totalSeatsInMap: Object.keys(map).length,
+      bookedSeatsInMap: bookedSeatsInMap.length,
+      bmsSeatsInMap: bmsSeatsInMap.length,
+      sampleBookedSeats: bookedSeatsInMap.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status })),
+      sampleBmsSeats: bmsSeatsInMap.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status }))
+    });
+    
+    return map;
+  }, [seats]);
 
   // Memoize seat color and icon functions
   const getSeatColor = useCallback((status: SeatStatus) => {
-    switch (status) {
-      case 'available': return 'bg-green-500 hover:bg-green-600 text-white cursor-pointer';
-      case 'selected': return 'bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer';
-      case 'booked': return 'bg-red-500 text-white cursor-not-allowed opacity-70';
-      case 'blocked': return 'bg-gray-400 text-white cursor-not-allowed opacity-70';
-      case 'bms-booked': return 'bg-blue-500 text-white cursor-not-allowed opacity-70';
-      default: return 'bg-gray-300 cursor-not-allowed';
+    const colorClass = (() => {
+      switch (status) {
+        case 'available': return 'bg-green-500 hover:bg-green-600 text-white cursor-pointer';
+        case 'selected': return 'bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer';
+        case 'booked': return 'bg-red-500 text-white cursor-not-allowed opacity-70';
+        case 'blocked': return 'bg-gray-400 text-white cursor-not-allowed opacity-70';
+        case 'bms-booked': return 'bg-blue-500 text-white cursor-not-allowed opacity-70';
+        default: return 'bg-gray-300 cursor-not-allowed';
+      }
+    })();
+    
+    // Debug: Log color classes for booked/BMS seats
+    if (status === 'booked' || status === 'bms-booked') {
+      console.log('🎨 Color class for status:', { status, colorClass });
     }
+    
+    return colorClass;
   }, []);
 
   const getSeatIcon = useCallback((status: SeatStatus) => {
@@ -147,11 +201,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         // Move block to this available seat
         executeMove(seat);
       } else {
-        toast({
-          title: 'Invalid Target',
-          description: 'You can only move to available seats or deselect selected seats.',
-          variant: 'destructive',
-        });
+        // toast({
+        //   title: 'Invalid Target',
+        //   description: 'You can only move to available seats or deselect selected seats.',
+        //   variant: 'destructive',
+        // });
       }
       return;
     }
@@ -168,11 +222,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           console.error('❌ Failed to save BMS status:', error);
           // Revert the change if backend save failed
           toggleSeatStatus(seat.id, 'available');
-          toast({
-            title: 'Error',
-            description: 'Failed to save BMS status. Please try again.',
-            variant: 'destructive',
-          });
+          // toast({
+          //   title: 'Error',
+          //   description: 'Failed to save BMS status. Please try again.',
+          //   variant: 'destructive',
+          // });
         }
       } else if (seat.status === 'bms-booked') {
         toggleSeatStatus(seat.id, 'available');
@@ -184,11 +238,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           console.error('❌ Failed to remove BMS status:', error);
           // Revert the change if backend save failed
           toggleSeatStatus(seat.id, 'bms-booked');
-          toast({
-            title: 'Error',
-            description: 'Failed to remove BMS status. Please try again.',
-            variant: 'destructive',
-          });
+          // toast({
+          //   title: 'Error',
+          //   description: 'Failed to remove BMS status. Please try again.',
+          //   variant: 'destructive',
+          // });
         }
       }
       // Don't allow BMS marking on already booked or selected seats
@@ -214,10 +268,10 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
   const cancelMoveMode = () => {
     setMoveMode(false);
-    toast({
-      title: 'Move Mode Cancelled',
-      description: 'Move mode has been cancelled.',
-    });
+    // toast({
+    //   title: 'Move Mode Cancelled',
+    //   description: 'Move mode has been cancelled.',
+    // });
   };
 
   const clearSelection = () => {
@@ -230,10 +284,10 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       setMoveMode(false);
     }
     
-    toast({
-      title: 'Selection Cleared',
-      description: 'All selected seats have been cleared.',
-    });
+    // toast({
+    //   title: 'Selection Cleared',
+    //   description: 'All selected seats have been cleared.',
+    // });
   };
 
   const executeMove = (targetSeat: Seat) => {
@@ -245,11 +299,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
     // Check if target is in the same class
     if (selectedClass !== targetClass) {
-      toast({
-        title: 'Invalid Location',
-        description: 'You can only move seats within the same class.',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Invalid Location',
+      //   description: 'You can only move seats within the same class.',
+      //   variant: 'destructive',
+      // });
       return;
     }
 
@@ -263,11 +317,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       const checkSeat = seats.find(seat => seat.row === targetRow && seat.number === checkSeatNumber);
       
       if (!checkSeat || checkSeat.status !== 'available') {
-        toast({
-          title: 'Insufficient Space',
-          description: 'Not enough contiguous space at this location.',
-          variant: 'destructive',
-        });
+        // toast({
+        //   title: 'Insufficient Space',
+        //   description: 'Not enough contiguous space at this location.',
+        //   variant: 'destructive',
+        // });
         return;
       }
     }
@@ -293,10 +347,10 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     }
 
     setMoveMode(false);
-    toast({
-      title: 'Block Moved',
-      description: `Moved ${blockSize} seats to ${targetRow}${targetStartNumber}-${targetStartNumber + blockSize - 1}`,
-    });
+    // toast({
+    //   title: 'Block Moved',
+    //   description: `Moved ${blockSize} seats to ${targetRow}${targetStartNumber}-${targetStartNumber + blockSize - 1}`,
+    // });
   };
 
   // Selected seats and total amount
@@ -312,6 +366,21 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const bookedCount = seats.filter(seat => seat.status === 'booked').length;
   const blockedCount = seats.filter(seat => seat.status === 'blocked').length;
   const bmsBookedCount = seats.filter(seat => seat.status === 'bms-booked').length;
+  
+  // Debug: Log seat statistics when they change
+  useEffect(() => {
+    if (disableAutoFetch) {
+      console.log('🔍 SeatGrid Preview Mode - Seat Statistics:', {
+        totalSeats: seats.length,
+        available: availableCount,
+        booked: bookedCount,
+        bmsBooked: bmsBookedCount,
+        blocked: blockedCount,
+        selectedDate,
+        selectedShow
+      });
+    }
+  }, [seats, availableCount, bookedCount, bmsBookedCount, blockedCount, selectedDate, selectedShow, disableAutoFetch]);
 
   // Get sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -326,14 +395,16 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
   // Fetch seat status when component mounts or date/show changes
   useEffect(() => {
-    if (selectedDate && selectedShow) {
+    if (selectedDate && selectedShow && !disableAutoFetch) {
       // Reduced logging to prevent console spam
       console.log('🔄 SeatGrid: Fetching seat status for:', { date: selectedDate, show: selectedShow });
       fetchSeatStatus();
+    } else if (disableAutoFetch) {
+      console.log('🚫 SeatGrid: Auto-fetch disabled for preview mode');
     } else {
       console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
     }
-  }, [selectedDate, selectedShow]); // Removed fetchSeatStatus from dependencies
+  }, [selectedDate, selectedShow, disableAutoFetch]); // Removed fetchSeatStatus from dependencies
 
   // Handle ESC key to cancel move mode
   useEffect(() => {
@@ -371,10 +442,10 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
       if (isContiguous) {
         setMoveMode(true);
-        toast({
-          title: 'Move Mode Enabled',
-          description: `You've selected ${selectedSeats.length} contiguous seats. Click anywhere to move the block. Press ESC to cancel.`,
-        });
+        // toast({
+        //   title: 'Move Mode Enabled',
+        //   description: `You've selected ${selectedSeats.length} contiguous seats. Click anywhere to move the block. Press ESC to cancel.`,
+        // });
       }
     } else if (selectedSeats.length <= 1 && moveMode) {
       // Exit move mode if less than 2 seats are selected
@@ -502,14 +573,58 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                           const seat = seatMap[`${row}${seatNum}`];
                           if (!seat) return <div key={idx} className="w-12 h-12 bg-gray-200" />;
                           
+                          // Debug: Log seat details for first few seats to see what's happening
+                          if (idx < 3 && (seat.status === 'booked' || seat.status === 'bms-booked')) {
+                            const seatColorClass = getSeatColor(seat.status);
+                            console.log('🎯 Rendering seat:', {
+                              seatId: seat.id,
+                              row: seat.row,
+                              number: seat.number,
+                              status: seat.status,
+                              seatKey: `${row}${seatNum}`,
+                              color: seat.status === 'booked' ? 'red' : seat.status === 'bms-booked' ? 'blue' : 'green',
+                              cssClass: seatColorClass,
+                              icon: getSeatIcon(seat.status),
+                              visible: true
+                            });
+                          }
+                          
+                          const finalClassName = `w-9 h-9 rounded-md font-medium text-xs border transition-all ${
+                            bmsMode && seat.status === 'bms-booked' 
+                              ? 'bg-blue-500 text-white cursor-pointer hover:bg-blue-600' 
+                              : getSeatColor(seat.status)
+                          }`;
+                          
+                          // Force important classes for booked/BMS seats to ensure they're visible
+                          const forceImportantClass = seat.status === 'booked' 
+                            ? '!bg-red-500 !text-white' 
+                            : seat.status === 'bms-booked' 
+                            ? '!bg-blue-500 !text-white' 
+                            : '';
+                          
+                          // Debug: Log the final CSS class for booked/BMS seats
+                          if (seat.status === 'booked' || seat.status === 'bms-booked') {
+                            console.log('🎨 Final CSS class for seat:', {
+                              seatId: seat.id,
+                              status: seat.status,
+                              className: finalClassName,
+                              hasBlueClass: finalClassName.includes('bg-blue-500'),
+                              hasRedClass: finalClassName.includes('bg-red-500')
+                            });
+                          }
+                          
+                          // Add inline styles as backup for booked/BMS seats
+                          const inlineStyle = seat.status === 'booked' 
+                            ? { backgroundColor: '#ef4444', color: 'white' } // red-500
+                            : seat.status === 'bms-booked' 
+                            ? { backgroundColor: '#3b82f6', color: 'white' } // blue-500
+                            : {};
+                          
                           return (
                             <button
                               key={seat.id || `${row}-${seatNum}`}
-                              className={`w-9 h-9 rounded-md font-medium text-xs border transition-all ${
-                                bmsMode && seat.status === 'bms-booked' 
-                                  ? 'bg-blue-500 text-white cursor-pointer hover:bg-blue-600' 
-                                  : getSeatColor(seat.status)
-                              }`}
+                              className={`${finalClassName} ${forceImportantClass}`}
+                              style={inlineStyle}
                               title={`${seat.id} - ${seat.status}${bmsMode ? ' (BMS Mode)' : ''}`}
                               onClick={() => handleSeatClick(seat)}
                               disabled={seat.status === 'booked' || seat.status === 'blocked' || (!bmsMode && seat.status === 'bms-booked')}

@@ -112,22 +112,36 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     const state = get();
     const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'selected');
     
+    console.log('🔄 syncSeatStatus called with:', {
+      bookedSeatIds,
+      bmsSeatIds,
+      currentlySelectedSeats: currentlySelectedSeats.length
+    });
+    
     // Create new seats array with all seats reset to available
     const newSeats = createInitialSeats();
     
     // Mark booked seats as booked
+    let bookedCount = 0;
     bookedSeatIds.forEach(seatId => {
       const seatIndex = newSeats.findIndex(s => s.id === seatId);
       if (seatIndex !== -1) {
         newSeats[seatIndex].status = 'booked';
+        bookedCount++;
+      } else {
+        console.warn('⚠️ Booked seat ID not found:', seatId);
       }
     });
     
     // Mark BMS seats as bms-booked
+    let bmsCount = 0;
     bmsSeatIds.forEach(seatId => {
       const seatIndex = newSeats.findIndex(s => s.id === seatId);
       if (seatIndex !== -1) {
         newSeats[seatIndex].status = 'bms-booked';
+        bmsCount++;
+      } else {
+        console.warn('⚠️ BMS seat ID not found:', seatId);
       }
     });
     
@@ -140,6 +154,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         }
       }
     });
+    
+    console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats updated`);
     
     // Update the state with the new seats array
     set({ seats: newSeats });

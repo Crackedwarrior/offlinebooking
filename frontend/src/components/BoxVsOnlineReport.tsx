@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Download, FileText, RefreshCw, Eye } from 'lucide-react';
 import { getBookings, getSeatStatus } from '@/services/api';
-import { toast } from '@/hooks/use-toast';
+// import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { SEAT_CLASSES, SHOW_TIMES } from '@/lib/config';
 import type { Show } from '@/types/api';
@@ -123,17 +123,17 @@ const BoxVsOnlineReport = () => {
       console.log('📊 Processed data:', processedData);
         setSalesData(processedData);
         
-        toast({
-          title: 'Success',
-        description: `Data loaded for ${format(new Date(date), 'dd/MM/yyyy')}`,
-        });
+        // toast({
+        //   title: 'Success',
+        // description: `Data loaded for ${format(new Date(date), 'dd/MM/yyyy')}`,
+        // });
     } catch (error) {
       console.error('❌ Error fetching sales data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load data. Please try again.',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to load data. Please try again.',
+      //   variant: 'destructive',
+      // });
     } finally {
       setLoading(false);
     }
@@ -384,17 +384,17 @@ const BoxVsOnlineReport = () => {
       link.click();
       document.body.removeChild(link);
       
-      toast({
-        title: 'Success',
-        description: 'Excel file downloaded successfully',
-      });
+      // toast({
+      //   title: 'Success',
+      //   description: 'Excel file downloaded successfully',
+      // });
     } catch (error) {
       console.error('Export error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to export file',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to export file',
+      //   variant: 'destructive',
+      // });
     }
   };
 
@@ -503,17 +503,17 @@ const BoxVsOnlineReport = () => {
       link.click();
       document.body.removeChild(link);
       
-      toast({
-        title: 'Success',
-        description: 'PDF file downloaded successfully',
-      });
+      // toast({
+      //   title: 'Success',
+      //   description: 'PDF file downloaded successfully',
+      // });
     } catch (error) {
       console.error('Export error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to export file',
-        variant: 'destructive',
-      });
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to export file',
+      //   variant: 'destructive',
+      // });
     }
   };
 

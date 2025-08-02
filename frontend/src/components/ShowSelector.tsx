@@ -4,6 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
 
+// Helper function to convert 24-hour time to 12-hour format
+const convertTo12Hour = (time24h: string): string => {
+  const [hours, minutes] = time24h.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+
 const ShowSelector = () => {
   const { selectedShow, setSelectedShow, selectedDate, loadBookingForDate } = useBookingStore();
   const { getShowTimes } = useSettingsStore();
@@ -11,7 +20,7 @@ const ShowSelector = () => {
   const shows = getShowTimes().map(show => ({
     time: show.key as ShowTime,
     label: show.label,
-    timing: `${show.startTime} - ${show.endTime}`
+    timing: `${convertTo12Hour(show.startTime)} - ${convertTo12Hour(show.endTime)}`
   }));
 
   const handleShowSelect = (show: ShowTime) => {
