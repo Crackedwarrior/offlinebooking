@@ -50,7 +50,7 @@ export interface BookingData {
 }
 
 export type BookingStatus = 'CONFIRMED' | 'CANCELLED' | 'PENDING' | 'REFUNDED';
-export type BookingSource = 'LOCAL' | 'BMS' | 'ONLINE' | 'PHONE';
+export type BookingSource = 'LOCAL' | 'BMS' | 'VIP' | 'ONLINE';
 
 export interface CreateBookingRequest {
   tickets: TicketData[];

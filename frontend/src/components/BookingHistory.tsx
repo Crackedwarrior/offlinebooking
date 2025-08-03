@@ -443,8 +443,8 @@ const BookingHistory = () => {
     } else {
       // Fallback to current seats
       return seatSegments.map(seg => {
-        const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'booked').length;
-        const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'bms-booked').length;
+        const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BOOKED').length;
+        const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BMS_BOOKED').length;
         return {
         label: classLabelMap[seg.label] || seg.label,
           regular: regularSeats,

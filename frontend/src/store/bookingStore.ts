@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { seatsByRow } from '@/lib/seatMatrix';
 
-export type SeatStatus = 'available' | 'booked' | 'blocked' | 'bms-booked' | 'selected';
+export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'BMS_BOOKED' | 'SELECTED';
 export type ShowTime = 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
 
 export interface Seat {
@@ -49,7 +49,7 @@ const createInitialSeats = (): Seat[] => {
           id: `${row}${num}`,
           row,
           number: num,
-          status: 'available',
+          status: 'AVAILABLE',
         });
       }
     });
@@ -110,7 +110,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   
   syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[]) => {
     const state = get();
-    const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'selected');
+    const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
     console.log('🔄 syncSeatStatus called with:', {
       bookedSeatIds,
@@ -126,7 +126,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     bookedSeatIds.forEach(seatId => {
       const seatIndex = newSeats.findIndex(s => s.id === seatId);
       if (seatIndex !== -1) {
-        newSeats[seatIndex].status = 'booked';
+        newSeats[seatIndex].status = 'BOOKED';
         bookedCount++;
       } else {
         console.warn('⚠️ Booked seat ID not found:', seatId);
@@ -138,7 +138,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     bmsSeatIds.forEach(seatId => {
       const seatIndex = newSeats.findIndex(s => s.id === seatId);
       if (seatIndex !== -1) {
-        newSeats[seatIndex].status = 'bms-booked';
+        newSeats[seatIndex].status = 'BMS_BOOKED';
         bmsCount++;
       } else {
         console.warn('⚠️ BMS seat ID not found:', seatId);
@@ -146,16 +146,18 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     });
     
     // Restore selected seats that are still available (not booked or BMS)
+    let restoredCount = 0;
     currentlySelectedSeats.forEach(seat => {
       if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id)) {
         const seatIndex = newSeats.findIndex(s => s.id === seat.id);
         if (seatIndex !== -1) {
-          newSeats[seatIndex].status = 'selected';
+          newSeats[seatIndex].status = 'SELECTED';
+          restoredCount++;
         }
       }
     });
     
-    console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats updated`);
+    console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${restoredCount} selected seats restored`);
     
     // Update the state with the new seats array
     set({ seats: newSeats });
@@ -165,10 +167,10 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     const { seats } = get();
     return {
       total: seats.length,
-      available: seats.filter(s => s.status === 'available').length,
-      booked: seats.filter(s => s.status === 'booked').length,
-      blocked: seats.filter(s => s.status === 'blocked').length,
-      bmsBooked: seats.filter(s => s.status === 'bms-booked').length,
+      available: seats.filter(s => s.status === 'AVAILABLE').length,
+      booked: seats.filter(s => s.status === 'BOOKED').length,
+      blocked: seats.filter(s => s.status === 'BLOCKED').length,
+      bmsBooked: seats.filter(s => s.status === 'BMS_BOOKED').length,
     };
   }
 }));

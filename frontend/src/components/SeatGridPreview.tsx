@@ -55,10 +55,10 @@ const SeatGridPreview = ({ isOpen, onClose, date, show, showLabel }: SeatGridPre
           const currentState = useBookingStore.getState();
           console.log('🔍 Preview: Current seat state after sync:', {
             totalSeats: currentState.seats.length,
-            bookedSeats: currentState.seats.filter(s => s.status === 'booked').length,
-            bmsSeats: currentState.seats.filter(s => s.status === 'bms-booked').length,
-            sampleBookedSeats: currentState.seats.filter(s => s.status === 'booked').slice(0, 3).map(s => s.id),
-            sampleBmsSeats: currentState.seats.filter(s => s.status === 'bms-booked').slice(0, 3).map(s => s.id)
+            bookedSeats: currentState.seats.filter(s => s.status === 'BOOKED').length,
+            bmsSeats: currentState.seats.filter(s => s.status === 'BMS_BOOKED').length,
+            sampleBookedSeats: currentState.seats.filter(s => s.status === 'BOOKED').slice(0, 3).map(s => s.id),
+            sampleBmsSeats: currentState.seats.filter(s => s.status === 'BMS_BOOKED').slice(0, 3).map(s => s.id)
           });
         }, 100);
       } else {
