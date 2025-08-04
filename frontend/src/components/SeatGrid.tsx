@@ -6,6 +6,7 @@ import { RotateCcw, Loader2, Globe, X, Move } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus, saveBmsSeatStatus } from '@/services/api';
+import { usePricing } from '@/hooks/use-pricing';
 // import { useToast } from '@/hooks/use-toast';
 
 export const seatSegments = SEAT_CLASSES.map(cls => ({
@@ -31,6 +32,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     getBookingStats 
   } = useBookingStore();
   const { getPriceForClass } = useSettingsStore();
+  const { pricingVersion } = usePricing(); // Add reactive pricing
   // const { toast } = useToast();
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [bmsMode, setBmsMode] = useState(false);
@@ -42,11 +44,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     
     setLoadingSeats(true);
     try {
-      console.log('🔍 Fetching seat status for:', { date: selectedDate, show: selectedShow });
+    
       const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
       
       if (response.success && response.data) {
-        console.log('📊 Seat status response:', response.data);
+
         
         // Update seat status based on database data
         const bookedSeats = response.data.bookedSeats || [];
@@ -54,42 +56,16 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
         const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
         
-        console.log('🔍 Debug seat IDs:', {
-          bookedSeats: Array.from(bookedSeatIds),
-          bmsSeats: Array.from(bmsSeatIds),
-          totalSeats: seats.length,
-          sampleSeatIds: seats.slice(0, 5).map(s => s.id),
-          sampleSeatDetails: seats.slice(0, 5).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status }))
-        });
+
         
         // Use the new syncSeatStatus function to properly sync seat status
         syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds));
         
-        console.log(`✅ Updated ${bookedSeatIds.size} seats as booked and ${bmsSeatIds.size} seats as BMS`);
+
         
-        // Debug: Check actual seat statuses after sync
-        const bookedSeatsAfterSync = seats.filter(s => s.status === 'BOOKED');
-        const bmsSeatsAfterSync = seats.filter(s => s.status === 'BMS_BOOKED');
-        console.log('🔍 After sync - Actual seat statuses:', {
-          totalSeats: seats.length,
-          bookedSeats: bookedSeatsAfterSync.length,
-          bmsSeats: bmsSeatsAfterSync.length,
-          sampleBookedSeats: bookedSeatsAfterSync.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number })),
-          sampleBmsSeats: bmsSeatsAfterSync.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number }))
-        });
+
         
-        // Debug: Check if seats are actually being rendered with correct status
-        console.log('🎯 Seat Grid Debug - Checking seat rendering:', {
-          selectedDate,
-          selectedShow,
-          seatsWithStatus: seats.filter(s => s.status !== 'AVAILABLE').slice(0, 5).map(s => ({
-            id: s.id,
-            row: s.row,
-            number: s.number,
-            status: s.status,
-            color: s.status === 'BOOKED' ? 'red' : s.status === 'BMS_BOOKED' ? 'blue' : 'green'
-          }))
-        });
+
         
         // Check if any seat IDs weren't found
         const allSeatIds = seats.map(s => s.id);
@@ -144,16 +120,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       return acc;
     }, {} as Record<string, Seat>);
     
-    // Debug: Log seat map details
-    const bookedSeatsInMap = Object.values(map).filter(s => s.status === 'BOOKED');
-    const bmsSeatsInMap = Object.values(map).filter(s => s.status === 'BMS_BOOKED');
-    console.log('🗺️ Seat Map Debug:', {
-      totalSeatsInMap: Object.keys(map).length,
-      bookedSeatsInMap: bookedSeatsInMap.length,
-      bmsSeatsInMap: bmsSeatsInMap.length,
-      sampleBookedSeats: bookedSeatsInMap.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status })),
-      sampleBmsSeats: bmsSeatsInMap.slice(0, 3).map(s => ({ id: s.id, row: s.row, number: s.number, status: s.status }))
-    });
+
+
     
     return map;
   }, [seats]);
@@ -171,10 +139,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       }
     })();
     
-    // Debug: Log color classes for booked/BMS seats
-    if (status === 'BOOKED' || status === 'BMS_BOOKED') {
-      console.log('🎨 Color class for status:', { status, colorClass });
-    }
+
     
     return colorClass;
   }, []);
@@ -219,7 +184,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         // Save to backend
         try {
           await saveBmsSeatStatus([seat.id], 'BMS_BOOKED', selectedDate, selectedShow);
-          console.log(`✅ Saved BMS status for seat ${seat.id}`);
+  
         } catch (error) {
           console.error('❌ Failed to save BMS status:', error);
           // Revert the change if backend save failed
@@ -238,7 +203,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         // Save to backend
         try {
           await saveBmsSeatStatus([seat.id], 'AVAILABLE', selectedDate, selectedShow);
-          console.log(`✅ Removed BMS status for seat ${seat.id}`);
+  
         } catch (error) {
           console.error('❌ Failed to remove BMS status:', error);
           // Revert the change if backend save failed
@@ -402,13 +367,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   // Fetch seat status when component mounts or date/show changes
   useEffect(() => {
     if (selectedDate && selectedShow && !disableAutoFetch) {
-      // Reduced logging to prevent console spam
-      console.log('🔄 SeatGrid: Fetching seat status for:', { date: selectedDate, show: selectedShow });
       fetchSeatStatus();
-    } else if (disableAutoFetch) {
-      console.log('🚫 SeatGrid: Auto-fetch disabled for preview mode');
-    } else {
-      console.log('⚠️ SeatGrid: Missing date or show:', { selectedDate, selectedShow });
     }
   }, [selectedDate, selectedShow, disableAutoFetch]); // Removed fetchSeatStatus from dependencies
 
@@ -580,20 +539,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                           if (!seat) return <div key={idx} className="w-12 h-12 bg-gray-200" />;
                           
                           // Debug: Log seat details for first few seats to see what's happening
-                          if (idx < 3 && (seat.status === 'BOOKED' || seat.status === 'BMS_BOOKED')) {
-                            const seatColorClass = getSeatColor(seat.status);
-                            console.log('🎯 Rendering seat:', {
-                              seatId: seat.id,
-                              row: seat.row,
-                              number: seat.number,
-                              status: seat.status,
-                              seatKey: `${row}${seatNum}`,
-                              color: seat.status === 'BOOKED' ? 'red' : seat.status === 'BMS_BOOKED' ? 'blue' : 'green',
-                              cssClass: seatColorClass,
-                              icon: getSeatIcon(seat.status),
-                              visible: true
-                            });
-                          }
                           
                           const finalClassName = `w-9 h-9 rounded-md font-medium text-xs border transition-all ${
                             bmsMode && seat.status === 'BMS_BOOKED' 
@@ -608,16 +553,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                             ? '!bg-blue-500 !text-white' 
                             : '';
                           
-                          // Debug: Log the final CSS class for booked/BMS seats
-                          if (seat.status === 'BOOKED' || seat.status === 'BMS_BOOKED') {
-                            console.log('🎨 Final CSS class for seat:', {
-                              seatId: seat.id,
-                              status: seat.status,
-                              className: finalClassName,
-                              hasBlueClass: finalClassName.includes('bg-blue-500'),
-                              hasRedClass: finalClassName.includes('bg-red-500')
-                            });
-                          }
+
                           
                           // Add inline styles as backup for booked/BMS seats
                           const inlineStyle = seat.status === 'BOOKED' 
@@ -707,9 +643,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
               zIndex: 9999
             }}
             onClick={() => {
-              console.log('Proceed button clicked!');
-              console.log('onProceed function:', onProceed);
-              console.log('selectedSeats:', selectedSeats);
               if (onProceed) {
                 onProceed({ selectedSeats, totalAmount, seats });
               }

@@ -27,6 +27,7 @@ import {
 // import { toast } from '@/hooks/use-toast';
 import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
+import PriceDisplay from './PriceDisplay';
 
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings';
 
@@ -57,7 +58,7 @@ const Settings = () => {
   // Use useEffect to check dirty state when dependencies change
   useEffect(() => {
     checkDirty();
-  }, [checkDirty]);
+  }, [localPricing, localShowTimes, pricing, showTimes]);
 
   // Memoize seat counts calculation
   const seatCounts = useMemo(() => {
@@ -103,7 +104,13 @@ const Settings = () => {
   // Handle pricing changes
   const handlePricingChange = useCallback((classLabel: string, value: string) => {
     const price = parseInt(value) || 0;
-    setLocalPricing(prev => ({ ...prev, [classLabel]: price }));
+    setLocalPricing(prev => {
+      // Only update if the value actually changed
+      if (prev[classLabel] === price) {
+        return prev;
+      }
+      return { ...prev, [classLabel]: price };
+    });
   }, []);
 
   // Handle show time changes
@@ -115,21 +122,36 @@ const Settings = () => {
 
   // Save all changes
   const handleSave = useCallback(() => {
-    // Update pricing settings
-    Object.entries(localPricing).forEach(([classLabel, price]) => {
-      updatePricing(classLabel, price);
-    });
+    try {
+      // Update pricing settings
+      Object.entries(localPricing).forEach(([classLabel, price]) => {
+        updatePricing(classLabel, price);
+      });
 
-    // Update show time settings
-    localShowTimes.forEach(show => {
-      updateShowTime(show.key, show);
-    });
+      // Update show time settings
+      localShowTimes.forEach(show => {
+        updateShowTime(show.key, show);
+      });
 
-    setIsDirty(false);
-    // toast({
-    //   title: 'Settings Saved',
-    //   description: 'Your pricing and show time settings have been updated.',
-    // });
+      setIsDirty(false);
+      
+      // Show success message
+      console.log('✅ Settings saved successfully!');
+      console.log('💰 Updated pricing:', localPricing);
+      
+      // Force a re-render of components that use pricing
+      window.dispatchEvent(new CustomEvent('pricingUpdated', { 
+        detail: { pricing: localPricing } 
+      }));
+      
+      // toast({
+      //   title: 'Settings Saved',
+      //   description: 'Your pricing and show time settings have been updated.',
+      // });
+    } catch (error) {
+      console.error('❌ Error saving settings:', error);
+      setError('Failed to save settings. Please try again.');
+    }
   }, [localPricing, localShowTimes, updatePricing, updateShowTime]);
 
   // Reset to defaults
@@ -248,41 +270,45 @@ const Settings = () => {
 
   const PricingTab = useMemo(() => () => (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" />
-            Pricing Configuration
-          </CardTitle>
-          <CardDescription>
-            Set pricing for different seat classes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {SEAT_CLASSES.map(seatClass => (
-              <div key={seatClass.label} className="space-y-4">
-                <div>
-                  <Label htmlFor={seatClass.label} className="text-base font-medium">
-                    {seatClass.label}
-                  </Label>
-                  <p className="text-sm text-gray-600 mb-2">
-                    {seatClass.rows.join(', ')}
-                  </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Pricing Configuration
+            </CardTitle>
+            <CardDescription>
+              Set pricing for different seat classes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {SEAT_CLASSES.map(seatClass => (
+                <div key={seatClass.label} className="space-y-4">
+                  <div>
+                    <Label htmlFor={seatClass.label} className="text-base font-medium">
+                      {seatClass.label}
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-2">
+                      {seatClass.rows.join(', ')}
+                    </p>
+                  </div>
+                  <Input
+                    id={seatClass.label}
+                    type="number"
+                    value={localPricing[seatClass.label] || 0}
+                    onChange={(e) => handlePricingChange(seatClass.label, e.target.value)}
+                    placeholder="Enter price"
+                    min="0"
+                  />
                 </div>
-                <Input
-                  id={seatClass.label}
-                  type="number"
-                  value={localPricing[seatClass.label] || 0}
-                  onChange={(e) => handlePricingChange(seatClass.label, e.target.value)}
-                  placeholder="Enter price"
-                  min="0"
-                />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <PriceDisplay />
+      </div>
     </div>
   ), [localPricing, handlePricingChange]);
 

@@ -94,10 +94,13 @@ const defaultMovies: MovieSettings[] = [
   }
 ];
 
-const defaultPricing: PricingSettings = SEAT_CLASSES.reduce((acc, cls) => {
-  acc[cls.label] = cls.price;
-  return acc;
-}, {} as PricingSettings);
+const defaultPricing: PricingSettings = {
+  'BOX': 1650,
+  'STAR CLASS': 100,
+  'CLASSIC': 100,
+  'FIRST CLASS': 100,
+  'SECOND CLASS': 100
+};
 
 /**
  * Converts 12-hour time format to 24-hour format for internal processing.

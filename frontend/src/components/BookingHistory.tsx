@@ -7,6 +7,7 @@ import SeatGridPreview from './SeatGridPreview';
 import { formatSafeDate } from '../utils/formatDate';
 import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 import { getBookings, getSeatStatus } from '@/services/api';
+import { usePricing } from '@/hooks/use-pricing';
 // import { toast } from '@/hooks/use-toast';
 import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
 import DatePicker from 'react-datepicker';
@@ -97,6 +98,7 @@ const ShowCard = memo(({
 
 const BookingHistory = () => {
   const { bookingHistory, seats, loadBookingForDate } = useBookingStore();
+  const { getPriceForClass } = usePricing(); // Add dynamic pricing
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -503,11 +505,9 @@ const BookingHistory = () => {
           const seatId = bmsSeat.seatId;
           const classLabel = getClassFromSeatId(seatId);
           if (classLabel) {
-            // Get price for this seat class
-            const seatClass = SEAT_CLASSES.find(cls => cls.label === classLabel);
-            if (seatClass) {
-              bmsIncome += seatClass.price;
-            }
+            // Use dynamic pricing from settings store (same as regular seats)
+            const price = getPriceForClass(classLabel);
+            bmsIncome += price;
           }
         });
       }
@@ -515,21 +515,40 @@ const BookingHistory = () => {
       // For all shows, aggregate BMS income from all shows
       Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
         if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-          showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
-            const seatId = bmsSeat.seatId;
-            const classLabel = getClassFromSeatId(seatId);
-            if (classLabel) {
-              // Get price for this seat class
-              const seatClass = SEAT_CLASSES.find(cls => cls.label === classLabel);
-              if (seatClass) {
-                bmsIncome += seatClass.price;
-              }
-            }
-          });
+                  showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+          const seatId = bmsSeat.seatId;
+          const classLabel = getClassFromSeatId(seatId);
+          if (classLabel) {
+            // Use dynamic pricing from settings store (same as regular seats)
+            const price = getPriceForClass(classLabel);
+            bmsIncome += price;
+          }
+        });
         }
       });
     }
     
+    // Debug logging for BMS income calculation
+    if (bmsIncome > 0) {
+      console.log('💰 BMS Income Calculation:', {
+        date: selectedDate,
+        show: selectedShow || 'All Shows',
+        bmsIncome,
+        breakdown: {
+          fromDatabase: (databaseBookings || []).filter(b => {
+            const dbDate = new Date(b.date).toISOString().split('T')[0];
+            const showMatches = selectedShow ? b.show === selectedShow : true;
+            return dbDate === dateISO && showMatches && (b.source === 'BMS' || b.source === 'bms');
+          }).reduce((sum, b) => sum + (b.totalPrice || 0), 0),
+          fromSeatStatus: bmsIncome - (databaseBookings || []).filter(b => {
+            const dbDate = new Date(b.date).toISOString().split('T')[0];
+            const showMatches = selectedShow ? b.show === selectedShow : true;
+            return dbDate === dateISO && showMatches && (b.source === 'BMS' || b.source === 'bms');
+          }).reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+        }
+      });
+    }
+
     return {
       online: onlineIncome,
       bms: bmsIncome,

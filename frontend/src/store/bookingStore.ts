@@ -67,11 +67,16 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   
   setSelectedShow: (show) => set({ selectedShow: show }),
   
-  toggleSeatStatus: (seatId, newStatus) => set((state) => ({
-    seats: state.seats.map(seat =>
-      seat.id === seatId ? { ...seat, status: newStatus } : seat
-    )
-  })),
+  toggleSeatStatus: (seatId, newStatus) => {
+    // console.log('🔄 toggleSeatStatus called:', { seatId, newStatus });
+    set((state) => {
+      const updatedSeats = state.seats.map(seat =>
+        seat.id === seatId ? { ...seat, status: newStatus } : seat
+      );
+      // console.log('🔄 Updated seats:', updatedSeats.filter(s => s.id === seatId));
+      return { seats: updatedSeats };
+    });
+  },
   
   saveBooking: () => set((state) => ({
     bookingHistory: [
@@ -86,18 +91,21 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   })),
   
   loadBookingForDate: (date, show) => {
+    // console.log(`🔄 loadBookingForDate called: ${date}, ${show}`);
     const state = get();
     const booking = state.bookingHistory.find(
       b => b.date === date && b.show === show
     );
     
     if (booking) {
+      // console.log(`✅ Found existing booking for ${date} ${show}, loading ${booking.seats.length} seats`);
       set({
         selectedDate: date,
         selectedShow: show,
         seats: [...booking.seats]
       });
     } else {
+      // console.log(`🆕 No existing booking for ${date} ${show}, initializing fresh seats`);
       set({
         selectedDate: date,
         selectedShow: show,
@@ -112,11 +120,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     const state = get();
     const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
-    console.log('🔄 syncSeatStatus called with:', {
-      bookedSeatIds,
-      bmsSeatIds,
-      currentlySelectedSeats: currentlySelectedSeats.length
-    });
+    // console.log('🔄 syncSeatStatus called with:', {
+    //   bookedSeatIds: bookedSeatIds.length,
+    //   bmsSeatIds: bmsSeatIds.length,
+    //   currentlySelectedSeats: currentlySelectedSeats.length,
+    //   totalSeats: state.seats.length,
+    //   currentShow: state.selectedShow,
+    //   currentDate: state.selectedDate
+    // });
     
     // Create new seats array with all seats reset to available
     const newSeats = createInitialSeats();
@@ -157,7 +168,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }
     });
     
-    console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${restoredCount} selected seats restored`);
+    // console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${restoredCount} selected seats restored`);
     
     // Update the state with the new seats array
     set({ seats: newSeats });

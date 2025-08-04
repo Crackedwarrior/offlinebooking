@@ -132,10 +132,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
   const { getMovieForShow } = useSettingsStore();
 
-  const toggleGroupSelection = (idx: number) => {
-    setSelectedGroupIdxs(prev =>
-      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-    );
+    const toggleGroupSelection = (idx: number) => {
+    console.log('🎯 Toggling group selection:', idx);
+    setSelectedGroupIdxs(prev => {
+      const newSelection = prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx];
+      console.log('🎯 New selection:', newSelection);
+      return newSelection;
+    });
   };
 
   const handleDelete = () => {
@@ -273,6 +276,16 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         </div>
       </div>
       
+      {/* Help text for deletion */}
+      {selectedSeats.length > 0 && (
+        <div className="px-4 mb-2">
+          <p className="text-xs text-gray-600">
+            💡 <strong>To delete tickets:</strong> Click on ticket cards to select them, then click "Delete". 
+            Or click "Delete" without selection to remove all tickets.
+          </p>
+        </div>
+      )}
+      
       {/* Scrollable ticket list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 max-h-80 px-2">
         {groups.map((g, idx) => {
@@ -280,10 +293,10 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
           return (
             <div
               key={g.classLabel + g.row + g.seats.join(',')}
-              className={`rounded-xl shadow-md px-5 py-3 mb-3 cursor-pointer relative transition border-2 flex flex-col justify-between ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-100' : 'border-transparent'} hover:shadow-lg ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
+              className={`rounded-xl shadow-md px-5 py-3 mb-3 cursor-pointer relative transition border-2 flex flex-col justify-between ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-100 shadow-lg scale-105' : 'border-transparent'} hover:shadow-lg ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
               onClick={() => toggleGroupSelection(idx)}
               onDoubleClick={() => handleDoubleClickDecouple(g.seatIds)}
-              title="Double-click to decouple into individual tickets"
+              title="Click to select for deletion • Double-click to decouple into individual tickets"
             >
               {/* Top row: label and checkbox */}
               <div className="flex items-center justify-between w-full">
@@ -292,6 +305,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
                   {decoupledSeatIds.some(id => g.seatIds.includes(id)) && (
                     <span className="ml-2 text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
                       Individual
+                    </span>
+                  )}
+                  {selectedGroupIdxs.includes(idx) && (
+                    <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
+                      Selected
                     </span>
                   )}
                 </div>
@@ -350,27 +368,21 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
                 return;
               }
               
-              // Check if all tickets are from the same class
-              const uniqueClasses = new Set(selectedSeats.map(seat => seat.classLabel));
-              const isSingleClass = uniqueClasses.size === 1;
-              
-              console.log('🗑️ Unique classes:', Array.from(uniqueClasses));
-              console.log('🗑️ Is single class:', isSingleClass);
-              
               let seatIdsToDelete: string[];
               
-              if (isSingleClass) {
-                // Single class: Delete ALL tickets
-                seatIdsToDelete = selectedSeats.map(seat => seat.id);
-                console.log('🗑️ Single class detected - deleting ALL tickets:', seatIdsToDelete);
+              if (selectedGroupIdxs.length > 0) {
+                // User has selected specific ticket groups - delete only those
+                seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
+                console.log('🗑️ User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
               } else {
-                // Multiple classes: Delete only SELECTED tickets
-                if (selectedGroupIdxs.length === 0) {
-                  console.warn('⚠️ Multiple classes detected but no tickets selected for deletion');
+                // No specific selection - delete ALL tickets (confirm with user)
+                if (window.confirm(`Are you sure you want to delete all ${selectedSeats.length} tickets?`)) {
+                  seatIdsToDelete = selectedSeats.map(seat => seat.id);
+                  console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
+                } else {
+                  console.log('🗑️ User cancelled deletion');
                   return;
                 }
-                seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
-                console.log('🗑️ Multiple classes detected - deleting SELECTED tickets:', seatIdsToDelete);
               }
               
               onDelete(seatIdsToDelete);

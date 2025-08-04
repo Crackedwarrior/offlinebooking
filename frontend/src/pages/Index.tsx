@@ -74,11 +74,19 @@ const Index = () => {
     }
   }, [showTimes]);
 
-  // Update current time every second
+  // Update current time every 5 minutes (less frequent to reduce unnecessary re-renders)
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    const interval = setInterval(() => {
+      const newTime = new Date();
+      const oldTime = currentTime;
+      
+      // Only update if the minute has changed (to prevent unnecessary re-renders)
+      if (newTime.getMinutes() !== oldTime.getMinutes()) {
+        setCurrentTime(newTime);
+      }
+    }, 60000); // Check every minute instead of every 5 minutes
     return () => clearInterval(interval);
-  }, []);
+  }, [currentTime]);
 
   // Helper: get current show key based on time (using dynamic settings)
   const getCurrentShowKey = useCallback(() => {
@@ -91,8 +99,8 @@ const Index = () => {
         return 'EVENING'; // Default fallback
       }
       
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes();
+      const now = currentTime; // Use the current time state
+      const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
       
       // Find the current show based on time ranges from settings
       // A show should remain active until the next show starts
@@ -115,17 +123,17 @@ const Index = () => {
         let isInRange = false;
         if (endMinutes < startMinutes) {
           // Overnight show (e.g., 23:30 - 02:30)
-          isInRange = currentTime >= startMinutes || currentTime < endMinutes;
+          isInRange = currentTimeMinutes >= startMinutes || currentTimeMinutes < endMinutes;
         } else {
           // Normal show
-          isInRange = currentTime >= startMinutes && currentTime < endMinutes;
+          isInRange = currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
         }
         
         // A show is active if:
         // 1. Current time is within the show's time range, OR
         // 2. Current time is after the show started but before the next show starts
-        const isAfterShowStart = currentTime >= startMinutes;
-        const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
+        const isAfterShowStart = currentTimeMinutes >= startMinutes;
+        const isBeforeNextShow = !nextShowStartMinutes || currentTimeMinutes < nextShowStartMinutes;
         const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
         
         // Only log when debugging is needed
@@ -143,7 +151,6 @@ const Index = () => {
         // });
         
         if (isActive) {
-          console.log(`✅ Found current show: ${show.key}`);
           return show.key;
         }
       }
@@ -154,104 +161,112 @@ const Index = () => {
         const [startHour, startMin] = show.startTime.split(':').map(Number);
         const startMinutes = startHour * 60 + startMin;
         
-        if (currentTime >= startMinutes) {
-          console.log(`✅ Using most recent show: ${show.key} (last active show)`);
+        if (currentTimeMinutes >= startMinutes) {
           return show.key;
         }
       }
       
       // Default to first show if no match
-      console.log(`⚠️ No show found, using first available: ${enabledShowTimes[0]?.key || 'EVENING'}`);
       return enabledShowTimes[0]?.key || 'EVENING';
     } catch (error) {
-      console.log('❌ Error accessing settings store, using fallback logic');
       // Fallback to static configuration
       const now = new Date();
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const totalMinutes = hours * 60 + minutes;
       
-      console.log('🕐 getCurrentShowKey calculation (fallback):', {
-        currentTime: now.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit', 
-          second: '2-digit',
-          hour12: true 
-        }),
-        totalMinutes: totalMinutes,
-        hours: hours,
-        minutes: minutes
-      });
-      
       // Use the same logic as getCurrentShowLabel() - hardcoded time ranges
       if (totalMinutes >= 600 && totalMinutes < 720) {
-        console.log('✅ Found current show: MORNING (10:00 AM - 12:00 PM)');
         return 'MORNING';
       }
       if (totalMinutes >= 840 && totalMinutes < 1020) {
-        console.log('✅ Found current show: MATINEE (2:00 PM - 5:00 PM)');
         return 'MATINEE';
       }
       if (totalMinutes >= 1080 && totalMinutes < 1260) {
-        console.log('✅ Found current show: EVENING (6:00 PM - 9:00 PM)');
         return 'EVENING';
       }
       if (totalMinutes >= 1350 || totalMinutes < 600) {
-        console.log('✅ Found current show: NIGHT (9:30 PM - 12:30 AM)');
         return 'NIGHT';
       }
       
       // Handle the gap between 12:00 PM and 6:00 PM (720-1080 minutes)
       if (totalMinutes >= 720 && totalMinutes < 1080) {
-        console.log('✅ Found current show: EVENING (fallback for 12:00 PM - 6:00 PM gap)');
         return 'EVENING';
       }
       
-      console.log('⚠️ No show found, using fallback: EVENING');
       return 'EVENING'; // fallback
     }
   }, [showTimes]); // Add showTimes as dependency
 
-  // Timer to auto-update selected show
+  // State to track if user has manually selected a show
+  const [userManuallySelectedShow, setUserManuallySelectedShow] = useState(false);
+
+  // Handler for manual show selection
+  const handleManualShowSelection = useCallback((showKey: string) => {
+    console.log(`🎯 Manual show selection: ${showKey}`);
+    setUserManuallySelectedShow(true);
+    setSelectedShow(showKey);
+    setTimeout(() => {
+      console.log('🔄 Resetting manual selection flag after 10 minutes');
+      setUserManuallySelectedShow(false);
+    }, 10 * 60 * 1000); // 10 minutes
+  }, [setSelectedShow]);
+
+  // Dynamic show selection based on current time and settings store
   useEffect(() => {
-    const updateShow = () => {
-      const currentShowKey = getCurrentShowKey();
-      
-      if (selectedShow !== currentShowKey) {
-        console.log(`🔄 Auto-updating selectedShow from '${selectedShow}' to '${currentShowKey}' at ${new Date().toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit', 
-          second: '2-digit',
-          hour12: true 
-        })}`);
-        setSelectedShow(currentShowKey);
-      }
-    };
+    console.log('🔄 Auto-update effect running:', {
+      userManuallySelectedShow,
+      selectedShow,
+      currentTime: currentTime.toLocaleTimeString(),
+      activeView
+    });
     
-    // Auto-update timer should work across all views (booking, checkout, history, etc.)
-    updateShow(); // run on mount
+    // Don't auto-update if user has manually selected a show
+    if (userManuallySelectedShow) {
+      console.log('🚫 Auto-update blocked: User manually selected show');
+      return;
+    }
     
-    // Check every 30 seconds for show changes
-    const interval = setInterval(updateShow, 30000); // every 30s
+    // Get the current show based on time and settings store
+    const currentShowKey = getCurrentShowKey();
     
-    return () => {
-      clearInterval(interval);
-    };
-  }, [getCurrentShowKey, selectedShow, setSelectedShow, activeView]);
+    // Only update if the selected show doesn't match the current time show
+    if (selectedShow !== currentShowKey) {
+      console.log(`🔄 Auto-updating show: ${selectedShow} → ${currentShowKey}`);
+      setSelectedShow(currentShowKey);
+    } else {
+      console.log('✅ No auto-update needed: show already matches current time');
+    }
+  }, [currentTime]); // Only depend on currentTime to prevent unnecessary re-runs
+
+  // Reset manual selection flag when navigating away from checkout
+  // REMOVED: This was causing the flag to reset immediately when navigating between views
+  // The flag should only reset after the 10-minute timeout or when manually reset
 
   // Manual test function to debug dynamic show selection
   const testDynamicShowSelection = () => {
-    console.log('🧪 MANUAL TEST: Testing dynamic show selection');
     const currentShowKey = getCurrentShowKey();
-    console.log('🧪 MANUAL TEST: Current show key:', currentShowKey);
-    console.log('🧪 MANUAL TEST: Selected show:', selectedShow);
-    console.log('🧪 MANUAL TEST: Will update:', selectedShow !== currentShowKey);
-    
-    if (selectedShow !== currentShowKey) {
-      console.log(`🧪 MANUAL TEST: Updating from '${selectedShow}' to '${currentShowKey}'`);
-      setSelectedShow(currentShowKey);
-    }
+    console.log('🧪 Test function called');
+    console.log('Current show key:', currentShowKey);
+    console.log('Selected show:', selectedShow);
+    console.log('User manually selected:', userManuallySelectedShow);
+    console.log('Current time:', currentTime.toLocaleTimeString());
   };
+
+  // Add debug functions to window for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).testShowSelection = testDynamicShowSelection;
+      (window as any).resetManualSelection = () => {
+        console.log('🔄 Manually resetting selection flag');
+        setUserManuallySelectedShow(false);
+      };
+      (window as any).setManualSelection = () => {
+        console.log('🎯 Manually setting selection flag');
+        setUserManuallySelectedShow(true);
+      };
+    }
+  }, [testDynamicShowSelection]);
 
   // Function to deselect seats
   const deselectSeats = useCallback((seatsToDeselect: any[]) => {
@@ -455,7 +470,11 @@ const Index = () => {
           {activeView === 'reports' && <BoxVsOnlineReport />}
           {activeView === 'settings' && <Settings />}
           {activeView === 'checkout' && (
-            <Checkout onBookingComplete={handleBookingComplete} checkoutData={checkoutData} />
+            <Checkout
+              checkoutData={checkoutData}
+              onBookingComplete={handleBookingComplete}
+              onManualShowSelection={handleManualShowSelection}
+            />
           )}
 
         </div>

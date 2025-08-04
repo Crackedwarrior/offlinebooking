@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import type { ShowTime } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
@@ -10,15 +10,10 @@ import TicketPrint from '@/components/TicketPrint';
 import { SEAT_CLASSES, SHOW_TIMES, MOVIE_CONFIG, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus } from '@/services/api';
+import { usePricing } from '@/hooks/use-pricing';
 // import { toast } from '@/hooks/use-toast';
 
-const CLASS_INFO = SEAT_CLASSES.map(cls => ({
-  key: cls.key,
-  label: cls.label,
-  color: cls.color,
-  price: cls.price,
-  rows: cls.rows
-}));
+// CLASS_INFO will be created dynamically with current pricing
 
 // Dynamic show details from settings
 // Helper function to convert 24-hour format to 12-hour format for display
@@ -37,12 +32,38 @@ interface CheckoutProps {
   onBookingComplete?: (bookingData: any) => void;
    
   checkoutData?: any;
+   
+  onManualShowSelection?: (showKey: string) => void;
 }
 
-const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) => {
+const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, onManualShowSelection }) => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats, syncSeatStatus } = useBookingStore();
   const { getPriceForClass, getMovieForShow } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes); // Get show times for dynamic logic
+  const { pricingVersion } = usePricing(); // Add reactive pricing
+  
+  // CLASS_INFO will be created dynamically with current pricing
+  const createClassInfo = useMemo(() => {
+    try {
+      return SEAT_CLASSES.map(cls => ({
+        key: cls.key,
+        label: cls.label,
+        color: cls.color,
+        price: getPriceForClass(cls.label),
+        rows: cls.rows
+      }));
+    } catch {
+      console.warn('Settings store not available, using fallback pricing');
+      return SEAT_CLASSES.map(cls => ({
+        key: cls.key,
+        label: cls.label,
+        color: cls.color,
+        price: 0, // Fallback to 0 if store not available
+        rows: cls.rows
+      }));
+    }
+  }, [getPriceForClass, pricingVersion]); // React to pricing changes
+  
   // Add state for decoupled seat IDs
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
   // Add state to track if booking was just completed
@@ -50,28 +71,35 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   // Add state for show dropdown
   const [showDropdownOpen, setShowDropdownOpen] = useState(false);
   const [showDropdownRef, setShowDropdownRef] = useState<HTMLDivElement | null>(null);
+  
+  // Add state for triple-click detection
+  const [clickCount, setClickCount] = useState(0);
+  const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Dynamic show details from settings
   const getShowDetails = useMemo(() => {
     try {
       const enabledShowTimes = showTimes.filter(show => show.enabled);
       
+    
+      
       return enabledShowTimes.reduce((acc, show) => {
+        // The times from settings store are already in 24-hour format, so we need to convert to 12-hour for display
         acc[show.key] = { 
           label: show.label, 
           timing: `${convertTo12Hour(show.startTime)} - ${convertTo12Hour(show.endTime)}`, 
-          price: 150
+          price: 0 // Not used for actual pricing
         };
         return acc;
       }, {} as Record<string, { label: string; timing: string; price: number }>);
     } catch (error) {
       console.log('❌ Error accessing settings store, using fallback');
-      // Fallback to static configuration
+      // Fallback to static configuration - these are already in 12-hour format
       return SHOW_TIMES.reduce((acc, show) => {
         acc[show.enumValue] = { 
           label: show.label, 
           timing: show.timing, 
-          price: 150
+          price: 0 // Not used for actual pricing
         };
         return acc;
       }, {} as Record<string, { label: string; timing: string; price: number }>);
@@ -80,47 +108,71 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
 
   // Debug: Log the props and store state (only when there are changes)
   useEffect(() => {
-    console.log('🔍 Checkout component render:', {
-      checkoutDataExists: !!checkoutData,
-      checkoutDataSelectedSeats: checkoutData?.selectedSeats?.length || 0,
-      storeSeatsLength: seats.length,
-      storeSelectedSeats: seats.filter(s => s.status === 'SELECTED').length,
-      storeSelectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id),
-      selectedShow: selectedShow, // Log the selected show from store
-      currentTime: new Date().toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit', 
-        second: '2-digit',
-        hour12: true 
-      })
-    });
+    // Only log when there are actual changes to avoid spam
+    const hasChanges = checkoutData || seats.length > 0 || selectedShow;
     
-    // Debug: Show what the current show should be
-    const currentTime = getCurrentTimeMinutes();
-    console.log('🕐 Current time analysis:', {
-      currentTime: `${Math.floor(currentTime/60)}:${(currentTime%60).toString().padStart(2, '0')}`,
-      currentTimeMinutes: currentTime,
-      availableShows: showTimes.map(show => ({
-        label: show.label,
-        startTime: show.startTime,
-        endTime: show.endTime,
-        startMinutes: show.startTime.split(':').map(Number).reduce((h, m) => h * 60 + m),
-        endMinutes: show.endTime.split(':').map(Number).reduce((h, m) => h * 60 + m),
-        isCurrentlyRunning: (() => {
-          const [startHour, startMin] = show.startTime.split(':').map(Number);
-          const [endHour, endMin] = show.endTime.split(':').map(Number);
-          const startMinutes = startHour * 60 + startMin;
-          const endMinutes = endHour * 60 + endMin;
-          
-          if (endMinutes < startMinutes) {
-            return currentTime >= startMinutes || currentTime < endMinutes;
-          } else {
-            return currentTime >= startMinutes && currentTime < endMinutes;
+    // if (hasChanges) {
+    //   console.log('🔍 Checkout component render:', {
+    //     checkoutDataExists: !!checkoutData,
+    //     checkoutDataSelectedSeats: checkoutData?.selectedSeats?.length || 0,
+    //     storeSeatsLength: seats.length,
+    //     storeSelectedSeats: seats.filter(s => s.status === 'SELECTED').length,
+    //     storeSelectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id),
+    //     selectedShow: selectedShow
+    //   });
+    // }
+    
+    // Temporary debug: Add reset button to console (only once)
+    if (typeof window !== 'undefined' && !(window as any).resetShowTimes) {
+      (window as any).resetShowTimes = resetShowTimesToDefaults;
+    }
+    
+  }, [checkoutData, seats, selectedShow]);
+
+    // Load seats when selected show changes
+  useEffect(() => {
+    if (selectedShow && selectedDate) {
+      // Load seats for the new show
+      loadBookingForDate(selectedDate, selectedShow);
+      
+      // Also fetch current seat status from backend
+      const fetchSeatStatus = async () => {
+        try {
+          const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
+          if (response.success && response.data) {
+            const { bookedSeats, bmsSeats } = response.data as any;
+            const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+            const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+            syncSeatStatus(bookedSeatIds, bmsSeatIds);
           }
-        })()
-      }))
-    });
-  }, [checkoutData, seats, selectedShow, showTimes]);
+        } catch (error) {
+          console.error(`❌ Failed to fetch seat status for ${selectedShow}:`, error);
+        }
+      };
+      
+      fetchSeatStatus();
+      
+      // Clear any existing selected seats when show changes
+      setTimeout(() => {
+        const currentSeats = useBookingStore.getState().seats;
+        const selectedSeats = currentSeats.filter(seat => seat.status === 'SELECTED');
+        if (selectedSeats.length > 0) {
+          selectedSeats.forEach(seat => {
+            useBookingStore.getState().toggleSeatStatus(seat.id, 'AVAILABLE');
+          });
+        }
+      }, 100);
+    }
+  }, [selectedShow, selectedDate, loadBookingForDate, syncSeatStatus]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+      }
+    };
+  }, [clickTimer]);
 
   // Remove the problematic initialization logic - let the store handle show selection
   // The store already has the correct selectedShow value from the main page
@@ -130,16 +182,234 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     setShowDropdownOpen(!showDropdownOpen);
   };
 
-  const handleShowSelect = (showKey: string) => {
-    console.log(`🔄 Checkout: User selected show: ${showKey}`);
-    setSelectedShow(showKey as any);
+  // Triple-click handler to switch to current time show
+  const handleShowCardTripleClick = () => {
+    const currentShowKey = getCurrentShowByTime();
+    if (currentShowKey !== selectedShow) {
+      handleShowSelect(currentShowKey);
+    }
+  };
+
+  // Click handler that detects single, double, and triple clicks
+  const handleShowCardClick = () => {
+    setClickCount(prev => {
+      const newCount = prev + 1;
+      
+      // Clear existing timer
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+      }
+      
+      // Set new timer
+      const timer = setTimeout(() => {
+        if (newCount === 1) {
+          // Single click - do nothing
+        } else if (newCount === 2) {
+          // Double click - open dropdown
+          setShowDropdownOpen(!showDropdownOpen);
+        } else if (newCount >= 3) {
+          // Triple click or more - switch to current time show
+          handleShowCardTripleClick();
+        }
+        setClickCount(0);
+      }, 400); // Increased to 400ms for better detection
+      
+      setClickTimer(timer);
+      return newCount;
+    });
+  };
+
+  const handleShowSelect = async (showKey: string) => {
+  
+    
+    // Clear all selected seats before switching shows
+    const currentSelectedSeats = seats.filter(seat => seat.status === 'SELECTED');
+    if (currentSelectedSeats.length > 0) {
+      currentSelectedSeats.forEach(seat => {
+        toggleSeatStatus(seat.id, 'AVAILABLE');
+      });
+    }
+    
+    // Use manual selection handler if available, otherwise use store directly
+    if (onManualShowSelection) {
+      onManualShowSelection(showKey);
+    } else {
+      // If no manual selection handler is available, still use the store but log a warning
+      console.warn('No manual selection handler available, using direct store update');
+      setSelectedShow(showKey as any);
+    }
     setShowDropdownOpen(false);
+    
+    // Load seats for the new show - use a small delay to ensure state is updated
+    setTimeout(async () => {
+      try {
+        await loadBookingForDate(selectedDate, showKey as any);
+        
+        // Also fetch current seat status from backend for this specific show
+        try {
+          const response = await getSeatStatus({ date: selectedDate, show: showKey });
+          
+          if (response.success && response.data) {
+            const { bookedSeats, bmsSeats } = response.data as any;
+            const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+            const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+            
+            syncSeatStatus(bookedSeatIds, bmsSeatIds);
+          }
+        } catch (seatError) {
+          console.error(`❌ Failed to fetch seat status for ${showKey}:`, seatError);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to load seats for show ${showKey}:`, error);
+      }
+    }, 100);
   };
 
   // Get current time to determine which shows are accessible
   const getCurrentTimeMinutes = () => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
+  };
+
+  // Function to get the current show based on time
+  const getCurrentShowByTime = () => {
+    const currentTime = getCurrentTimeMinutes();
+    const enabledShowTimes = showTimes.filter(show => show.enabled);
+    
+    // Sort shows by start time to find the correct order
+    const sortedShows = [...enabledShowTimes].sort((a, b) => {
+      const [aHour, aMin] = a.startTime.split(':').map(Number);
+      const [bHour, bMin] = b.startTime.split(':').map(Number);
+      return (aHour * 60 + aMin) - (bHour * 60 + bMin);
+    });
+    
+    // Find which show is currently active
+    for (let i = 0; i < sortedShows.length; i++) {
+      const show = sortedShows[i];
+      const [startHour, startMin] = show.startTime.split(':').map(Number);
+      const [endHour, endMin] = show.endTime.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      // Find the next show's start time
+      const nextShow = sortedShows[i + 1];
+      let nextShowStartMinutes = null;
+      if (nextShow) {
+        const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
+        nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
+      }
+      
+      // Check if current time is within this show's active period
+      let isInRange = false;
+      if (endMinutes < startMinutes) {
+        // Overnight show (e.g., 23:30 - 02:30)
+        isInRange = currentTime >= startMinutes || currentTime < endMinutes;
+      } else {
+        // Normal show
+        isInRange = currentTime >= startMinutes && currentTime < endMinutes;
+      }
+      
+      // A show is active if:
+      // 1. Current time is within the show's time range, OR
+      // 2. Current time is after the show started but before the next show starts
+      const isAfterShowStart = currentTime >= startMinutes;
+      const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
+      const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
+      
+      if (isActive) {
+              return show.key;
+      }
+    }
+    
+    // If no show is active, find the most recent show that has ended
+    for (let i = sortedShows.length - 1; i >= 0; i--) {
+      const show = sortedShows[i];
+      const [startHour, startMin] = show.startTime.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      
+      if (currentTime >= startMinutes) {
+              return show.key;
+      }
+    }
+    
+    return 'EVENING'; // fallback
+  };
+
+  // Optimized function to check if a show is the current time show
+  const isCurrentTimeShow = useCallback((showKey: string) => {
+    const currentTime = getCurrentTimeMinutes();
+    const show = showTimes.find(s => s.key === showKey);
+    
+    if (!show || !show.enabled) return false;
+    
+    const [startHour, startMin] = show.startTime.split(':').map(Number);
+    const [endHour, endMin] = show.endTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    // Get all enabled shows to find the next show
+    const enabledShowTimes = showTimes.filter(s => s.enabled);
+    const sortedShows = [...enabledShowTimes].sort((a, b) => {
+      const [aHour, aMin] = a.startTime.split(':').map(Number);
+      const [bHour, bMin] = b.startTime.split(':').map(Number);
+      return (aHour * 60 + aMin) - (bHour * 60 + bMin);
+    });
+    
+    // Find the current show's position and get the next show
+    const currentShowIndex = sortedShows.findIndex(s => s.key === showKey);
+    const nextShow = sortedShows[currentShowIndex + 1];
+    
+    let nextShowStartMinutes = null;
+    if (nextShow) {
+      const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
+      nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
+    }
+    
+    // Check if current time falls within this show's active period
+    // A show is active if:
+    // 1. Current time is within the show's time range, OR
+    // 2. Current time is after the show started but before the next show starts
+    let isInRange = false;
+    if (endMinutes < startMinutes) {
+      // Overnight show (e.g., 23:30 - 02:30)
+      isInRange = currentTime >= startMinutes || currentTime < endMinutes;
+    } else {
+      // Normal show
+      isInRange = currentTime >= startMinutes && currentTime < endMinutes;
+    }
+    
+    const isAfterShowStart = currentTime >= startMinutes;
+    const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
+    const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
+    
+    return isActive;
+  }, [showTimes, getCurrentTimeMinutes]);
+
+  // Memoize current show status to prevent excessive re-renders
+  const currentShowStatus = useMemo(() => {
+    const status: Record<string, boolean> = {};
+    showTimes.forEach(show => {
+      status[show.key] = isCurrentTimeShow(show.key);
+    });
+    return status;
+  }, [showTimes, isCurrentTimeShow]);
+
+  // Function to reset show times to correct defaults (for debugging)
+  const resetShowTimesToDefaults = () => {
+    const correctShowTimes = [
+      { key: 'MORNING', label: 'Morning Show', startTime: '10:00', endTime: '12:00', enabled: true },
+      { key: 'MATINEE', label: 'Matinee Show', startTime: '14:00', endTime: '17:00', enabled: true },
+      { key: 'EVENING', label: 'Evening Show', startTime: '18:00', endTime: '21:00', enabled: true },
+      { key: 'NIGHT', label: 'Night Show', startTime: '21:30', endTime: '00:30', enabled: true }
+    ];
+    
+    // Update the settings store with correct times
+    correctShowTimes.forEach(show => {
+      useSettingsStore.getState().updateShowTime(show.key, {
+        startTime: show.startTime,
+        endTime: show.endTime
+      });
+    });
   };
 
   // Check if a show is accessible (current or future)
@@ -150,54 +420,25 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     const startMinutes = startHour * 60 + startMin;
     const endMinutes = endHour * 60 + endMin;
     
-    // Find the next show's start time to determine when this show should become inaccessible
-    const currentShowIndex = showTimes.findIndex(s => s.key === show.key);
-    const nextShow = showTimes[currentShowIndex + 1];
-    let nextShowStartMinutes = null;
-    
-    if (nextShow) {
-      const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
-      nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
-    }
-    
     // A show is accessible if:
     // 1. It's currently running (current time is within the show period)
     // 2. It's a future show (current time is before the show starts)
-    // 3. It's not blocked by the next show starting
     
     let isAccessible;
     if (endMinutes < startMinutes) {
-      // For overnight shows, check if current time is within the show period OR if it's a future show
-      // This handles shows like 21:00 - 12:00 (9 PM to 12 AM next day)
+      // For overnight shows (e.g., 9:30 PM - 12:30 AM)
+      // Check if current time is within the show period OR if it's a future show
       const isCurrentlyRunning = currentTime >= startMinutes || currentTime < endMinutes;
       const isFutureShow = currentTime < startMinutes;
-      const isBlockedByNextShow = nextShowStartMinutes && currentTime >= nextShowStartMinutes;
-      
-      isAccessible = (isCurrentlyRunning || isFutureShow) && !isBlockedByNextShow;
+      isAccessible = isCurrentlyRunning || isFutureShow;
     } else {
-      // For normal shows, check if current time is within the show period OR if it's a future show
+      // For normal shows
       const isCurrentlyRunning = currentTime >= startMinutes && currentTime < endMinutes;
       const isFutureShow = currentTime < startMinutes;
-      const isBlockedByNextShow = nextShowStartMinutes && currentTime >= nextShowStartMinutes;
-      
-      isAccessible = (isCurrentlyRunning || isFutureShow) && !isBlockedByNextShow;
+      isAccessible = isCurrentlyRunning || isFutureShow;
     }
     
-    console.log(`🔍 Show accessibility check for ${show.label}:`, {
-      show: show.label,
-      startTime: show.startTime,
-      endTime: show.endTime,
-      currentTime: `${Math.floor(currentTime/60)}:${(currentTime%60).toString().padStart(2, '0')}`,
-      startMinutes,
-      endMinutes,
-      nextShow: nextShow?.label || 'none',
-      nextShowStartMinutes,
-      isAccessible,
-      reason: endMinutes < startMinutes ? 'overnight' : 'normal',
-      currentTimeMinutes: currentTime,
-      calculation: `isCurrentlyRunning: ${currentTime >= startMinutes && currentTime < endMinutes}, isFutureShow: ${currentTime < startMinutes}, isBlockedByNextShow: ${nextShowStartMinutes && currentTime >= nextShowStartMinutes}`,
-      selectedShow: selectedShow
-    });
+
     
     return isAccessible;
   };
@@ -219,33 +460,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     };
   }, [showDropdownOpen, showDropdownRef]);
 
-  // Use checkoutData if available, otherwise fall back to global state
+  // Always use current store state for selected seats to ensure deletion works properly
   const selectedSeats = useMemo(() => {
-    // If we have checkoutData with selected seats, use it
-    // Otherwise, use store data (for when seats are selected after checkoutData is set)
     const storeSelectedSeats = seats.filter(seat => seat.status === 'SELECTED');
-    
-    // Only use checkoutData if it exists and has selected seats
-    const hasCheckoutSeats = checkoutData && 
-                            checkoutData.selectedSeats && 
-                            Array.isArray(checkoutData.selectedSeats) && 
-                            checkoutData.selectedSeats.length > 0;
-    
-    const result = hasCheckoutSeats ? checkoutData.selectedSeats : storeSelectedSeats;
-    
-    // Only log when there are actual changes to avoid spam
-    if (result.length > 0 || storeSelectedSeats.length > 0) {
-      console.log('🔍 selectedSeats calculation:', {
-        checkoutDataExists: !!checkoutData,
-        hasCheckoutSeats,
-        checkoutDataSelectedCount: checkoutData?.selectedSeats?.length || 0,
-        storeSelectedCount: storeSelectedSeats.length,
-        selectedSeatsCount: result.length,
-        selectedSeatIds: result.map(s => s.id)
-      });
-    }
-    return result;
-  }, [checkoutData, seats]);
+    return storeSelectedSeats;
+  }, [seats, checkoutData, selectedShow]);
 
   // Reset booking completed state when checkout data is cleared
   useEffect(() => {
@@ -254,38 +473,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     }
   }, [checkoutData, bookingCompleted]);
   
-  // Fetch current seat status from backend when component mounts or date/show changes
-  useEffect(() => {
-    const fetchCurrentSeatStatus = async () => {
-      try {
-        console.log('🔄 Fetching seat status for checkout page:', { date: selectedDate, show: selectedShow });
-        const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
-        
-        if (response.success && response.data) {
-           
-          const { bookedSeats, bmsSeats } = response.data as any;
-          
-          // Use the new syncSeatStatus function to properly sync seat status
-           
-          const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
-           
-          const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
-          syncSeatStatus(bookedSeatIds, bmsSeatIds);
-          
-          console.log(`✅ Updated ${bookedSeats.length} booked seats and ${bmsSeats.length} BMS seats in checkout`);
-        }
-      } catch (error) {
-        console.error('❌ Error fetching seat status in checkout:', error);
-        // toast({
-        //   title: 'Error',
-        //   description: 'Failed to load current seat status.',
-        //   variant: 'destructive',
-        // });
-      }
-    };
 
-    fetchCurrentSeatStatus();
-  }, [selectedDate, selectedShow, syncSeatStatus]);
   
   // Get reactive show details
   // const SHOW_DETAILS = getShowDetails();
@@ -298,7 +486,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   //   loadBookingForDate(selectedDate, showKey.toUpperCase() as ShowTime);
   // };
 
-  const classCounts = CLASS_INFO.map(cls => {
+  const classCounts = createClassInfo.map(cls => {
     const count = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
     const price = getPriceForClass(cls.label);
     return { ...cls, count, price };
@@ -309,17 +497,17 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   // Debug logging (only when there are selected seats)
   useEffect(() => {
     if (selectedSeats.length > 0) {
-      console.log('🔍 Debug: Selected seats:', selectedSeats.length);
-      console.log('🔍 Debug: Selected seats details:', selectedSeats.map(s => `${s.id} (${s.status})`));
-      console.log('🔍 Debug: Class counts:', classCounts.map(c => `${c.label}: ${c.count} * ₹${c.price} = ₹${c.count * c.price}`));
-      console.log('🔍 Debug: Total:', total);
+          // console.log('🔍 Debug: Selected seats:', selectedSeats.length);
+    // console.log('🔍 Debug: Selected seats details:', selectedSeats.map(s => `${s.id} (${s.status})`));
+    // console.log('🔍 Debug: Class counts:', classCounts.map(c => `${c.label}: ${c.count} * ₹${c.price} = ₹${c.count * c.price}`));
+    // console.log('🔍 Debug: Total:', total);
     }
   }, [selectedSeats, classCounts, total]);
 
   // For TicketPrint: map to required format
   const ticketSeats = selectedSeats
     .map(seat => {
-      const cls = CLASS_INFO.find(c => c.rows.includes(seat.row));
+      const cls = createClassInfo.find(c => c.rows.includes(seat.row));
       const price = cls ? getPriceForClass(cls.label) : 0;
       return {
         id: seat.id,
@@ -332,7 +520,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
 
   // Simplified handlers
   const handleDeleteTickets = (seatIds: string[]) => {
-    console.log('🗑️ Deleting tickets:', seatIds);
+    
     
     if (!seatIds || seatIds.length === 0) {
       console.warn('⚠️ No seat IDs provided for deletion');
@@ -341,12 +529,19 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     
     // Deselect all provided seats
     seatIds.forEach(id => {
-      console.log(`🗑️ Deselecting seat: ${id}`);
+  
       toggleSeatStatus(id, 'AVAILABLE');
     });
     
     // Remove from decoupled list if present
     setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
+    
+    // Check if seats were actually deselected
+    setTimeout(() => {
+      const currentSeats = useBookingStore.getState().seats;
+      const stillSelected = currentSeats.filter(s => seatIds.includes(s.id) && s.status === 'SELECTED');
+      
+    }, 100);
     
     // Show success message
     // toast({
@@ -445,24 +640,23 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
 
   // Helper function to find contiguous block starting from a specific position
   const findContiguousBlock = (rowSeats: any[], count: number, startFromIndex: number = 0) => {
-    console.log(`findContiguousBlock: looking for ${count} seats starting from index ${startFromIndex} in`, rowSeats.map(s => `${s.row}${s.number}`));
+  
     
     if (rowSeats.length < count + startFromIndex) {
-      console.log(`findContiguousBlock: not enough seats (${rowSeats.length} < ${count + startFromIndex})`);
-      return null;
+        return null;
     }
     
     const candidate = rowSeats.slice(startFromIndex, startFromIndex + count);
-    console.log(`findContiguousBlock: candidate seats:`, candidate.map(s => `${s.row}${s.number}`));
+  
     
     const isContiguous = candidate.every((s: any, j: number, arr: any[]) => {
       if (j === 0) return true;
       const isConsecutive = s.number === arr[j - 1].number + 1;
-      console.log(`findContiguousBlock: checking ${s.row}${s.number} vs ${arr[j-1].row}${arr[j-1].number}: ${isConsecutive}`);
+    
       return isConsecutive;
     });
     
-    console.log(`findContiguousBlock: isContiguous = ${isContiguous}`);
+  
     return isContiguous ? candidate : null;
   };
 
@@ -470,8 +664,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   const handleClassCardClick = (cls: any) => {
     const classKey = cls.key || cls.label;
     
-    console.log(`🎯 Class card clicked: ${classKey}`);
-    console.log(`🎯 Available seats in ${classKey}:`, seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'AVAILABLE').map(s => s.id));
+    
     
     // Reset booking completed state when new seats are selected
     if (bookingCompleted) {
@@ -483,39 +676,33 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     const currentCount = previouslySelected.length;
     const newCount = currentCount + 1;
     
-    console.log(`Class card clicked: ${classKey}, current count: ${currentCount}, new count: ${newCount}`);
-    console.log('Previously selected seats:', previouslySelected.map(s => s.id));
+    
     
     // CASE 1: Nothing selected yet — find next available block
     if (previouslySelected.length === 0) {
-      console.log('Case 1: Starting fresh - looking for next available block');
+    
       
       // Try to find N contiguous seats starting from the first available seat
       for (const row of cls.rows) {
-        console.log(`Checking row: ${row}`);
+      
         
         const allSeatsInRow = seats.filter(seat => seat.row === row);
         const rowSeats = allSeatsInRow
           .filter(seat => seat.status === 'AVAILABLE')
           .sort((a, b) => a.number - b.number);
         
-        console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
-        
         const block = findContiguousBlock(rowSeats, newCount, 0);
         if (block) {
-          console.log(`Found next available block:`, block.map(s => s.id));
-          console.log(`🎯 Marking seats as selected:`, block.map(s => s.id));
           block.forEach(seat => {
-            console.log(`🎯 Toggling seat ${seat.id} to selected`);
             toggleSeatStatus(seat.id, 'SELECTED');
           });
           
           // Add a small delay to ensure store updates are processed
           setTimeout(() => {
-            console.log('🔍 After delay - Store state:', {
-              selectedSeats: seats.filter(s => s.status === 'SELECTED').length,
-              selectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id)
-            });
+            // console.log('🔍 After delay - Store state:', {
+            //   selectedSeats: seats.filter(s => s.status === 'SELECTED').length,
+            //   selectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id)
+            // });
           }, 100);
           
           return;
@@ -523,31 +710,24 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
       }
       
       // No block found
-      console.log('No available block found');
       return;
     }
     
     // CASE 2: Try growing the existing block in the same row
     const currentRow = previouslySelected[0].row;
-    console.log(`Case 2: Trying to grow in row ${currentRow}`);
     
     const allSeatsInCurrentRow = seats.filter(seat => seat.row === currentRow);
     const allSeatsInCurrentRowSorted = allSeatsInCurrentRow.sort((a, b) => a.number - b.number);
-    
-    console.log(`All seats in current row:`, allSeatsInCurrentRowSorted.map(s => `${s.row}${s.number} (${s.status})`));
     
     // Find the lowest seat number among currently selected seats
     const lowestSelectedSeat = previouslySelected.reduce((min, seat) => 
       seat.number < min.number ? seat : min
     );
-    console.log(`Lowest selected seat: ${lowestSelectedSeat.row}${lowestSelectedSeat.number}`);
     
     // Try to find a larger contiguous block that includes the current selection
     const startIndex = allSeatsInCurrentRowSorted.findIndex(seat => seat.number === lowestSelectedSeat.number);
     const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount, startIndex);
     if (grownBlock) {
-      console.log(`Found grown block in same row:`, grownBlock.map(s => s.id));
-      
       // Deselect current seats and select the grown block
       previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
       grownBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
@@ -555,26 +735,19 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     }
     
     // CASE 3: Cannot grow in same row — find new block in next available row
-    console.log('Case 3: Looking for new block in next row');
     
     // Find the next row after current row
     const currentRowIndex = cls.rows.indexOf(currentRow);
     const nextRows = cls.rows.slice(currentRowIndex + 1);
     
     for (const row of nextRows) {
-      console.log(`Checking next row: ${row}`);
-      
       const allSeatsInRow = seats.filter(seat => seat.row === row);
       const rowSeats = allSeatsInRow
         .filter(seat => seat.status === 'AVAILABLE')
         .sort((a, b) => a.number - b.number);
       
-      console.log(`Available seats in ${row}:`, rowSeats.map(s => `${s.row}${s.number}`));
-      
       const newBlock = findContiguousBlock(rowSeats, newCount, 0);
       if (newBlock) {
-        console.log(`Found new block in ${row}:`, newBlock.map(s => s.id));
-        
         // Deselect current seats and select the new block
         previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
         newBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
@@ -583,7 +756,6 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
     }
     
     // CASE 4: No valid block found anywhere — reset to 0
-    console.log('Case 4: No valid block found, resetting to 0');
     previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
   };
 
@@ -598,21 +770,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
   const showDetails = getShowDetails; // Use the memoized value directly
   const currentShowDetails = showDetails[selectedShow];
   
-  console.log('🔍 Show Card Debug:', {
-    selectedShow,
-    currentShowDetails,
-    allShowDetails: showDetails,
-    currentMovie,
-    showCardLabel: currentShowDetails?.label || selectedShow,
-    showCardTiming: currentShowDetails?.timing || '',
-    timeNow: new Date().toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit', 
-      second: '2-digit',
-      hour12: true 
-    }),
-    dateNow: new Date().toLocaleDateString()
-  });
+
 
   return (
     <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
@@ -627,11 +785,18 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
             >
               <div 
                 className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md cursor-pointer hover:bg-gray-50"
-                onDoubleClick={handleShowCardDoubleClick}
+                onClick={handleShowCardClick}
               >
                 <div className="font-bold text-base mb-1 leading-tight break-words">{currentMovie.name}</div>
                 <div className="text-sm text-gray-600 mb-1">({currentMovie.language})</div>
-                <span className="text-sm font-semibold text-blue-600 mb-1">{showDetails[selectedShow]?.label || selectedShow}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-blue-600">{showDetails[selectedShow]?.label || selectedShow}</span>
+                  {currentShowStatus[selectedShow] && (
+                    <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                      Current Time
+                    </span>
+                  )}
+                </div>
                 <div className="flex justify-between items-center mt-auto">
                   <span className="text-sm whitespace-nowrap">{showDetails[selectedShow]?.timing || ''}</span>
                   <span className="text-base font-semibold ml-2">{(() => {
@@ -647,7 +812,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[800px] max-w-[1000px]">
                   <div className="p-3 border-b border-gray-100">
                     <h3 className="font-semibold text-gray-900">Select Show</h3>
-                    <p className="text-xs text-gray-500">Double-click to select a different show</p>
+                    <p className="text-xs text-gray-500">Double-click to select a different show • Triple-click to jump to current time show</p>
                   </div>
                   <div className="max-h-80 overflow-y-auto p-3">
                     {showTimes.map((show) => {
@@ -670,7 +835,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
                                   ? 'bg-gray-50 border-gray-200 hover:bg-gray-100 cursor-pointer' 
                                   : 'bg-gray-100 border-gray-300 cursor-not-allowed'
                             }`}
-                            onClick={() => isAccessible && handleShowSelect(show.key)}
+                            onClick={() => {
+                              if (isAccessible) {
+                                handleShowSelect(show.key);
+                              }
+                            }}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div>
@@ -689,7 +858,12 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
                                 )}
                                 {isSelected && (
                                   <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                                    Current
+                                    Selected
+                                  </span>
+                                )}
+                                {currentShowStatus[show.key] && (
+                                  <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                                    Current Time
                                   </span>
                                 )}
                                 {isAccessible && !isSelected && (
@@ -718,7 +892,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
                               </div>
                               
                               {/* Class Boxes for this show */}
-                              {CLASS_INFO.map((cls, i) => {
+                              {createClassInfo.map((cls, i) => {
                                 const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
                                 const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
                                 const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
@@ -738,7 +912,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
                                 // Determine border radius and negative margin
                                 let cardClass = '';
                                 if (i === 0) cardClass = 'rounded-none -ml-2';
-                                else if (i === CLASS_INFO.length - 1) cardClass = 'rounded-r-xl -ml-2';
+                                else if (i === createClassInfo.length - 1) cardClass = 'rounded-r-xl -ml-2';
                                 else cardClass = 'rounded-none -ml-2';
                                 
                                 return (
@@ -773,7 +947,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
               )}
             </div>
             {/* Class Boxes */}
-            {CLASS_INFO.map((cls, i) => {
+            {createClassInfo.map((cls, i) => {
               const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
               const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
               const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
@@ -793,7 +967,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData }) 
               // Determine border radius and negative margin
               let cardClass = '';
               if (i === 0) cardClass = 'rounded-none -ml-2';
-              else if (i === CLASS_INFO.length - 1) cardClass = 'rounded-r-xl -ml-2';
+              else if (i === createClassInfo.length - 1) cardClass = 'rounded-r-xl -ml-2';
               else cardClass = 'rounded-none -ml-2';
               
               return (

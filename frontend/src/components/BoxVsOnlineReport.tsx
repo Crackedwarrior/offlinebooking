@@ -10,6 +10,7 @@ import type { Show } from '@/types/api';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { useSettingsStore } from '@/store/settingsStore';
+import { usePricing } from '@/hooks/use-pricing';
 
 interface SalesData {
   movie_date: string;
@@ -49,10 +50,20 @@ const BoxVsOnlineReport = () => {
   
   // Get settings store functions
   const { getMovieForShow } = useSettingsStore();
+  // Add reactive pricing to force re-renders when pricing changes
+  const { pricingVersion } = usePricing();
 
   // Get current date for "today" option
   const currentDate = new Date();
   const reportDate = format(selectedDate, 'yyyy-MM-dd');
+
+  // Refetch data when pricing changes
+  useEffect(() => {
+    if (pricingVersion > 0) {
+      console.log('💰 Pricing changed, refetching sales data...');
+      fetchSalesData(reportDate);
+    }
+  }, [pricingVersion, reportDate]);
 
   // Helper function to get movie name for a show
   const getMovieNameForShow = (show: string): string => {
@@ -278,11 +289,32 @@ const BoxVsOnlineReport = () => {
   };
 
   const getPriceForClass = (classLabel: string): number => {
-    const seatClass = SEAT_CLASSES.find(cls => cls.label === classLabel);
-    return seatClass?.price || 150;
+    // Use dynamic pricing from settings store
+    try {
+      const { getPriceForClass: getPriceFromStore } = useSettingsStore.getState();
+      const price = getPriceFromStore(classLabel);
+      console.log(`💰 BoxVsOnlineReport: Price for ${classLabel} = ₹${price}`);
+      return price;
+    } catch {
+      console.warn('Settings store not available, using fallback price');
+      return 150;
+    }
   };
 
   const getShowLabel = (show: string): string => {
+    // Get dynamic show times from settings store
+    const showTimes = useSettingsStore.getState().showTimes;
+    const showTime = showTimes.find(st => st.key === show);
+    
+    if (showTime && showTime.enabled) {
+      // Convert 24-hour format to 12-hour format for display
+      const [hours, minutes] = showTime.startTime.split(':').map(Number);
+      const period = hours >= 12 ? 'pm' : 'am';
+      const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    }
+    
+    // Fallback to hardcoded timings if settings not available
     const showLabels: Record<string, string> = {
       'MORNING': '11:45 am',
       'MATINEE': '2:45 pm',
@@ -338,7 +370,7 @@ const BoxVsOnlineReport = () => {
     });
     
     return sortedSummaries;
-  }, [salesData]);
+  }, [salesData, pricingVersion]);
 
   // Calculate grand total for the entire day
   const grandTotal = useMemo(() => {
@@ -361,7 +393,7 @@ const BoxVsOnlineReport = () => {
       counter_amt: 0,
       total_amt: 0,
     });
-  }, [showSummaries]);
+  }, [showSummaries, pricingVersion]);
 
   // Handle date change
   const handleDateChange = (date: Date | null) => {
