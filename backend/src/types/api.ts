@@ -109,8 +109,13 @@ export interface SeatStatusResponse {
       seatId: string;
       class: string;
     }>;
+    selectedSeats: Array<{
+      seatId: string;
+      class: string;
+    }>;
     totalBooked: number;
     totalBms: number;
+    totalSelected: number;
   };
 }
 

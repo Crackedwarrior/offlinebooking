@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
 
@@ -22,12 +22,13 @@ import {
   Users, 
   BarChart3,
   Calendar,
-
+  Trash2
 } from 'lucide-react';
 // import { toast } from '@/hooks/use-toast';
 import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 import PriceDisplay from './PriceDisplay';
+import IsolatedPricingInput from './IsolatedPricingInput';
 
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings';
 
@@ -41,24 +42,23 @@ const convertTo12Hour = (time24h: string): string => {
 };
 
 const Settings = () => {
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  console.log(`🔍 Settings component rendering (render #${renderCount.current})`);
   const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
   const [localPricing, setLocalPricing] = useState(pricing);
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
-  const [isDirty, setIsDirty] = useState(false);
+  const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
+  const hasChangesRef = useRef(false);
 
-  // Memoize the dirty check to prevent infinite re-renders
-  const checkDirty = useCallback(() => {
+  // Simple function to check if there are any changes
+  const hasChanges = () => {
     const pricingChanged = JSON.stringify(localPricing) !== JSON.stringify(pricing);
     const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
-    setIsDirty(pricingChanged || showTimesChanged);
-  }, [localPricing, localShowTimes, pricing, showTimes]);
-
-  // Use useEffect to check dirty state when dependencies change
-  useEffect(() => {
-    checkDirty();
-  }, [localPricing, localShowTimes, pricing, showTimes]);
+    return pricingChanged || showTimesChanged;
+  };
 
   // Memoize seat counts calculation
   const seatCounts = useMemo(() => {
@@ -101,16 +101,13 @@ const Settings = () => {
     );
   }
 
-  // Handle pricing changes
-  const handlePricingChange = useCallback((classLabel: string, value: string) => {
-    const price = parseInt(value) || 0;
-    setLocalPricing(prev => {
-      // Only update if the value actually changed
-      if (prev[classLabel] === price) {
-        return prev;
-      }
-      return { ...prev, [classLabel]: price };
-    });
+  // Handle pricing changes - track changes without updating state
+  const handlePricingChange = useCallback((classLabel: string, value: number) => {
+    console.log(`🔍 Settings: handlePricingChange called for ${classLabel} with value ${value}`);
+    
+    // Track changes and show save button
+    hasChangesRef.current = true;
+    setShowSaveButton(true);
   }, []);
 
   // Handle show time changes
@@ -123,9 +120,17 @@ const Settings = () => {
   // Save all changes
   const handleSave = useCallback(() => {
     try {
-      // Update pricing settings
-      Object.entries(localPricing).forEach(([classLabel, price]) => {
-        updatePricing(classLabel, price);
+      // Collect current values from input components and update pricing settings
+      const updatedPricing: Record<string, number> = {};
+      
+      SEAT_CLASSES.forEach(seatClass => {
+        // Get the current value from the input component
+        const inputElement = document.getElementById(seatClass.label) as HTMLInputElement;
+        if (inputElement) {
+          const value = parseInt(inputElement.value) || 0;
+          updatedPricing[seatClass.label] = value;
+          updatePricing(seatClass.label, value);
+        }
       });
 
       // Update show time settings
@@ -133,15 +138,16 @@ const Settings = () => {
         updateShowTime(show.key, show);
       });
 
-      setIsDirty(false);
+      hasChangesRef.current = false;
+      setShowSaveButton(false);
       
       // Show success message
       console.log('✅ Settings saved successfully!');
-      console.log('💰 Updated pricing:', localPricing);
+      console.log('💰 Updated pricing:', updatedPricing);
       
       // Force a re-render of components that use pricing
       window.dispatchEvent(new CustomEvent('pricingUpdated', { 
-        detail: { pricing: localPricing } 
+        detail: { pricing: updatedPricing } 
       }));
       
       // toast({
@@ -152,7 +158,7 @@ const Settings = () => {
       console.error('❌ Error saving settings:', error);
       setError('Failed to save settings. Please try again.');
     }
-  }, [localPricing, localShowTimes, updatePricing, updateShowTime]);
+  }, [localShowTimes, updatePricing, updateShowTime]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
@@ -160,13 +166,24 @@ const Settings = () => {
       resetToDefaults();
       setLocalPricing(pricing);
       setLocalShowTimes(showTimes);
-      setIsDirty(false);
+      hasChangesRef.current = false;
+      setShowSaveButton(false);
       // toast({
       //   title: 'Settings Reset',
       //   description: 'All settings have been reset to their default values.',
       // });
     }
   }, [resetToDefaults, pricing, showTimes]);
+
+  // Clear all data completely
+  const handleClearAllData = useCallback(() => {
+    if (window.confirm('This will clear ALL settings data including pricing. Are you sure? This action cannot be undone.')) {
+      // Clear localStorage completely
+      localStorage.removeItem('booking-settings');
+      // Force page reload to reset everything
+      window.location.reload();
+    }
+  }, []);
 
   // Memoize tab components to prevent remounting
   const OverviewTab = useMemo(() => () => (
@@ -268,7 +285,9 @@ const Settings = () => {
     </div>
   ), [totalSeats, seatCounts, localShowTimes]);
 
-  const PricingTab = useMemo(() => () => (
+
+
+  const PricingTab = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -284,24 +303,12 @@ const Settings = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {SEAT_CLASSES.map(seatClass => (
-                <div key={seatClass.label} className="space-y-4">
-                  <div>
-                    <Label htmlFor={seatClass.label} className="text-base font-medium">
-                      {seatClass.label}
-                    </Label>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {seatClass.rows.join(', ')}
-                    </p>
-                  </div>
-                  <Input
-                    id={seatClass.label}
-                    type="number"
-                    value={localPricing[seatClass.label] || 0}
-                    onChange={(e) => handlePricingChange(seatClass.label, e.target.value)}
-                    placeholder="Enter price"
-                    min="0"
-                  />
-                </div>
+                <IsolatedPricingInput 
+                  key={seatClass.label} 
+                  seatClass={seatClass}
+                  initialValue={localPricing[seatClass.label] || 0}
+                  onValueChange={handlePricingChange}
+                />
               ))}
             </div>
           </CardContent>
@@ -310,7 +317,7 @@ const Settings = () => {
         <PriceDisplay />
       </div>
     </div>
-  ), [localPricing, handlePricingChange]);
+  );
 
   const ShowTimesTab = useMemo(() => () => (
     <div className="space-y-6">
@@ -430,7 +437,7 @@ const Settings = () => {
       </Tabs>
 
       {/* Global Save Button */}
-      {isDirty && (
+      {showSaveButton && (
         <div className="fixed bottom-6 right-6 z-50">
           <Button
             onClick={handleSave}
@@ -441,6 +448,8 @@ const Settings = () => {
           </Button>
         </div>
       )}
+
+
     </div>
   );
 };

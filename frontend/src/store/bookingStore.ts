@@ -116,7 +116,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   
   initializeSeats: () => set({ seats: createInitialSeats() }),
   
-  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[]) => {
+  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds: string[] = []) => {
     const state = get();
     const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
@@ -156,10 +156,22 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }
     });
     
-    // Restore selected seats that are still available (not booked or BMS)
+    // Mark selected seats from backend
+    let selectedCount = 0;
+    selectedSeatIds.forEach(seatId => {
+      const seatIndex = newSeats.findIndex(s => s.id === seatId);
+      if (seatIndex !== -1) {
+        newSeats[seatIndex].status = 'SELECTED';
+        selectedCount++;
+      } else {
+        console.warn('⚠️ Selected seat ID not found:', seatId);
+      }
+    });
+    
+    // Restore currently selected seats that are still available and not already marked as selected
     let restoredCount = 0;
     currentlySelectedSeats.forEach(seat => {
-      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id)) {
+      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id) && !selectedSeatIds.includes(seat.id)) {
         const seatIndex = newSeats.findIndex(s => s.id === seat.id);
         if (seatIndex !== -1) {
           newSeats[seatIndex].status = 'SELECTED';
@@ -168,7 +180,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }
     });
     
-    // console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${restoredCount} selected seats restored`);
+    // console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${selectedCount} selected from backend, ${restoredCount} selected seats restored`);
     
     // Update the state with the new seats array
     set({ seats: newSeats });

@@ -276,15 +276,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         </div>
       </div>
       
-      {/* Help text for deletion */}
-      {selectedSeats.length > 0 && (
-        <div className="px-4 mb-2">
-          <p className="text-xs text-gray-600">
-            💡 <strong>To delete tickets:</strong> Click on ticket cards to select them, then click "Delete". 
-            Or click "Delete" without selection to remove all tickets.
-          </p>
-        </div>
-      )}
+
       
       {/* Scrollable ticket list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 max-h-80 px-2">
@@ -357,11 +349,12 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
           </button>
           <button
             className="bg-red-100 text-red-700 hover:bg-red-200 font-semibold px-4 py-2 rounded-lg border border-red-300 transition text-sm"
-            onClick={() => {
+            onClick={async () => {
               console.log('🗑️ Delete clicked');
               console.log('🗑️ selectedSeats:', selectedSeats);
               console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
               console.log('🗑️ onDelete function exists:', !!onDelete);
+              console.log('🗑️ groups:', groups);
               
               if (!onDelete || selectedSeats.length === 0) {
                 console.error('❌ Cannot delete: onDelete function missing or no seats selected');
@@ -375,17 +368,20 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
                 seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
                 console.log('🗑️ User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
               } else {
-                // No specific selection - delete ALL tickets (confirm with user)
-                if (window.confirm(`Are you sure you want to delete all ${selectedSeats.length} tickets?`)) {
-                  seatIdsToDelete = selectedSeats.map(seat => seat.id);
-                  console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
-                } else {
-                  console.log('🗑️ User cancelled deletion');
-                  return;
-                }
+                // No specific selection - delete ALL tickets directly
+                seatIdsToDelete = selectedSeats.map(seat => seat.id);
+                console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
               }
               
-              onDelete(seatIdsToDelete);
+              console.log('🗑️ About to call onDelete with seatIds:', seatIdsToDelete);
+              
+              try {
+                await onDelete(seatIdsToDelete);
+                console.log('✅ onDelete completed successfully');
+              } catch (error) {
+                console.error('❌ onDelete failed:', error);
+              }
+              
               setSelectedGroupIdxs([]);
             }}
           >

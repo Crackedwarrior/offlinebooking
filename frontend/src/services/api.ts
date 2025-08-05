@@ -133,6 +133,10 @@ class ApiService {
     return this.post('/api/seats/bms', { seatIds, status, date, show });
   }
 
+  async updateSeatStatus(seatUpdates: Array<{ seatId: string; status: string }>, date: string, show: string): Promise<ApiResponse<any>> {
+    return this.post('/api/seats/status', { seatUpdates, date, show });
+  }
+
   async updateBooking(id: string, data: any): Promise<ApiResponse<BookingData>> {
     return this.put<BookingData>(`/api/bookings/${id}`, data);
   }
@@ -156,6 +160,7 @@ export const getBookings = (params?: BookingQueryParams) => apiService.getBookin
 export const getBookingStats = (params?: BookingQueryParams) => apiService.getBookingStats(params);
 export const getSeatStatus = (params: SeatStatusQueryParams) => apiService.getSeatStatus(params);
 export const saveBmsSeatStatus = (seatIds: string[], status: 'BMS_BOOKED' | 'AVAILABLE', date: string, show: string) => apiService.saveBmsSeatStatus(seatIds, status, date, show);
+export const updateSeatStatus = (seatUpdates: Array<{ seatId: string; status: string }>, date: string, show: string) => apiService.updateSeatStatus(seatUpdates, date, show);
 export const updateBooking = (id: string, data: any) => apiService.updateBooking(id, data);
 export const deleteBooking = (id: string) => apiService.deleteBooking(id);
 export const healthCheck = () => apiService.healthCheck();

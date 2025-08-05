@@ -95,11 +95,11 @@ const defaultMovies: MovieSettings[] = [
 ];
 
 const defaultPricing: PricingSettings = {
-  'BOX': 1650,
-  'STAR CLASS': 100,
-  'CLASSIC': 100,
-  'FIRST CLASS': 100,
-  'SECOND CLASS': 100
+  'BOX': 0,
+  'STAR CLASS': 0,
+  'CLASSIC': 0,
+  'FIRST CLASS': 0,
+  'SECOND CLASS': 0
 };
 
 /**
@@ -347,11 +347,16 @@ export const useSettingsStore = create<SettingsState>()(
         )
       })),
 
-      resetToDefaults: () => set({
-        movies: defaultMovies,
-        pricing: defaultPricing,
-        showTimes: defaultShowTimes
-      }),
+      resetToDefaults: () => {
+        // Clear persisted data from localStorage
+        localStorage.removeItem('booking-settings');
+        // Reset to defaults
+        set({
+          movies: defaultMovies,
+          pricing: defaultPricing,
+          showTimes: defaultShowTimes
+        });
+      },
 
       getPriceForClass: (classLabel) => {
         const state = get();

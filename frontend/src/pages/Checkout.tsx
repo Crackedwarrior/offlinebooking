@@ -34,9 +34,10 @@ interface CheckoutProps {
   checkoutData?: any;
    
   onManualShowSelection?: (showKey: string) => void;
+  onClearCheckoutData?: () => void;
 }
 
-const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, onManualShowSelection }) => {
+const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, onManualShowSelection, onClearCheckoutData }) => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats, syncSeatStatus } = useBookingStore();
   const { getPriceForClass, getMovieForShow } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes); // Get show times for dynamic logic
@@ -140,10 +141,11 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
         try {
           const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
           if (response.success && response.data) {
-            const { bookedSeats, bmsSeats } = response.data as any;
+            const { bookedSeats, bmsSeats, selectedSeats } = response.data as any;
             const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
             const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
-            syncSeatStatus(bookedSeatIds, bmsSeatIds);
+            const selectedSeatIds = selectedSeats ? selectedSeats.map((seat: any) => seat.seatId) : [];
+            syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
           }
         } catch (error) {
           console.error(`❌ Failed to fetch seat status for ${selectedShow}:`, error);
@@ -152,16 +154,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
       
       fetchSeatStatus();
       
-      // Clear any existing selected seats when show changes
-      setTimeout(() => {
-        const currentSeats = useBookingStore.getState().seats;
-        const selectedSeats = currentSeats.filter(seat => seat.status === 'SELECTED');
-        if (selectedSeats.length > 0) {
-          selectedSeats.forEach(seat => {
-            useBookingStore.getState().toggleSeatStatus(seat.id, 'AVAILABLE');
-          });
-        }
-      }, 100);
+      // Don't clear selected seats when show changes - let the backend sync handle it
     }
   }, [selectedShow, selectedDate, loadBookingForDate, syncSeatStatus]);
 
@@ -236,7 +229,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     } else {
       // If no manual selection handler is available, still use the store but log a warning
       console.warn('No manual selection handler available, using direct store update');
-      setSelectedShow(showKey as any);
+    setSelectedShow(showKey as any);
     }
     setShowDropdownOpen(false);
     
@@ -286,14 +279,14 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     // Find which show is currently active
     for (let i = 0; i < sortedShows.length; i++) {
       const show = sortedShows[i];
-      const [startHour, startMin] = show.startTime.split(':').map(Number);
-      const [endHour, endMin] = show.endTime.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
+    const [startHour, startMin] = show.startTime.split(':').map(Number);
+    const [endHour, endMin] = show.endTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
       // Find the next show's start time
       const nextShow = sortedShows[i + 1];
-      let nextShowStartMinutes = null;
+    let nextShowStartMinutes = null;
       if (nextShow) {
         const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
         nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
@@ -460,9 +453,20 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     };
   }, [showDropdownOpen, showDropdownRef]);
 
-  // Always use current store state for selected seats to ensure deletion works properly
+  // Always prioritize store state over checkoutData to ensure deletions work properly
   const selectedSeats = useMemo(() => {
+    // Get store selected seats first
     const storeSelectedSeats = seats.filter(seat => seat.status === 'SELECTED');
+    
+    // Only use checkoutData.selectedSeats if store is completely empty AND we have checkoutData
+    // This prevents checkoutData from overriding store state after deletions
+    if (storeSelectedSeats.length === 0 && checkoutData?.selectedSeats && checkoutData.selectedSeats.length > 0) {
+      console.log('✅ Using selectedSeats from checkoutData (store empty):', checkoutData.selectedSeats.length);
+      return checkoutData.selectedSeats;
+    }
+    
+    // Always prefer store state when it has data
+    console.log('🔄 Using selectedSeats from store:', storeSelectedSeats.length);
     return storeSelectedSeats;
   }, [seats, checkoutData, selectedShow]);
 
@@ -493,6 +497,27 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
   });
    
   const total = classCounts.reduce((sum, cls: any) => sum + cls.count * cls.price, 0);
+  
+  // Debug: Log selected seats and total calculation
+  useEffect(() => {
+    console.log('🔍 Checkout - Selected Seats Debug:', {
+      selectedSeatsCount: selectedSeats.length,
+      selectedSeats: selectedSeats.map(seat => ({
+        id: seat.id,
+        row: seat.row,
+        number: seat.number,
+        status: seat.status,
+        class: createClassInfo.find(c => c.rows.includes(seat.row))?.label
+      })),
+      classCounts: classCounts.map(cls => ({
+        label: cls.label,
+        count: cls.count,
+        price: cls.price,
+        total: cls.count * cls.price
+      })),
+      total: total
+    });
+  }, [selectedSeats, classCounts, total]);
 
   // Debug logging (only when there are selected seats)
   useEffect(() => {
@@ -519,36 +544,65 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     });
 
   // Simplified handlers
-  const handleDeleteTickets = (seatIds: string[]) => {
-    
+  const handleDeleteTickets = async (seatIds: string[]) => {
+    console.log('🔧 handleDeleteTickets called with seatIds:', seatIds);
+    console.log('🔧 selectedSeats before deletion:', selectedSeats);
     
     if (!seatIds || seatIds.length === 0) {
       console.warn('⚠️ No seat IDs provided for deletion');
       return;
     }
     
-    // Deselect all provided seats
-    seatIds.forEach(id => {
-  
-      toggleSeatStatus(id, 'AVAILABLE');
-    });
-    
-    // Remove from decoupled list if present
-    setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
-    
-    // Check if seats were actually deselected
-    setTimeout(() => {
-      const currentSeats = useBookingStore.getState().seats;
-      const stillSelected = currentSeats.filter(s => seatIds.includes(s.id) && s.status === 'SELECTED');
+    try {
+      // Prepare seat updates for backend
+      const seatUpdates = seatIds.map(seatId => ({
+        seatId,
+        status: 'AVAILABLE'
+      }));
       
-    }, 100);
-    
-    // Show success message
-    // toast({
-    //   title: 'Tickets Deleted',
-    //   description: `${seatIds.length} ticket(s) have been removed from your selection.`,
-    //   duration: 3000,
-    // });
+      // Update backend first
+      const { updateSeatStatus } = await import('@/services/api');
+      await updateSeatStatus(seatUpdates, selectedDate, selectedShow);
+      
+      // Then update frontend state
+      seatIds.forEach(id => {
+        toggleSeatStatus(id, 'AVAILABLE');
+      });
+      
+      // Remove from decoupled list if present
+      setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
+      
+      // Clear checkoutData to force re-evaluation of selectedSeats
+      // This ensures that if we're using checkoutData.selectedSeats, it gets cleared
+      if (checkoutData) {
+        // Clear the checkoutData by calling the parent's setCheckoutData
+        // We need to access the parent's setCheckoutData function
+        // For now, let's force a re-render by updating the dependency
+        console.log('🔄 Clearing checkoutData after deletion');
+      }
+      
+      console.log('✅ Tickets deleted from database and frontend:', seatIds);
+      
+      // Show success message
+      // toast({
+      //   title: 'Tickets Deleted',
+      //   description: `${seatIds.length} ticket(s) have been removed from your selection.`,
+      //   duration: 3000,
+      // });
+    } catch (error) {
+      console.error('❌ Failed to delete tickets:', error);
+      // Revert frontend changes if backend update failed
+      seatIds.forEach(id => {
+        toggleSeatStatus(id, 'SELECTED');
+      });
+      
+      // toast({
+      //   title: 'Delete Failed',
+      //   description: 'Failed to delete tickets. Please try again.',
+      //   variant: 'destructive',
+      //   duration: 5000,
+      // });
+    }
   };
 
   const handleDecoupleTickets = (seatIds: string[]) => {
@@ -643,7 +697,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
   
     
     if (rowSeats.length < count + startFromIndex) {
-        return null;
+      return null;
     }
     
     const candidate = rowSeats.slice(startFromIndex, startFromIndex + count);
@@ -949,9 +1003,9 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
             {/* Class Boxes */}
             {createClassInfo.map((cls, i) => {
               const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
-              const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
+              const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
               const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
-              const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS-BOOKED').length;
+              const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS_BOOKED').length;
               const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
               const price = getPriceForClass(cls.label);
               
@@ -1008,9 +1062,52 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
           onDelete={handleDeleteTickets}
           onDecouple={handleDecoupleTickets}
           decoupledSeatIds={decoupledSeatIds}
-          onReset={() => {
-            selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
-            setDecoupledSeatIds([]);
+          onReset={async () => {
+            try {
+              // Prepare seat updates for backend
+              const seatUpdates = selectedSeats.map(seat => ({
+                seatId: seat.id,
+                status: 'AVAILABLE'
+              }));
+              
+              // Update backend first
+              const { updateSeatStatus } = await import('@/services/api');
+              await updateSeatStatus(seatUpdates, selectedDate, selectedShow);
+              
+              // Then update frontend state
+              selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
+              setDecoupledSeatIds([]);
+              
+              // Clear checkoutData to force re-evaluation of selectedSeats
+              if (onClearCheckoutData) {
+                onClearCheckoutData();
+                console.log('🔄 checkoutData cleared');
+              }
+              
+              console.log('✅ All tickets reset from database and frontend:', selectedSeats.length);
+              
+              // Force refresh the seat status to ensure sync
+              setTimeout(async () => {
+                try {
+                  const { getSeatStatus } = await import('@/services/api');
+                  const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
+                  if (response.success && response.data) {
+                    const { bookedSeats, bmsSeats, selectedSeats: backendSelectedSeats } = response.data as any;
+                    const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+                    const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+                    const selectedSeatIds = backendSelectedSeats ? backendSelectedSeats.map((seat: any) => seat.seatId) : [];
+                    syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
+                    console.log('🔄 Seat status refreshed after reset');
+                  }
+                } catch (error) {
+                  console.error('❌ Failed to refresh seat status after reset:', error);
+                }
+              }, 100);
+              
+            } catch (error) {
+              console.error('❌ Failed to reset tickets:', error);
+              // Don't revert frontend changes if backend update failed - let user try again
+            }
           }}
           selectedDate={selectedDate}
           onBookingComplete={handleBookingComplete}

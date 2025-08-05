@@ -5,7 +5,7 @@ import { seatsByRow } from '@/lib/seatMatrix';
 import { RotateCcw, Loader2, Globe, X, Move } from 'lucide-react';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
-import { getSeatStatus, saveBmsSeatStatus } from '@/services/api';
+import { getSeatStatus, saveBmsSeatStatus, updateSeatStatus } from '@/services/api';
 import { usePricing } from '@/hooks/use-pricing';
 // import { useToast } from '@/hooks/use-toast';
 
@@ -53,13 +53,15 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         // Update seat status based on database data
         const bookedSeats = response.data.bookedSeats || [];
         const bmsSeats = response.data.bmsSeats || [];
+        const selectedSeats = response.data.selectedSeats || [];
         const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
         const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
+        const selectedSeatIds = selectedSeats.map((seat: any) => seat.seatId);
         
 
         
         // Use the new syncSeatStatus function to properly sync seat status
-        syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds));
+        syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds), selectedSeatIds);
         
 
         
@@ -164,7 +166,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         toggleSeatStatus(seat.id, 'AVAILABLE');
       } else if (seat.status === 'AVAILABLE') {
         // Move block to this available seat
-        executeMove(seat);
+        await executeMove(seat);
       } else {
         // toast({
         //   title: 'Invalid Target',
@@ -248,7 +250,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const clearSelection = () => {
     // Deselect all selected seats
     selectedSeats.forEach(seat => {
-      toggleSeatStatus(seat.id, 'available');
+      toggleSeatStatus(seat.id, 'AVAILABLE');
     });
     
     if (moveMode) {
@@ -261,7 +263,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     // });
   };
 
-  const executeMove = (targetSeat: Seat) => {
+  const executeMove = async (targetSeat: Seat) => {
     if (!moveMode || selectedSeats.length === 0) return;
 
     const blockSize = selectedSeats.length;
@@ -287,7 +289,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       const checkSeatNumber = targetStartNumber + i;
       const checkSeat = seats.find(seat => seat.row === targetRow && seat.number === checkSeatNumber);
       
-      if (!checkSeat || checkSeat.status !== 'available') {
+      if (!checkSeat || checkSeat.status !== 'AVAILABLE') {
         // toast({
         //   title: 'Insufficient Space',
         //   description: 'Not enough contiguous space at this location.',
@@ -303,9 +305,13 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       return a.number - b.number;
     });
 
+    // Prepare seat updates for backend
+    const seatUpdates: Array<{ seatId: string; status: string }> = [];
+
     // Deselect current seats
     sortedSeats.forEach(seat => {
-      toggleSeatStatus(seat.id, 'available');
+      toggleSeatStatus(seat.id, 'AVAILABLE');
+      seatUpdates.push({ seatId: seat.id, status: 'AVAILABLE' });
     });
 
     // Select new seats
@@ -313,11 +319,38 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       const newSeatNumber = targetStartNumber + i;
       const newSeat = seats.find(seat => seat.row === targetRow && seat.number === newSeatNumber);
       if (newSeat) {
-        toggleSeatStatus(newSeat.id, 'selected');
+        toggleSeatStatus(newSeat.id, 'SELECTED');
+        seatUpdates.push({ seatId: newSeat.id, status: 'SELECTED' });
       }
     }
 
+    // Save changes to backend
+    try {
+      await updateSeatStatus(seatUpdates, selectedDate, selectedShow);
+      console.log('✅ Seat move saved to backend:', seatUpdates);
+    } catch (error) {
+      console.error('❌ Failed to save seat move to backend:', error);
+      // Revert changes if backend save failed
+      sortedSeats.forEach(seat => {
+        toggleSeatStatus(seat.id, 'SELECTED');
+      });
+      for (let i = 0; i < blockSize; i++) {
+        const newSeatNumber = targetStartNumber + i;
+        const newSeat = seats.find(seat => seat.row === targetRow && seat.number === newSeatNumber);
+        if (newSeat) {
+          toggleSeatStatus(newSeat.id, 'AVAILABLE');
+        }
+      }
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to save seat move. Please try again.',
+      //   variant: 'destructive',
+      // });
+      return;
+    }
+
     setMoveMode(false);
+    
     // toast({
     //   title: 'Block Moved',
     //   description: `Moved ${blockSize} seats to ${targetRow}${targetStartNumber}-${targetStartNumber + blockSize - 1}`,
@@ -331,27 +364,49 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     const price = seatClass ? getPriceForClass(seatClass.label) : 0;
     return total + price;
   }, 0);
+  
+  // Debug: Log selected seats details
+  useEffect(() => {
+    if (selectedSeats.length > 0) {
+      console.log('🎯 Selected Seats Details:', selectedSeats.map(seat => ({
+        id: seat.id,
+        row: seat.row,
+        number: seat.number,
+        status: seat.status,
+        class: getSeatClassByRow(seat.row)?.label
+      })));
+    }
+  }, [selectedSeats]);
 
-  // Calculate seat statistics
-  const availableCount = seats.filter(seat => seat.status === 'AVAILABLE').length;
-  const bookedCount = seats.filter(seat => seat.status === 'BOOKED').length;
-  const blockedCount = seats.filter(seat => seat.status === 'BLOCKED').length;
-  const bmsBookedCount = seats.filter(seat => seat.status === 'BMS_BOOKED').length;
+  // Calculate seat statistics - make them reactive
+  const availableCount = useMemo(() => seats.filter(seat => seat.status === 'AVAILABLE').length, [seats]);
+  const bookedCount = useMemo(() => seats.filter(seat => seat.status === 'BOOKED').length, [seats]);
+  const blockedCount = useMemo(() => seats.filter(seat => seat.status === 'BLOCKED').length, [seats]);
+  const bmsBookedCount = useMemo(() => seats.filter(seat => seat.status === 'BMS_BOOKED').length, [seats]);
   
   // Debug: Log seat statistics when they change
   useEffect(() => {
-    if (disableAutoFetch) {
-      console.log('🔍 SeatGrid Preview Mode - Seat Statistics:', {
-        totalSeats: seats.length,
-        available: availableCount,
-        booked: bookedCount,
-        bmsBooked: bmsBookedCount,
-        blocked: blockedCount,
-        selectedDate,
-        selectedShow
-      });
-    }
-  }, [seats, availableCount, bookedCount, bmsBookedCount, blockedCount, selectedDate, selectedShow, disableAutoFetch]);
+    const stats = {
+      totalSeats: seats.length,
+      available: availableCount,
+      booked: bookedCount,
+      bmsBooked: bmsBookedCount,
+      blocked: blockedCount,
+      selected: selectedSeats.length,
+      selectedDate,
+      selectedShow
+    };
+    
+    console.log('🔍 SeatGrid - Seat Statistics Updated:', JSON.stringify(stats, null, 2));
+    
+    // Also log the actual seat status breakdown
+    const statusBreakdown = seats.reduce((acc, seat) => {
+      acc[seat.status] = (acc[seat.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('🔍 Seat Status Breakdown:', JSON.stringify(statusBreakdown, null, 2));
+  }, [seats, availableCount, bookedCount, bmsBookedCount, blockedCount, selectedSeats.length, selectedDate, selectedShow]);
 
   // Get sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -359,9 +414,33 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     const handleStorage = () => {
       setSidebarCollapsed(localStorage.getItem('sidebar-collapsed') === 'true');
     };
+    
+    const checkSidebarState = () => {
+      // Check localStorage first
+      const storedState = localStorage.getItem('sidebar-collapsed') === 'true';
+      
+      // Also check the actual main content margin to determine sidebar state
+      const mainContent = document.querySelector('[class*="ml-16"], [class*="ml-64"]');
+      if (mainContent) {
+        const computedStyle = window.getComputedStyle(mainContent);
+        const marginLeft = computedStyle.marginLeft;
+        const isCollapsed = marginLeft === '4rem' || marginLeft === '64px';
+        setSidebarCollapsed(isCollapsed);
+      } else {
+        setSidebarCollapsed(storedState);
+      }
+    };
+    
     window.addEventListener('storage', handleStorage);
-    handleStorage();
-    return () => window.removeEventListener('storage', handleStorage);
+    checkSidebarState();
+    
+    // Check periodically to catch dynamic changes
+    const interval = setInterval(checkSidebarState, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
   }, []);
 
   // Fetch seat status when component mounts or date/show changes
@@ -430,12 +509,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
               BMS Mode Active
             </div>
           )}
-          {moveMode && (
-            <div className="flex items-center gap-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-              <Move className="w-4 h-4" />
-              Move Mode Active
-            </div>
-          )}
+
         </div>
         <div className="flex items-center gap-4">
           {showRefreshButton ? (
@@ -470,30 +544,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
             </Button>
           )}
 
-          {moveMode && (
-            <Button
-              onClick={cancelMoveMode}
-              disabled={loadingSeats}
-              size="sm"
-              variant="outline"
-              className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Cancel Move
-            </Button>
-          )}
-          {selectedSeats.length > 0 && (
-            <Button
-              onClick={clearSelection}
-              disabled={loadingSeats}
-              size="sm"
-              variant="outline"
-              className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Clear Selection
-            </Button>
-          )}
+
           <div className="text-sm text-gray-600">
             Screen 1 • Total: {seats.length} seats
           </div>
@@ -590,7 +641,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       </div>
 
       {/* Enhanced Legend */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="flex items-center space-x-2">
           <div className="w-4 h-4 bg-green-500 rounded"></div>
           <span className="text-sm">Available</span>
@@ -611,11 +662,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
           <span className="text-sm">BMS Booked</span>
           <span className="text-xs text-gray-500 font-mono">({bmsBookedCount})</span>
         </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-gray-400 rounded"></div>
-          <span className="text-sm">Blocked</span>
-          <span className="text-xs text-gray-500 font-mono">({blockedCount})</span>
-        </div>
       </div>
 
       {/* Screen Indicator */}
@@ -627,32 +673,39 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
       {/* Fixed Bottom Panel - Only show if not hidden */}
       {!hideProceedButton && (
-        <div className={
-          `fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300
-          ${sidebarCollapsed ? 'left-16 w-[calc(100%-4rem)]' : 'left-64 w-[calc(100%-16rem)]'}
-          left-0 w-full md:left-auto md:w-auto`
-        } style={{ zIndex: 9999, position: 'fixed', bottom: 0 }}>
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
-            style={{ 
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              pointerEvents: 'auto',
-              zIndex: 9999
-            }}
-            onClick={() => {
-              if (onProceed) {
-                onProceed({ selectedSeats, totalAmount, seats });
-              }
-            }}
-          >
-            Proceed to Checkout
-          </Button>
-          <div className="flex flex-row items-center gap-4 ml-4">
-            <span className="font-medium text-gray-700">Selected: {selectedSeats.length} seats</span>
-            <span className="font-medium text-gray-700">Total: ₹{totalAmount}</span>
+        <div 
+          className="fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300"
+          style={{ 
+            zIndex: 9999, 
+            position: 'fixed', 
+            bottom: 0,
+            left: sidebarCollapsed ? '4rem' : '16rem',
+            right: 0
+          }}
+        >
+          <div className="flex items-center gap-6">
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
+              style={{ 
+                backgroundColor: '#2563eb',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                zIndex: 9999
+              }}
+              onClick={() => {
+                if (onProceed) {
+                  onProceed({ selectedSeats, totalAmount, seats });
+                }
+              }}
+            >
+              Proceed to Checkout
+            </Button>
+            <div className="flex items-center gap-4">
+              <span className="font-medium text-gray-700">Selected: {selectedSeats.length} seats</span>
+              <span className="font-medium text-gray-700">Total: ₹{totalAmount}</span>
+            </div>
           </div>
         </div>
       )}

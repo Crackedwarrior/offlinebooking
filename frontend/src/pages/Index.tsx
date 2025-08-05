@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, Clock, Calendar, History, Download, Settings as SettingsIcon } from 'lucide-react';
+import { ChevronDown, Clock, Calendar, History, Download, Settings as SettingsIcon, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getCurrentShowLabel } from '@/lib/utils';
 import SeatGrid from '@/components/SeatGrid';
@@ -268,6 +268,29 @@ const Index = () => {
     }
   }, [testDynamicShowSelection]);
 
+  // Function to refresh seat status
+  const refreshSeatStatus = useCallback(async () => {
+    try {
+      const { getSeatStatus } = await import('@/services/api');
+      const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
+      
+      if (response.success && response.data) {
+        const { bookedSeats, bmsSeats, selectedSeats } = response.data as any;
+        const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+        const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+        const selectedSeatIds = selectedSeats ? selectedSeats.map((seat: any) => seat.seatId) : [];
+        
+        // Use the syncSeatStatus function from the store
+        const { syncSeatStatus } = useBookingStore.getState();
+        syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
+        
+        console.log('✅ Seat status refreshed successfully');
+      }
+    } catch (error) {
+      console.error('❌ Failed to refresh seat status:', error);
+    }
+  }, [selectedDate, selectedShow]);
+
   // Function to deselect seats
   const deselectSeats = useCallback((seatsToDeselect: any[]) => {
     const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
@@ -474,6 +497,7 @@ const Index = () => {
               checkoutData={checkoutData}
               onBookingComplete={handleBookingComplete}
               onManualShowSelection={handleManualShowSelection}
+              onClearCheckoutData={() => setCheckoutData(null)}
             />
           )}
 

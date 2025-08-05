@@ -414,6 +414,14 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     sampleBmsSeats: bmsSeats.slice(0, 5)
   });
   
+  // Get selected seats from in-memory storage
+  const storageKey = getStorageKey(date, show);
+  const selectedSeats = selectedSeatsStorage.get(storageKey) || new Set();
+  const selectedSeatsArray = Array.from(selectedSeats).map(seatId => ({
+    seatId,
+    class: 'SELECTED' // We don't store class info for selected seats, just mark as selected
+  }));
+  
   const response: SeatStatusResponse = {
     success: true,
     data: {
@@ -424,8 +432,10 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
         seatId: seat.seatId,
         class: seat.classLabel
       })),
+      selectedSeats: selectedSeatsArray,
       totalBooked: bookedSeats.length,
-      totalBms: bmsSeats.length
+      totalBms: bmsSeats.length,
+      totalSelected: selectedSeatsArray.length
     }
   };
   
@@ -501,6 +511,65 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
   const response = {
     success: true,
     message: `Updated ${results.length} BMS bookings to ${status}`,
+    data: results
+  };
+  
+  res.json(response);
+}));
+
+// In-memory storage for selected seats (temporary solution)
+const selectedSeatsStorage = new Map<string, Set<string>>();
+
+// Helper function to get storage key
+const getStorageKey = (date: string, show: string) => `${date}-${show}`;
+
+// Update seat status (for move operations)
+app.post('/api/seats/status', asyncHandler(async (req: Request, res: Response) => {
+  const { seatUpdates, date, show } = req.body;
+  
+  if (!seatUpdates || !Array.isArray(seatUpdates)) {
+    throw new ValidationError('seatUpdates array is required');
+  }
+  
+  if (!date || !show) {
+    throw new ValidationError('date and show are required');
+  }
+  
+  console.log('📝 Updating seat status:', { seatUpdates, date, show });
+  
+  const storageKey = getStorageKey(date, show);
+  if (!selectedSeatsStorage.has(storageKey)) {
+    selectedSeatsStorage.set(storageKey, new Set());
+  }
+  const selectedSeats = selectedSeatsStorage.get(storageKey)!;
+  
+  // Process each seat update
+  const results = await Promise.all(
+    seatUpdates.map(async (update: { seatId: string; status: string }) => {
+      const { seatId, status } = update;
+      
+      if (!['AVAILABLE', 'SELECTED', 'BOOKED', 'BLOCKED'].includes(status)) {
+        throw new ValidationError(`Invalid status: ${status}`);
+      }
+      
+      // Update in-memory storage
+      if (status === 'SELECTED') {
+        selectedSeats.add(seatId);
+      } else {
+        selectedSeats.delete(seatId);
+      }
+      
+      console.log(`🔄 Seat ${seatId} status updated to ${status} for ${date} ${show}`);
+      
+      return { seatId, status, success: true };
+    })
+  );
+  
+  console.log(`✅ Updated ${results.length} seat statuses. Current selected seats for ${storageKey}:`, Array.from(selectedSeats));
+  
+  const response = {
+    success: true,
+    message: `Updated ${results.length} seat statuses`,
     data: results
   };
   
