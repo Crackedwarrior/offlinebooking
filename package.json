@@ -1,8 +1,17 @@
 {
   "name": "offlinebooking",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "tauri:dev": "cd frontend && npm run tauri:dev",
+    "tauri:build": "cd frontend && npm run tauri:build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "start": "cd backend && npm start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -18,8 +27,10 @@
   "homepage": "https://github.com/Crackedwarrior/offlinebooking#readme",
   "description": "",
   "dependencies": {
+    "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {

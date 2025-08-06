@@ -1,7 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
 
@@ -45,12 +44,26 @@ fn main() {
             
             // Copy existing database from backend if it exists and target doesn't
             if !database_path.exists() {
-                let backend_db_path = app.path().app_dir().unwrap().join("backend").join("prisma").join("dev.db");
+                // Try to find the backend database relative to the current executable
+                let current_exe = std::env::current_exe().unwrap();
+                let app_dir = current_exe.parent().unwrap();
+                let backend_db_path = app_dir.join("backend").join("prisma").join("dev.db");
+                
                 if backend_db_path.exists() {
                     if let Err(e) = std::fs::copy(&backend_db_path, &database_path) {
                         eprintln!("Failed to copy database: {}", e);
                     } else {
                         println!("Database copied to persistent location: {}", database_path.display());
+                    }
+                } else {
+                    // Try alternative path for development
+                    let dev_backend_path = std::env::current_dir().unwrap().join("..").join("backend").join("prisma").join("dev.db");
+                    if dev_backend_path.exists() {
+                        if let Err(e) = std::fs::copy(&dev_backend_path, &database_path) {
+                            eprintln!("Failed to copy database: {}", e);
+                        } else {
+                            println!("Database copied to persistent location: {}", database_path.display());
+                        }
                     }
                 }
             }

@@ -15,6 +15,8 @@ import DateSelector from '@/components/DateSelector';
 import ShowSelector from '@/components/ShowSelector';
 import { getSeatClassByRow } from '@/lib/config';
 import { createBooking } from '@/services/api';
+import { LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 // import { toast } from '@/hooks/use-toast';
 
 const sidebarItems = [
@@ -24,7 +26,11 @@ const sidebarItems = [
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-const Index = () => {
+interface IndexProps {
+  onLogout?: () => void;
+}
+
+const Index: React.FC<IndexProps> = ({ onLogout }) => {
   const { selectedDate, selectedShow, setSelectedShow, seats, toggleSeatStatus, initializeSeats } = useBookingStore();
   const { getShowTimes, getPriceForClass } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes); // Get all show times for dependency
@@ -476,6 +482,17 @@ const Index = () => {
           </div>
           <div className="flex items-center space-x-3">
             <span className="text-gray-600">{currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+            {onLogout && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onLogout}
+                className="text-gray-600 hover:text-red-600 hover:bg-red-50"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

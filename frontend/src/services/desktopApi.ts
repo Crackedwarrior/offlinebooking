@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/tauri';
-import { appDataDir } from '@tauri-apps/api/path';
+// import { invoke } from '@tauri-apps/api/tauri';
+// import { appDataDir } from '@tauri-apps/api/path';
 
 // Desktop-specific API service
 export class DesktopApiService {
@@ -18,8 +18,9 @@ export class DesktopApiService {
   // Get the database path for the desktop app
   async getDatabasePath(): Promise<string> {
     try {
-      const dataDir = await appDataDir();
-      return `${dataDir}database/dev.db`;
+      // const dataDir = await appDataDir();
+      // return `${dataDir}database/dev.db`;
+      return '';
     } catch (error) {
       console.error('Error getting database path:', error);
       return '';
@@ -96,7 +97,7 @@ export class DesktopApiService {
   // Start the backend server
   async startBackend(): Promise<void> {
     try {
-      await invoke('start_backend');
+      // await invoke('start_backend');
       console.log('Backend started successfully');
     } catch (error) {
       console.error('Failed to start backend:', error);

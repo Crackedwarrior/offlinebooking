@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
 
@@ -29,8 +29,9 @@ import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 import PriceDisplay from './PriceDisplay';
 import IsolatedPricingInput from './IsolatedPricingInput';
+import PrinterConfig from './PrinterConfig';
 
-type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings';
+type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' | 'printer';
 
 // Helper function to convert 24-hour time to 12-hour format
 const convertTo12Hour = (time24h: string): string => {
@@ -59,6 +60,16 @@ const Settings = () => {
     const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
     return pricingChanged || showTimesChanged;
   };
+
+  // Monitor changes and show save button
+  useEffect(() => {
+    const hasAnyChanges = hasChanges();
+    console.log('🔍 Settings: Checking for changes:', hasAnyChanges);
+    if (hasAnyChanges) {
+      setShowSaveButton(true);
+      hasChangesRef.current = true;
+    }
+  }, [localPricing, localShowTimes, pricing, showTimes]);
 
   // Memoize seat counts calculation
   const seatCounts = useMemo(() => {
@@ -112,9 +123,15 @@ const Settings = () => {
 
   // Handle show time changes
   const handleShowTimeChange = useCallback((key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
+    console.log(`🔍 Settings: handleShowTimeChange called for ${key}.${field} with value ${value}`);
+    
     setLocalShowTimes(prev => prev.map(show => 
       show.key === key ? { ...show, [field]: value } : show
     ));
+    
+    // Track changes and show save button
+    hasChangesRef.current = true;
+    setShowSaveButton(true);
   }, []);
 
   // Save all changes
@@ -395,6 +412,24 @@ const Settings = () => {
     </div>
   ), []);
 
+  const PrinterTab = useMemo(() => () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🖨️ Printer Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure Epson TM-T20 M249A POS printer settings and test connection
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PrinterConfig />
+        </CardContent>
+      </Card>
+    </div>
+  ), []);
+
 
 
   return (
@@ -405,12 +440,13 @@ const Settings = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTab)}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="showtimes">Show Times</TabsTrigger>
           <TabsTrigger value="movies">Movies</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
+          <TabsTrigger value="printer">Printer</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -433,6 +469,9 @@ const Settings = () => {
           <BookingsTab />
         </TabsContent>
 
+        <TabsContent value="printer" className="mt-6">
+          <PrinterTab />
+        </TabsContent>
 
       </Tabs>
 
@@ -448,6 +487,21 @@ const Settings = () => {
           </Button>
         </div>
       )}
+
+      {/* Debug: Force Save Button (remove this later) */}
+      <div className="fixed bottom-6 left-6 z-50">
+        <Button
+          onClick={() => {
+            console.log('🔍 Debug: Forcing save button to show');
+            setShowSaveButton(true);
+            hasChangesRef.current = true;
+          }}
+          variant="outline"
+          size="sm"
+        >
+          Debug: Show Save
+        </Button>
+      </div>
 
 
     </div>

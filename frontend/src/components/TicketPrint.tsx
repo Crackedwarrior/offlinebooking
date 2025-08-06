@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import printerService, { TicketData } from '@/services/printerService';
 // import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
@@ -98,18 +99,40 @@ const classColorMap: Record<string, string> = {
 // Save booking to backend
 async function saveBookingToBackend(bookingData: any) {
   try {
-    // Use the proper API service instead of hardcoded URL
-    const { createBooking } = await import('@/services/api');
-    const response = await createBooking(bookingData);
+    console.log('💾 Attempting to save booking to backend...');
     
-    if (response.success) {
+    // Check if we're running in Tauri (desktop app)
+    const isTauri = window.__TAURI__ !== undefined;
+    console.log('🖥️ Running in Tauri:', isTauri);
+    
+    let response;
+    
+    if (isTauri) {
+      // Use desktop API service for Tauri app
+      const { DesktopApiService } = await import('@/services/desktopApi');
+      const desktopApi = DesktopApiService.getInstance();
+      response = await desktopApi.createBooking(bookingData);
+    } else {
+      // Use regular API service for web app
+      const { createBooking } = await import('@/services/api');
+      response = await createBooking(bookingData);
+    }
+    
+    console.log('💾 Backend response received:', response);
+    
+    if (response && response.success) {
       console.log('✅ Booking saved successfully:', response);
       return response;
     } else {
-      throw new Error(response.error?.message || 'Booking save failed');
+      throw new Error(response?.error?.message || 'Booking save failed');
     }
   } catch (err) {
     console.error('❌ Error saving booking:', err);
+    console.error('❌ Error details:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name
+    });
     throw err; // Re-throw to handle in the calling function
   }
 }
@@ -183,7 +206,71 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
     setShowPrintModal(false);
     
     try {
-      // Prepare tickets array for the backend
+      console.log('🖨️ Starting print process...');
+      console.log('📊 Selected seats:', selectedSeats);
+      console.log('📅 Selected date:', selectedDate);
+      console.log('🎬 Selected show:', selectedShow);
+
+      // Get movie for current show from settings
+      const currentMovie = getMovieForShow(selectedShow);
+      console.log('🎭 Current movie:', currentMovie);
+      
+      if (!currentMovie) {
+        console.error('❌ No movie found for show:', selectedShow);
+        return;
+      }
+
+      // Get show time details from settings store
+      const { getShowTimes } = useSettingsStore.getState();
+      const showTimes = getShowTimes();
+      const currentShowTime = showTimes.find(show => show.key === selectedShow);
+      
+      console.log('⏰ Show times from settings:', showTimes);
+      console.log('🎯 Current show time:', currentShowTime);
+      
+      if (!currentShowTime) {
+        console.error('❌ No show time found for:', selectedShow);
+        return;
+      }
+
+      // Convert 24-hour time to 12-hour format for display
+      const convertTo12Hour = (time24h: string): string => {
+        const [hours, minutes] = time24h.split(':').map(Number);
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+      };
+
+      const showtime = convertTo12Hour(currentShowTime.startTime);
+      console.log('🕐 Formatted showtime:', showtime);
+
+      // Prepare ticket data for printing
+      const ticketData: TicketData[] = selectedSeats.map(seat => 
+        printerService.formatTicketData(
+          seat.id,
+          seat.row,
+          seat.number,
+          seat.classLabel,
+          seat.price,
+          selectedDate,
+          showtime,
+          currentMovie.name
+        )
+      );
+
+      console.log('🖨️ Preparing to print tickets:', ticketData);
+
+      // First, try to print tickets
+      console.log('🖨️ Attempting to print tickets...');
+      const printSuccess = await printerService.printTickets(ticketData);
+      console.log('🖨️ Print result:', printSuccess);
+      
+      if (!printSuccess) {
+        console.error('❌ Failed to print tickets');
+        return;
+      }
+
+      // If printing is successful, save booking to backend
       const tickets = selectedSeats.map(seat => ({
         id: seat.id,
         row: seat.row,
@@ -195,13 +282,6 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       // Calculate totals
       const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
       const totalTickets = selectedSeats.length;
-      
-      // Get movie for current show
-      const currentMovie = getMovieForShow(selectedShow) || {
-        name: 'KALANK',
-        language: 'HINDI',
-        screen: 'Screen 1'
-      };
 
       // Prepare booking data in the correct format
       const bookingData = {
@@ -216,34 +296,34 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         source: 'LOCAL'
       };
       
-      console.log('Sending booking to backend:', bookingData);
+      console.log('💾 Saving booking to backend:', bookingData);
+      console.log('🌐 Backend URL: http://localhost:3001');
+      
       const response = await saveBookingToBackend(bookingData);
+      console.log('💾 Backend response:', response);
       
       if (response && response.success) {
         // Mark all selected seats as booked in the store
         selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
         
-        // Show success message
-        // toast({
-        //   title: 'Tickets Printed Successfully!',
-        //   description: `${selectedSeats.length} ticket(s) have been printed and saved.`,
-        //   duration: 4000,
-        // });
+        console.log('✅ Tickets printed and booking saved successfully');
         setSelectedGroupIdxs([]);
         
         // Notify parent to complete booking (with delay to avoid React warnings)
         setTimeout(() => {
           if (onBookingComplete) onBookingComplete();
         }, 100);
+      } else {
+        console.error('❌ Failed to save booking to backend');
+        console.error('❌ Response:', response);
       }
     } catch (error) {
-      console.error('Failed to save booking:', error);
-      // toast({
-      //   title: 'Booking Failed',
-      //   description: 'Failed to save booking to database. Please try again.',
-      //   variant: 'destructive',
-      //   duration: 5000,
-      // });
+      console.error('❌ Error in handleConfirmPrint:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
     }
   };
 

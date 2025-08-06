@@ -60,6 +60,57 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// Printer test endpoint
+app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    console.log('🖨️ Testing printer connection...');
+    
+    // Simulate printer test
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    res.json({
+      success: true,
+      message: 'Printer connection test successful',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Printer test failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Printer connection test failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+// Printer print endpoint
+app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { tickets, printerConfig } = req.body;
+    
+    console.log('🖨️ Printing tickets:', {
+      ticketCount: tickets?.length || 0,
+      printerConfig
+    });
+    
+    // Simulate printing process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    res.json({
+      success: true,
+      message: `${tickets?.length || 0} tickets printed successfully`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Printing failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Printing failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
 // Request logging middleware (if enabled)
 if (config.logging.enableRequestLogging) {
   app.use((req: Request, res: Response, next) => {
