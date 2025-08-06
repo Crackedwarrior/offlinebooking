@@ -49,6 +49,17 @@ app.use(express.json());
 // Add request ID middleware
 app.use(requestIdMiddleware);
 
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: config.server.nodeEnv
+  });
+});
+
 // Request logging middleware (if enabled)
 if (config.logging.enableRequestLogging) {
   app.use((req: Request, res: Response, next) => {

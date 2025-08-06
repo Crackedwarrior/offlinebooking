@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.VITE_HOST || "::",
       port: parseInt(env.VITE_PORT || '8080'),
+      strictPort: true,
+      watch: {
+        usePolling: true,
+        interval: 100,
+      },
     },
     plugins: [
       react()
