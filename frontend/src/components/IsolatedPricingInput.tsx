@@ -57,9 +57,7 @@ const IsolatedPricingInput = React.memo(function IsolatedPricingInput({
         <Label htmlFor={seatClass.label} className="text-base font-medium">
           {seatClass.label}
         </Label>
-        <p className="text-sm text-gray-600 mb-2">
-          {seatClass.rows.join(', ')}
-        </p>
+        {/* Removed seat names list here */}
       </div>
       <input
         ref={inputRef}
