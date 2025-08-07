@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useBookingStore, ShowTime } from '@/store/bookingStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
 import SeatGridPreview from './SeatGridPreview';
@@ -98,7 +99,7 @@ const ShowCard = memo(({
 
 const BookingHistory = () => {
   const { bookingHistory, seats, loadBookingForDate } = useBookingStore();
-  const { getPriceForClass } = usePricing(); // Add dynamic pricing
+  const { getPriceForClass, pricingVersion } = usePricing(); // Add dynamic pricing and pricingVersion
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -208,7 +209,7 @@ const BookingHistory = () => {
     setLoading(true);
     try {
       // Fetch bookings
-      const bookingsResponse = await getBookings(date);
+      const bookingsResponse = await getBookings({ date });
       if (bookingsResponse.success) {
         setDatabaseBookings(bookingsResponse.data || []);
       }
@@ -303,6 +304,36 @@ const BookingHistory = () => {
     return stats;
   }, [selectedDate, databaseBookings, seatStatusData]);
 
+  // Helper function to determine class from seat ID
+  const getClassFromSeatId = useCallback((seatId: string): string | null => {
+    // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
+    const rowPrefix = seatId.split('-')[0];
+    
+    // Map row prefixes to class labels - match with server.ts implementation
+    const classMapping: Record<string, string> = {
+      'BOX': 'BOX',
+      'SC': 'STAR CLASS',
+      'CB': 'CLASSIC',  // CLASSIC instead of CLASSIC BALCONY to match server.ts
+      'FC': 'FIRST CLASS',
+      'SC2': 'SECOND CLASS'  // SC2 instead of SEC to match server.ts
+    };
+    
+    // Check for exact match first
+    if (classMapping[rowPrefix]) {
+      return classMapping[rowPrefix];
+    }
+    
+    // If no exact match, check for prefix match (for cases like SC2-A1)
+    for (const [prefix, classLabel] of Object.entries(classMapping)) {
+      if (rowPrefix.startsWith(prefix)) {
+        return classLabel;
+      }
+    }
+    
+    console.warn(`⚠️ Could not determine class for seat ID: ${seatId}`);
+    return 'STAR CLASS'; // Default fallback to match server.ts
+  }, []);
+
   // Helper to get seat class breakdown for a booking or fallback to current seats
   const getClassCounts = useCallback((booking: any) => {
     // Always use database bookings when available, regardless of booking parameter
@@ -395,14 +426,17 @@ const BookingHistory = () => {
               });
               
               // Debug log BMS seats by class for each show
-              const showBmsClassCounts = Object.fromEntries(
-                Object.entries(uniqueSeatsByClass)
-                  .filter(([_, sets]) => sets.bms.size > 0)
-                  .map(([classLabel, sets]) => [
-                    classLabel, 
-                    Array.from(sets.bms).filter(key => key.startsWith(`${showKey}-`)).length
-                  ])
-              );
+              const showBmsClassCounts: Record<string, number> = {};
+              
+              // Properly type the filtering and counting operation
+              Object.entries(uniqueSeatsByClass).forEach(([classLabel, sets]) => {
+                if (sets.bms.size > 0) {
+                  const count = Array.from(sets.bms).filter(key => key.startsWith(`${showKey}-`)).length;
+                  if (count > 0) {
+                    showBmsClassCounts[classLabel] = count;
+                  }
+                }
+              });
               
               if (Object.keys(showBmsClassCounts).length > 0) {
                 console.log(`🔍 BMS seats for ${showKey} show by class:`, {
@@ -413,17 +447,6 @@ const BookingHistory = () => {
             }
           });
         }
-        
-        // Debug: Log all unique BMS seats by class
-        // console.log('🔍 Final unique BMS seats by class:', Object.fromEntries(
-        //   Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
-        //     classLabel, 
-        //     {
-        //       regular: Array.from(seatSets.regular),
-        //       bms: Array.from(seatSets.bms)
-        //     }
-        //   ])
-        // ));
       }
       
       // Convert sets to counts
@@ -434,35 +457,8 @@ const BookingHistory = () => {
         };
       });
       
-      // Add debug logging
-      // console.log(`🔍 getClassCounts - Final results:`, {
-      //   dateISO,
-      //   selectedShow: selectedShow || 'ALL SHOWS',
-      //   databaseBookings: databaseBookings.length,
-      //   filteredBookings: (databaseBookings || []).filter(b => {
-      //     const dbDate = new Date(b.date).toISOString().split('T')[0];
-      //     const showMatches = selectedShow ? b.show === selectedShow : true;
-      //     return dbDate === dateISO && showMatches;
-      //   }).length,
-      //   classCounts,
-      //   uniqueSeatsByClass: Object.fromEntries(
-      //     Object.entries(uniqueSeatsByClass).map(([classLabel, seatSets]) => [
-      //       classLabel, 
-      //       {
-      //         regular: Array.from(seatSets.regular),
-      //         bms: Array.from(seatSets.bms)
-      //       }
-      //     ])
-      //   )
-      // });
-      
-      // Debug: Log the actual class labels found in database
-      // console.log('🔍 Database class labels found:', Object.keys(classCounts));
-      // console.log('🔍 Seat segments expected:', seatSegments.map(seg => seg.label));
-      
       return seatSegments.map(seg => {
         const counts = classCounts[seg.label] || { regular: 0, bms: 0 };
-        // console.log(`🔍 Class ${seg.label}: ${counts.regular} regular, ${counts.bms} BMS seats`);
         return {
           label: classLabelMap[seg.label] || seg.label,
           regular: counts.regular,
@@ -476,49 +472,24 @@ const BookingHistory = () => {
         const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BOOKED').length;
         const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BMS_BOOKED').length;
         return {
-        label: classLabelMap[seg.label] || seg.label,
+          label: classLabelMap[seg.label] || seg.label,
           regular: regularSeats,
           bms: bmsSeats,
           total: regularSeats + bmsSeats
         };
       });
     }
-  }, [databaseBookings, selectedDate, selectedShow, seats, seatStatusData]);
+  }, [databaseBookings, selectedDate, selectedShow, seats, seatStatusData, getClassFromSeatId]);
 
-  // Helper function to determine class from seat ID
-  const getClassFromSeatId = useCallback((seatId: string): string | null => {
-    // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
-    const rowPrefix = seatId.split('-')[0];
-    
-    // Map row prefixes to class labels - match with server.ts implementation
-    const classMapping: Record<string, string> = {
-      'BOX': 'BOX',
-      'SC': 'STAR CLASS',
-      'CB': 'CLASSIC',  // CLASSIC instead of CLASSIC BALCONY to match server.ts
-      'FC': 'FIRST CLASS',
-      'SC2': 'SECOND CLASS'  // SC2 instead of SEC to match server.ts
-    };
-    
-    // Check for exact match first
-    if (classMapping[rowPrefix]) {
-      return classMapping[rowPrefix];
-    }
-    
-    // If no exact match, check for prefix match (for cases like SC2-A1)
-    for (const [prefix, classLabel] of Object.entries(classMapping)) {
-      if (rowPrefix.startsWith(prefix)) {
-        return classLabel;
-      }
-    }
-    
-    console.warn(`⚠️ Could not determine class for seat ID: ${seatId}`);
-    return 'STAR CLASS'; // Default fallback to match server.ts
-  }, []);
 
   // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
+  // Calculate income breakdown for the selected date and show
   const incomeBreakdown = useMemo(() => {
-    const dateObj = new Date(selectedDate);
-    const dateISO = dateObj.toISOString().split('T')[0];
+    console.log('💰 Recalculating income breakdown with pricingVersion:', pricingVersion);
+    // Get the latest pricing values directly from the store
+    const currentPricing = useSettingsStore.getState().pricing;
+    console.log('Current pricing values:', currentPricing);
+    const dateISO = selectedDate;
     
     let onlineIncome = 0;
     let bmsIncome = 0;
@@ -528,13 +499,17 @@ const BookingHistory = () => {
       const dbDate = new Date(b.date).toISOString().split('T')[0];
       const showMatches = selectedShow ? b.show === selectedShow : true; // Show all if no show selected
       if (dbDate === dateISO && showMatches) {
-        const isBMS = b.source === 'BMS' || b.source === 'bms';
-        if (isBMS) {
-          bmsIncome += (b.totalPrice || 0);
-        } else {
-          onlineIncome += (b.totalPrice || 0);
-        }
+        // All bookings from database are currently marked as LOCAL source
+        // since we're not setting the source correctly in the backend
+        // For now, we'll consider all database bookings as online income
+        onlineIncome += (b.totalPrice || 0);
       }
+    });
+    
+    console.log('💰 Income from database bookings:', {
+      date: selectedDate,
+      show: selectedShow || 'All Shows',
+      onlineIncome
     });
     
     // Calculate additional BMS income from seat status data
@@ -558,9 +533,18 @@ const BookingHistory = () => {
             bmsSeatsByClass[classLabel].push(seatId);
             
             // Use dynamic pricing from settings store (same as regular seats)
-            const price = getPriceForClass(classLabel);
+            // Get price directly from the store to ensure we have the latest value
+            const price = currentPricing[classLabel] || getPriceForClass(classLabel);
+            console.log(`BMS seat ${seatId} class ${classLabel} price: ${price}`);
             bmsIncome += price;
           }
+        });
+        
+        console.log('💰 BMS Income Calculation for specific show:', {
+          show: selectedShow,
+          bmsSeats: showSeatStatus.bmsSeats.length,
+          bmsIncome,
+          bmsSeatsByClass
         });
         
         // Debug log the BMS seats by class with more details
@@ -569,7 +553,9 @@ const BookingHistory = () => {
           totalBmsSeats: showSeatStatus.bmsSeats.length,
           totalBmsIncome: showSeatStatus.bmsSeats.reduce((sum, bmsSeat) => {
             const classLabel = bmsSeat.class || getClassFromSeatId(bmsSeat.seatId);
-            return sum + (classLabel ? getPriceForClass(classLabel) : 0);
+            // Get price directly from the store to ensure we have the latest value
+            const price = currentPricing[classLabel] || getPriceForClass(classLabel);
+            return sum + (classLabel ? price : 0);
           }, 0)
         });
         
@@ -578,7 +564,13 @@ const BookingHistory = () => {
       }
     } else {
       // For all shows, aggregate BMS income from all shows
-      const allBmsSeatsByClass: Record<string, Record<string, string[]>> = {};
+      interface ShowBmsData {
+        seats: Record<string, string[]>;
+        count: number;
+        income: number;
+      }
+      
+      const allBmsSeatsByClass: Record<string, ShowBmsData> = {};
       
       Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
         if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
@@ -598,15 +590,19 @@ const BookingHistory = () => {
               bmsSeatsByClass[classLabel].push(seatId);
               
               // Use dynamic pricing from settings store (same as regular seats)
-              const price = getPriceForClass(classLabel);
-              bmsIncome += price;
+            // Get price directly from the store to ensure we have the latest value
+            const price = currentPricing[classLabel] || getPriceForClass(classLabel);
+            console.log(`All shows - BMS seat ${seatId} class ${classLabel} price: ${price}`);
+            bmsIncome += price;
             }
           });
           
           // Calculate show-specific BMS income for debugging
           const showBmsIncome = showSeatStatus.bmsSeats.reduce((sum, bmsSeat) => {
             const classLabel = bmsSeat.class || getClassFromSeatId(bmsSeat.seatId);
-            return sum + (classLabel ? getPriceForClass(classLabel) : 0);
+            // Get price directly from the store to ensure we have the latest value
+            const price = currentPricing[classLabel] || getPriceForClass(classLabel);
+            return sum + (classLabel ? price : 0);
           }, 0);
           
           // Store detailed information for this show
@@ -621,18 +617,22 @@ const BookingHistory = () => {
       // Debug log the BMS seats by class for all shows with detailed breakdown
       console.log('🔍 BMS seats by class for all shows:', {
         showBreakdown: allBmsSeatsByClass,
-        totalBmsSeats: Object.values(allBmsSeatsByClass).reduce((sum, showData) => sum + showData.count, 0),
-        totalBmsIncome: Object.values(allBmsSeatsByClass).reduce((sum, showData) => sum + showData.income, 0),
-        classSummary: Object.values(allBmsSeatsByClass).reduce((summary, showData) => {
+        totalBmsSeats: Object.values(allBmsSeatsByClass).reduce((sum: number, showData) => sum + (typeof showData.count === 'number' ? showData.count : 0), 0),
+        totalBmsIncome: Object.values(allBmsSeatsByClass).reduce((sum: number, showData) => sum + (typeof showData.income === 'number' ? showData.income : 0), 0),
+        classSummary: Object.values(allBmsSeatsByClass).reduce<Record<string, string[]>>((summary, showData) => {
           // Combine seat counts by class across all shows
-          Object.entries(showData.seats).forEach(([classLabel, seats]) => {
-            if (!summary[classLabel]) {
-              summary[classLabel] = [];
-            }
-            summary[classLabel] = [...summary[classLabel], ...seats];
-          });
+          if (showData && showData.seats) {
+            Object.entries(showData.seats).forEach(([classLabel, seats]) => {
+              if (!summary[classLabel]) {
+                summary[classLabel] = [];
+              }
+              if (Array.isArray(seats)) {
+                summary[classLabel] = [...summary[classLabel], ...seats];
+              }
+            });
+          }
           return summary;
-        }, {} as Record<string, string[]>)
+        }, {})
       });
     }
     
@@ -662,7 +662,7 @@ const BookingHistory = () => {
       bms: bmsIncome,
       total: onlineIncome + bmsIncome
     };
-  }, [selectedDate, databaseBookings, selectedShow, seatStatusData, getClassFromSeatId]);
+  }, [selectedDate, databaseBookings, selectedShow, seatStatusData, getClassFromSeatId, getPriceForClass, pricingVersion]);
 
   // Keep the old grossIncome for backward compatibility
   const grossIncome = incomeBreakdown.total;
@@ -688,12 +688,12 @@ const BookingHistory = () => {
 
   // Memoize income percentages to prevent recalculation
   const incomePercentages = useMemo(() => {
-    const bookingPercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.online / incomeBreakdown.total) * 100) : 0;
-    const onlinePercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.bms / incomeBreakdown.total) * 100) : 0;
+    const onlinePercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.online / incomeBreakdown.total) * 100) : 0;
+    const bmsPercentage = incomeBreakdown.total > 0 ? Math.round((incomeBreakdown.bms / incomeBreakdown.total) * 100) : 0;
     
     return {
-      bookingPercentage,
-      onlinePercentage
+      onlinePercentage,
+      bmsPercentage
     };
   }, [incomeBreakdown]);
 
@@ -739,7 +739,10 @@ const BookingHistory = () => {
           movie: booking.movie,
           movieLanguage: booking.movieLanguage
         })),
-        classCounts
+        classCounts: Object.entries(classCounts).map(([label, counts]) => ({
+          label,
+          count: counts.regular + counts.bms
+        }))
       };
       
       // Generate and download PDF
@@ -1019,13 +1022,13 @@ const BookingHistory = () => {
                 <div className="bg-green-50 border border-green-200 rounded p-3 text-center">
                   <div className="text-xs text-green-600 font-medium">BOOKING %</div>
                   <div className="text-lg font-bold text-green-700">
-                    {incomePercentages.bookingPercentage}%
+                    {incomePercentages.onlinePercentage}%
                   </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded p-3 text-center">
                   <div className="text-xs text-blue-600 font-medium">ONLINE %</div>
                   <div className="text-lg font-bold text-blue-700">
-                    {incomePercentages.onlinePercentage}%
+                    {incomePercentages.bmsPercentage}%
                   </div>
                 </div>
               </div>

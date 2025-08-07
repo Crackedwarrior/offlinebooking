@@ -27,7 +27,8 @@ import {
   type BookingStatsResponse,
   type HealthCheckResponse,
   type SeatStatusResponse,
-  type ApiResponse
+  type ApiResponse,
+  BookingSource
 } from './types/api';
 
 // Validate configuration on startup
@@ -132,7 +133,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       for (const ticket of tickets) {
         const commandBytes = Buffer.from(ticket.commands, 'utf8');
         await new Promise((resolve, reject) => {
-          port.write(commandBytes, (err) => {
+          port.write(commandBytes, (err: Error | null | undefined) => {
             if (err) {
               reject(err);
             } else {
@@ -145,7 +146,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       // Close the port
       await new Promise(resolve => port.close(resolve));
       success = true;
-    } catch (printError) {
+    } catch (printError: any) {
       console.error('❌ Error connecting to printer:', printError);
       errorMessage = printError.message;
       success = false;
@@ -270,6 +271,10 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
       return res.status(200).json(response);
     }
 
+    // Get source from request or default to LOCAL
+    const source = bookingRequest.source || 'LOCAL';
+    console.log('📝 Booking source:', source);
+    
     // Create a single booking record instead of multiple class-based bookings
     // This prevents duplicate bookings for the same seats
     const newBooking = await prisma.booking.create({
@@ -283,6 +288,7 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
         seatCount: tickets.length,
         pricePerSeat: Math.round(total / tickets.length),
         totalPrice: total,
+        source: source as BookingSource, // Save the source to the database
         synced: false,
       }
     });
@@ -303,7 +309,7 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
       pricePerSeat: newBooking.pricePerSeat,
       totalPrice: newBooking.totalPrice,
       status: 'CONFIRMED',
-      source: 'LOCAL',
+      source: source as BookingSource,
       synced: newBooking.synced,
       customerName,
       customerPhone,
@@ -531,6 +537,13 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     }
   });
   
+  console.log('🔍 BMS seats found:', {
+    date,
+    show,
+    count: bmsSeats.length,
+    seats: bmsSeats.map(seat => ({ id: seat.seatId, class: seat.classLabel }))
+  });
+  
   console.log('📊 Seat status response:', {
     date,
     show,
@@ -600,6 +613,7 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
       
       if (status === 'BMS_BOOKED') {
         // Create BMS booking record
+        console.log(`Creating BMS booking for seat ${seatId} with class ${classLabel}`);
         return await prisma.bmsBooking.upsert({
           where: { 
             seatId_date_show: {
@@ -610,6 +624,7 @@ app.post('/api/seats/bms', asyncHandler(async (req: Request, res: Response) => {
           },
           update: { 
             status: status as any,
+            classLabel, // Ensure class label is updated
             updatedAt: new Date()
           },
           create: {

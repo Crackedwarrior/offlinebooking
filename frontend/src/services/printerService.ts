@@ -1,4 +1,5 @@
 // Printer service for Epson TM-T20 M249A POS printer
+// We'll use dynamic imports for Tauri to handle environments where it might not be available
 export interface TicketData {
   theaterName: string;
   location: string;
@@ -200,13 +201,16 @@ export class PrinterService {
         console.log('📤 Using Tauri API for printing');
         try {
           // Use Tauri command to print
-          const { invoke } = await import('@tauri-apps/api/tauri');
-          const result = await invoke('print_ticket', { 
-            port: this.printerPort,
-            commands: commands
-          });
-          
-          console.log('✅ Tauri printer response:', result);
+          // Access the Tauri API through the window object
+          if (window.__TAURI__ && window.__TAURI__.invoke) {
+            const result = await window.__TAURI__.invoke('print_ticket', { 
+              port: this.printerPort,
+              commands: commands
+            });
+            console.log('✅ Tauri printer response:', result);
+          } else {
+            throw new Error('Tauri API not available');
+          }
         } catch (tauriError) {
           console.error('❌ Tauri printing failed, falling back to backend API:', tauriError);
           // Fall back to backend API
@@ -278,11 +282,14 @@ export class PrinterService {
         console.log('🔍 Using Tauri API for printer connection test');
         try {
           // Use Tauri command to test printer connection
-          const { invoke } = await import('@tauri-apps/api');
-          const result = await invoke('test_printer_connection', { port: this.printerPort });
-          
-          console.log('✅ Tauri printer connection test result:', result);
-          return true;
+          // Access the Tauri API through the window object
+          if (window.__TAURI__ && window.__TAURI__.invoke) {
+            const result = await window.__TAURI__.invoke('test_printer_connection', { port: this.printerPort });
+            console.log('✅ Tauri printer connection test result:', result);
+            return true;
+          } else {
+            throw new Error('Tauri API not available');
+          }
         } catch (tauriError) {
           console.error('❌ Tauri printer test failed, falling back to backend API:', tauriError);
           // Fall back to backend API

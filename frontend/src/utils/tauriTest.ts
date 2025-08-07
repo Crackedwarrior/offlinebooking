@@ -6,9 +6,9 @@ let open: any = () => { throw new Error('Tauri not available'); };
 try {
   // Dynamically require only if available
   // @ts-ignore
-  invoke = require('@tauri-apps/api/tauri').invoke;
+  invoke = require('@tauri-apps/api').invoke;
   // @ts-ignore
-  open = require('@tauri-apps/api/shell').open;
+  open = require('@tauri-apps/api').open;
 } catch (e) {
   // Not running in Tauri environment, use mocks
 }
