@@ -706,91 +706,181 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     const seatArray = seatsByRow[row];
     if (!seatArray) return -1;
     
-    const gapIndex = seatArray.findIndex(seat => seat === '');
-    if (gapIndex === -1) return -1;
+    // Find all gaps in the row
+    const gapIndices = seatArray.reduce((indices, seat, index) => {
+      if (seat === '') indices.push(index);
+      return indices;
+    }, [] as number[]);
     
-    return gapIndex;
+    if (gapIndices.length === 0) return -1;
+    
+    // If there's only one gap, return it
+    if (gapIndices.length === 1) return gapIndices[0];
+    
+    // If there are multiple gaps, find the one closest to the center of the row
+    const rowCenter = Math.floor(seatArray.length / 2);
+    const centerGap = gapIndices.reduce((closest, current) => {
+      return Math.abs(current - rowCenter) < Math.abs(closest - rowCenter) ? current : closest;
+    }, gapIndices[0]);
+    
+    return centerGap;
   };
 
   // Helper function to get center-first seat selection for rows with aisles
   const getCenterFirstSeats = (rowSeats: any[], count: number, row: string) => {
-    if (!hasAisles(row)) return null;
+    console.log(`🔍 getCenterFirstSeats called for row ${row}, requesting ${count} seats`);
+    
+    if (!hasAisles(row)) {
+      console.log(`🔍 Row ${row} doesn't have aisles, returning null`);
+      return null;
+    }
     
     const gapPosition = findCenterGapPosition(row);
-    if (gapPosition === -1) return null;
+    if (gapPosition === -1) {
+      console.log(`🔍 No gap position found for row ${row}, returning null`);
+      return null;
+    }
+    
+    console.log(`🔍 Gap position for row ${row}: ${gapPosition}`);
     
     // Get available seats sorted by seat number
     const availableSeats = rowSeats.filter(seat => seat.status === 'AVAILABLE').sort((a, b) => a.number - b.number);
     
-    if (availableSeats.length < count) return null;
+    console.log(`🔍 Available seats in row ${row}: ${availableSeats.length}`);
+    if (availableSeats.length > 0) {
+      console.log(`🔍 First available seat: ${availableSeats[0].id}, Last available seat: ${availableSeats[availableSeats.length - 1].id}`);
+    }
     
-    // Find the best starting position by prioritizing seats closest to the center gap
-    // while ensuring the entire block is contiguous
+    if (availableSeats.length < count) {
+      console.log(`🔍 Not enough available seats (${availableSeats.length}) for requested count (${count}), returning null`);
+      return null;
+    }
+    
     let bestBlock = null;
-    let bestDistance = Infinity;
-    
-    // Try all possible starting positions for contiguous blocks
+    let bestScore = -1;
+    let candidatesChecked = 0;
+    let contiguousCandidates = 0;
+
+    // Try all possible starting positions
     for (let startIndex = 0; startIndex <= availableSeats.length - count; startIndex++) {
       const candidate = availableSeats.slice(startIndex, startIndex + count);
+      candidatesChecked++;
       
-      // Check if this is a contiguous block (families must sit together)
-      const isContiguous = candidate.every((seat, index, arr) => {
+      // Check if block is contiguous
+      const isContiguous = candidate.every((seat, index) => {
         if (index === 0) return true;
-        return seat.number === arr[index - 1].number + 1;
+        return seat.number === candidate[index - 1].number + 1;
       });
-      
+
       if (isContiguous) {
-        // Calculate the average distance from the center gap
-        const avgDistance = candidate.reduce((sum, seat) => {
-          return sum + Math.abs(seat.number - gapPosition);
-        }, 0) / candidate.length;
+        contiguousCandidates++;
+        let score = 0;
         
-        // If this block is closer to center than previous best, update
-        if (avgDistance < bestDistance) {
-          bestDistance = avgDistance;
+        // Factor 1: Distance to center gap
+        const blockCenter = (candidate[0].number + candidate[candidate.length - 1].number) / 2;
+        const gapDistance = Math.abs(blockCenter - gapPosition);
+        const centerScore = (availableSeats.length - gapDistance) / availableSeats.length * 4;
+        score += centerScore;
+
+        // Factor 2: Buffer seats on both sides
+        const hasLeftBuffer = startIndex > 0;
+        const hasRightBuffer = startIndex + count < availableSeats.length;
+        if (hasLeftBuffer) score += 2;
+        if (hasRightBuffer) score += 2;
+
+        // Factor 3: Avoid breaking potential family blocks
+        const remainingLeft = availableSeats.slice(0, startIndex);
+        const remainingRight = availableSeats.slice(startIndex + count);
+        if (remainingLeft.length >= 3) score += 1;
+        if (remainingRight.length >= 3) score += 1;
+
+        console.log(`🔍 Candidate at index ${startIndex}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, gapDistance=${gapDistance.toFixed(2)}, centerScore=${centerScore.toFixed(2)}`);
+        
+        if (score > bestScore) {
+          bestScore = score;
           bestBlock = candidate;
+          console.log(`🔍 New best block found at index ${startIndex} with score ${score.toFixed(2)}`);
         }
       }
     }
     
-    // If no contiguous block found, try to find the best possible block
-    // but still prioritize keeping families together
-    if (!bestBlock) {
-      // Look for any available seats that can form a block, even if not optimal
-      for (let startIndex = 0; startIndex <= availableSeats.length - count; startIndex++) {
-        const candidate = availableSeats.slice(startIndex, startIndex + count);
-        
-        // Still check for contiguity - families must sit together
-        const isContiguous = candidate.every((seat, index, arr) => {
-          if (index === 0) return true;
-          return seat.number === arr[index - 1].number + 1;
-        });
-        
-        if (isContiguous) {
-          bestBlock = candidate;
-          break; // Take the first available contiguous block
-        }
-      }
+    console.log(`🔍 Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
+    if (bestBlock) {
+      console.log(`🔍 Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
+    } else {
+      console.log(`🔍 No suitable block found in row ${row}`);
     }
     
     return bestBlock;
   };
 
-  // Helper function to find contiguous block starting from a specific position
+  // Helper function to find the best contiguous block for family seating
   const findContiguousBlock = (rowSeats: any[], count: number, startFromIndex: number = 0) => {
-    if (rowSeats.length < count + startFromIndex) {
+    console.log(`🔍 findContiguousBlock called, requesting ${count} seats, starting from index ${startFromIndex}`);
+    
+    if (rowSeats.length < count) {
+      console.log(`🔍 Not enough seats in row (${rowSeats.length}) for requested count (${count}), returning null`);
       return null;
     }
     
-    const candidate = rowSeats.slice(startFromIndex, startFromIndex + count);
+    let bestBlock = null;
+    let bestScore = -1;
+    let candidatesChecked = 0;
+    let contiguousCandidates = 0;
+
+    // Try all possible starting positions from startFromIndex
+    for (let i = startFromIndex; i <= rowSeats.length - count; i++) {
+      const candidate = rowSeats.slice(i, i + count);
+      candidatesChecked++;
+      
+      // Check if block is contiguous
+      const isContiguous = candidate.every((s: any, j: number) => {
+        if (j === 0) return true;
+        return s.number === candidate[j - 1].number + 1;
+      });
+
+      if (isContiguous) {
+        contiguousCandidates++;
+        // Score the block based on multiple factors
+        let score = 0;
+        
+        // Factor 1: Buffer seats - prefer blocks with empty seats on both sides
+        const hasLeftBuffer = i > 0;
+        const hasRightBuffer = i + count < rowSeats.length;
+        if (hasLeftBuffer) score += 2;
+        if (hasRightBuffer) score += 2;
+
+        // Factor 2: Center alignment - prefer blocks closer to center
+        const rowCenter = Math.floor(rowSeats.length / 2);
+        const blockCenter = i + Math.floor(count / 2);
+        const centerDistance = Math.abs(blockCenter - rowCenter);
+        const centerScore = (rowSeats.length - centerDistance) / rowSeats.length * 3;
+        score += centerScore;
+
+        // Factor 3: Prefer blocks that don't break up other potential family blocks
+        const remainingLeft = rowSeats.slice(0, i);
+        const remainingRight = rowSeats.slice(i + count);
+        if (remainingLeft.length >= 3) score += 1;
+        if (remainingRight.length >= 3) score += 1;
+
+        console.log(`🔍 Candidate at index ${i}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, centerDistance=${centerDistance}, centerScore=${centerScore.toFixed(2)}`);
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestBlock = candidate;
+          console.log(`🔍 New best block found at index ${i} with score ${score.toFixed(2)}`);
+        }
+      }
+    }
     
-    const isContiguous = candidate.every((s: any, j: number, arr: any[]) => {
-      if (j === 0) return true;
-      const isConsecutive = s.number === arr[j - 1].number + 1;
-      return isConsecutive;
-    });
+    console.log(`🔍 Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
+    if (bestBlock) {
+      console.log(`🔍 Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
+    } else {
+      console.log(`🔍 No suitable block found`);
+    }
     
-    return isContiguous ? candidate : null;
+    return bestBlock;
   };
 
   // Handler for class card click - select contiguous seats with center-first strategy for aisled rows
@@ -807,8 +897,17 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     const currentCount = previouslySelected.length;
     const newCount = currentCount + 1;
     
+    // Debug: Log the current state before selection
+    console.log('🔍 handleClassCardClick - Starting selection process:', {
+      classKey,
+      previouslySelected: previouslySelected.length,
+      currentCount,
+      newCount
+    });
+    
     // CASE 1: Nothing selected yet — find next available block
     if (previouslySelected.length === 0) {
+      console.log('🔍 Case 1: Nothing selected yet - finding first block');
       // Try to find N contiguous seats using center-first strategy for aisled rows
       for (const row of cls.rows) {
         const allSeatsInRow = seats.filter(seat => seat.row === row);
@@ -816,62 +915,119 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
           .filter(seat => seat.status === 'AVAILABLE')
           .sort((a, b) => a.number - b.number);
         
+        console.log(`🔍 Checking row ${row}: ${rowSeats.length} available seats`);
+        
         let block = null;
         
         // Check if this row has aisles - use center-first strategy
         if (hasAisles(row)) {
+          console.log(`🔍 Row ${row} has aisles - using center-first strategy`);
           block = getCenterFirstSeats(rowSeats, newCount, row);
         } else {
           // No aisles - use normal left-to-right strategy
+          console.log(`🔍 Row ${row} has no aisles - using left-to-right strategy`);
           block = findContiguousBlock(rowSeats, newCount, 0);
         }
         
         if (block) {
+          console.log(`🔍 Found block in row ${row}:`, block.map(s => s.id));
           block.forEach(seat => {
             toggleSeatStatus(seat.id, 'SELECTED');
           });
           
           // Add a small delay to ensure store updates are processed
           setTimeout(() => {
-            // console.log('🔍 After delay - Store state:', {
-            //   selectedSeats: seats.filter(s => s.status === 'SELECTED').length,
-            //   selectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id)
-            // });
+            console.log('🔍 After delay - Store state:', {
+              selectedSeats: seats.filter(s => s.status === 'SELECTED').length,
+              selectedSeatIds: seats.filter(s => s.status === 'SELECTED').map(s => s.id)
+            });
           }, 100);
           
           return;
+        } else {
+          console.log(`🔍 No suitable block found in row ${row}`);
         }
       }
       
-      // No block found
+      console.log('🔍 No block found in any row');
       return;
     }
     
     // CASE 2: Try growing the existing block in the same row (keep families together)
+    console.log('🔍 Case 2: Growing existing block in the same row');
     const currentRow = previouslySelected[0].row;
     
     const allSeatsInCurrentRow = seats.filter(seat => seat.row === currentRow);
-    const allSeatsInCurrentRowSorted = allSeatsInCurrentRow.sort((a, b) => a.number - b.number);
+    const availableSeatsInCurrentRow = allSeatsInCurrentRow
+      .filter(seat => seat.status === 'AVAILABLE' || seat.status === 'SELECTED')
+      .sort((a, b) => a.number - b.number);
     
-    // Find the lowest seat number among currently selected seats
+    console.log(`🔍 Current row ${currentRow}: ${availableSeatsInCurrentRow.length} available+selected seats`);
+    
+    // Find the lowest and highest seat numbers among currently selected seats
     const lowestSelectedSeat = previouslySelected.reduce((min, seat) => 
-      seat.number < min.number ? seat : min
+      seat.number < min.number ? seat : min, previouslySelected[0]
     );
     
-    // Try to find a larger contiguous block that includes the current selection
-    const startIndex = allSeatsInCurrentRowSorted.findIndex(seat => seat.number === lowestSelectedSeat.number);
-    const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount, startIndex);
-    if (grownBlock) {
-      // Deselect current seats and select the grown block (families stay together)
+    const highestSelectedSeat = previouslySelected.reduce((max, seat) => 
+      seat.number > max.number ? seat : max, previouslySelected[0]
+    );
+    
+    console.log(`🔍 Current selection range: ${lowestSelectedSeat.number} to ${highestSelectedSeat.number}`);
+    
+    let grownBlock = null;
+    
+    // Always try to grow contiguously in the same block (do not split across aisles)
+    // Only if not possible, then try to move to another row
+    if (hasAisles(currentRow)) {
+      // Only allow growing if the new selection is still contiguous and does not cross the aisle
+      // Find the contiguous block containing all previously selected seats
+      const seatArray = seatsByRow[currentRow];
+      const selectedNumbers = previouslySelected.map(seat => seat.number);
+      const minNum = Math.min(...selectedNumbers);
+      const maxNum = Math.max(...selectedNumbers);
+      // Find the indices in seatArray for minNum and maxNum
+      const minIdx = seatArray.findIndex(n => n === minNum);
+      const maxIdx = seatArray.findIndex(n => n === maxNum);
+      // Check if there is an aisle (empty string) between minIdx and maxIdx
+      const hasAisleBetween = seatArray.slice(minIdx, maxIdx + 1).includes("");
+      if (!hasAisleBetween) {
+        // Try to grow left or right without crossing the aisle
+        const leftIdx = minIdx > 0 && seatArray[minIdx - 1] !== '' ? minIdx - 1 : null;
+        const rightIdx = maxIdx < seatArray.length - 1 && seatArray[maxIdx + 1] !== '' ? maxIdx + 1 : null;
+        let candidateNumbers = [...selectedNumbers];
+        if (leftIdx !== null && !selectedNumbers.includes(seatArray[leftIdx])) {
+          candidateNumbers = [seatArray[leftIdx], ...candidateNumbers];
+        } else if (rightIdx !== null && !selectedNumbers.includes(seatArray[rightIdx])) {
+          candidateNumbers = [...candidateNumbers, seatArray[rightIdx]];
+        }
+        // Check if all candidateNumbers are available or selected
+        const candidateSeats = allSeatsInCurrentRow.filter(seat => candidateNumbers.includes(seat.number) && (seat.status === 'AVAILABLE' || seat.status === 'SELECTED'));
+        if (candidateSeats.length === candidateNumbers.length) {
+          grownBlock = candidateSeats;
+        }
+      }
+    } else {
+      // No aisles - use normal left-to-right strategy
+      const startIndex = availableSeatsInCurrentRow.findIndex(seat => seat.number === lowestSelectedSeat.number);
+      grownBlock = findContiguousBlock(availableSeatsInCurrentRow, newCount, startIndex);
+    }
+    
+    if (grownBlock && grownBlock.length === newCount) {
       previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
       grownBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
       return;
+    } else {
+      console.log(`🔍 Could not grow block in row ${currentRow}`);
     }
     
     // CASE 3: Cannot grow in same row — find new block in next available row
+    console.log('🔍 Case 3: Finding new block in next available row');
     // Find the next row after current row
     const currentRowIndex = cls.rows.indexOf(currentRow);
     const nextRows = cls.rows.slice(currentRowIndex + 1);
+    
+    console.log(`🔍 Checking ${nextRows.length} rows after current row ${currentRow}`);
     
     for (const row of nextRows) {
       const allSeatsInRow = seats.filter(seat => seat.row === row);
@@ -879,27 +1035,36 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
         .filter(seat => seat.status === 'AVAILABLE')
         .sort((a, b) => a.number - b.number);
       
+      console.log(`🔍 Checking row ${row}: ${rowSeats.length} available seats`);
+      
       let newBlock = null;
       
       // Check if this row has aisles - use center-first strategy
       if (hasAisles(row)) {
+        console.log(`🔍 Row ${row} has aisles - using center-first strategy`);
         newBlock = getCenterFirstSeats(rowSeats, newCount, row);
       } else {
         // No aisles - use normal left-to-right strategy
+        console.log(`🔍 Row ${row} has no aisles - using left-to-right strategy`);
         newBlock = findContiguousBlock(rowSeats, newCount, 0);
       }
       
       if (newBlock) {
+        console.log(`🔍 Found new block in row ${row}:`, newBlock.map(s => s.id));
         // Deselect current seats and select the new block (families stay together)
         previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
         newBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
         return;
+      } else {
+        console.log(`🔍 No suitable block found in row ${row}`);
       }
     }
     
     // CASE 4: No valid block found anywhere — reset to 0
+    console.log('🔍 Case 4: No valid block found anywhere - resetting selection');
     // This ensures families don't get split apart if no suitable block is available
     previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
+    console.log('🔍 All previously selected seats have been deselected')
   };
 
   // Get movie for current show
@@ -917,7 +1082,17 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
 
   return (
     <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
-      <div className="flex-[3] flex flex-col">
+      {/* Family Seating Banner */}
+      <div className="fixed top-0 left-0 right-0 bg-amber-100 border-b border-amber-200 p-2 z-50 flex justify-center items-center">
+        <div className="flex items-center max-w-screen-xl mx-auto">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+          </svg>
+          <span className="text-sm font-medium text-amber-800">THEATRES ARE USUALLY VISITED BY FAMILIES, SO WE DO NOT WANT THEM SEPARATED</span>
+        </div>
+      </div>
+      
+      <div className="flex-[3] flex flex-col mt-8">
         <div className="font-bold text-xl mb-0 ml-0">Checkout Summary</div>
         <div className="mt-4">
           <div className="flex w-full max-w-5xl pt-0">

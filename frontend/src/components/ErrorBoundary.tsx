@@ -45,8 +45,31 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
   };
 
-  handleGoHome = () => {
-    window.location.href = '/';
+  handleGoHome = async () => {
+    try {
+      // Check if we're running in Tauri
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        // In Tauri, we need to use the router to navigate
+        // Import dynamically to avoid circular dependencies
+        const { tauriUtils } = await import('@/utils/tauriUtils');
+        
+        // For internal navigation in Tauri, we'll use the current URL's origin
+        // and append the path to navigate to the home page
+        const currentOrigin = window.location.origin;
+        const homePath = '/';
+        const homeUrl = `${currentOrigin}${homePath}`;
+        
+        // Use tauriUtils to handle navigation
+        await tauriUtils.openUrl(homeUrl, '_self');
+      } else {
+        // In browser, use standard navigation
+        window.location.href = '/';
+      }
+    } catch (error) {
+      console.error('Failed to navigate home:', error);
+      // Fallback to standard navigation
+      window.location.href = '/';
+    }
   };
 
   render() {
@@ -143,4 +166,4 @@ export function useErrorHandler() {
   };
 
   return { handleError };
-} 
+}

@@ -1,5 +1,38 @@
-// import { invoke } from '@tauri-apps/api/tauri';
-// import { appDataDir } from '@tauri-apps/api/path';
+// Import Tauri APIs
+// Check if we're running in a Tauri environment
+const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+
+// Placeholder for Tauri APIs
+let tauriInvoke: any = null;
+let tauriAppDataDir: any = null;
+
+// Initialize Tauri APIs if available
+const initTauriApis = async () => {
+  if (!isTauri) {
+    console.log('Not running in Tauri environment');
+    return false;
+  }
+  
+  try {
+    // Use a more compatible import approach
+    if ((window as any).__TAURI__) {
+      const tauriApp = (window as any).__TAURI__;
+      tauriInvoke = tauriApp.tauri?.invoke || null;
+      
+      // For appDataDir, we'll need to handle it differently
+      // This is a simplified approach
+      tauriAppDataDir = async () => {
+        // Return a default path for development
+        return './data/';
+      };
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to access Tauri APIs:', error);
+    return false;
+  }
+};
 
 // Desktop-specific API service
 export class DesktopApiService {
@@ -18,9 +51,18 @@ export class DesktopApiService {
   // Get the database path for the desktop app
   async getDatabasePath(): Promise<string> {
     try {
-      // const dataDir = await appDataDir();
-      // return `${dataDir}database/dev.db`;
-      return '';
+      // Initialize Tauri APIs if not already initialized
+      if (!tauriAppDataDir) {
+        await initTauriApis();
+      }
+      
+      if (tauriAppDataDir) {
+        const dataDir = await tauriAppDataDir();
+        return `${dataDir}database/dev.db`;
+      } else {
+        console.warn('Tauri appDataDir API not available');
+        return '';
+      }
     } catch (error) {
       console.error('Error getting database path:', error);
       return '';
@@ -97,13 +139,34 @@ export class DesktopApiService {
   // Start the backend server
   async startBackend(): Promise<void> {
     try {
-      // await invoke('start_backend');
-      console.log('Backend started successfully');
+      // Initialize Tauri APIs if not already initialized
+      if (!tauriInvoke) {
+        await initTauriApis();
+      }
+      
+      if (tauriInvoke) {
+        await tauriInvoke('start_backend');
+        console.log('Backend started successfully');
+      } else {
+        console.warn('Tauri invoke API not available, cannot start backend');
+      }
     } catch (error) {
       console.error('Failed to start backend:', error);
       throw error;
     }
   }
+
+  // Open URL in Tauri app instead of browser
+  async openUrl(url: string): Promise<void> {
+    try {
+      // Use the tauriUtils to handle opening URLs
+      const { tauriUtils } = await import('@/utils/tauriUtils');
+      await tauriUtils.openUrl(url);
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+      throw error;
+    }
+  }
 }
 
-export default DesktopApiService.getInstance(); 
+export default DesktopApiService.getInstance();
