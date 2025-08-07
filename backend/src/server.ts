@@ -109,32 +109,62 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       printerConfig
     });
     
-    // In a real implementation, this would send the ESC/POS commands to the physical printer
-    // For now, we'll implement a more realistic simulation
-    
-    // 1. Check if printer is connected
+    // Get the printer port from the configuration
     const printerPort = printerConfig?.port || 'COM1';
     console.log(`🔌 Connecting to printer on port ${printerPort}...`);
     
-    // 2. Send commands to printer
-    console.log('📤 Sending ESC/POS commands to printer...');
+    // Attempt to connect to the printer and send commands
+    let success = false;
+    let errorMessage = '';
     
-    // 3. Wait for printer to process commands
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 4. Check printer status after printing
-    console.log('✅ Print job completed successfully');
-    
-    res.json({
-      success: true,
-      message: `${tickets?.length || 0} tickets printed successfully`,
-      timestamp: new Date().toISOString(),
-      printerInfo: {
-        port: printerPort,
-        status: 'ready',
-        jobId: Date.now().toString()
+    try {
+      // Use the serialport library to connect to the printer
+      const SerialPort = require('serialport');
+      const port = new SerialPort(printerPort, {
+        baudRate: 9600,
+        dataBits: 8,
+        parity: 'none',
+        stopBits: 1,
+        flowControl: false
+      });
+      
+      // Send each ticket's commands to the printer
+      for (const ticket of tickets) {
+        const commandBytes = Buffer.from(ticket.commands, 'utf8');
+        await new Promise((resolve, reject) => {
+          port.write(commandBytes, (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              port.drain(resolve);
+            }
+          });
+        });
       }
-    });
+      
+      // Close the port
+      await new Promise(resolve => port.close(resolve));
+      success = true;
+    } catch (printError) {
+      console.error('❌ Error connecting to printer:', printError);
+      errorMessage = printError.message;
+      success = false;
+    }
+    
+    if (success) {
+      res.json({
+        success: true,
+        message: `${tickets?.length || 0} tickets printed successfully`,
+        timestamp: new Date().toISOString(),
+        printerInfo: {
+          port: printerPort,
+          status: 'ready',
+          jobId: Date.now().toString()
+        }
+      });
+    } else {
+      throw new Error(`Failed to print tickets: ${errorMessage}`);
+    }
   } catch (error) {
     console.error('❌ Printing failed:', error);
     res.status(500).json({

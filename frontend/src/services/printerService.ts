@@ -193,14 +193,14 @@ export class PrinterService {
       console.log('📤 Sending to printer');
       console.log('📤 Commands length:', commands.length);
       
-      // Check if we're running in Tauri
-      const isTauri = window.__TAURI__ !== undefined;
+      // Check if we're running in Tauri - FIX: More robust detection
+      const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
       
       if (isTauri) {
         console.log('📤 Using Tauri API for printing');
         try {
           // Use Tauri command to print
-          const { invoke } = await import('@tauri-apps/api');
+          const { invoke } = await import('@tauri-apps/api/tauri');
           const result = await invoke('print_ticket', { 
             port: this.printerPort,
             commands: commands
