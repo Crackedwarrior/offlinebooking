@@ -65,8 +65,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         
         // Check if any seat IDs weren't found
         const allSeatIds = seats.map(s => s.id);
-        const notFoundBookedSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id as string));
-        const notFoundBmsSeats = Array.from(bmsSeatIds).filter(id => !allSeatIds.includes(id as string));
+        const notFoundBookedSeats = bookedSeatIds.filter(id => !allSeatIds.includes(id as string));
+        const notFoundBmsSeats = bmsSeatIds.filter(id => !allSeatIds.includes(id as string));
         
         if (notFoundBookedSeats.length > 0) {
           console.warn('⚠️ Some booked seat IDs from API not found in seat matrix:', notFoundBookedSeats);

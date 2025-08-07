@@ -159,7 +159,8 @@ const BoxVsOnlineReport = () => {
     
     // Initialize all possible show-class combinations with zero values
     const allShows = ['MORNING', 'MATINEE', 'EVENING', 'NIGHT'];
-    const allClasses = ['BOX', 'STAR CLASS', 'CLASSIC BALCONY', 'FIRST CLASS', 'SECOND CLASS'];
+    // Use CLASSIC instead of CLASSIC BALCONY to match server.ts implementation
+    const allClasses = ['BOX', 'STAR CLASS', 'CLASSIC', 'FIRST CLASS', 'SECOND CLASS'];
     
     allShows.forEach(show => {
       allClasses.forEach(classLabel => {
@@ -192,22 +193,12 @@ const BoxVsOnlineReport = () => {
       
       // Normalize classLabel to match our expected format
       let normalizedClassLabel = booking.classLabel;
-      if (booking.classLabel === 'CLASSIC') {
-        normalizedClassLabel = 'CLASSIC BALCONY';
-        console.log('🔄 Normalized CLASSIC to CLASSIC BALCONY');
-      } else if (booking.classLabel === 'SECOND CLASS') {
-        normalizedClassLabel = 'SECOND CLASS';
-        console.log('🔄 Normalized SECOND CLASS');
-      } else if (booking.classLabel === 'STAR CLASS') {
-        normalizedClassLabel = 'STAR CLASS';
-        console.log('🔄 Normalized STAR CLASS');
-      } else if (booking.classLabel === 'FIRST CLASS') {
-        normalizedClassLabel = 'FIRST CLASS';
-        console.log('🔄 Normalized FIRST CLASS');
-      } else if (booking.classLabel === 'BOX') {
-        normalizedClassLabel = 'BOX';
-        console.log('🔄 Normalized BOX');
-      }
+      
+      // Keep CLASSIC as is to match server.ts implementation
+      // No need to convert CLASSIC to CLASSIC BALCONY
+      
+      // Log the class label for debugging
+      console.log('🔄 Using class label:', normalizedClassLabel);
       
       const key = `${booking.show}-${normalizedClassLabel}`;
       console.log('🔑 Booking key:', key);
@@ -230,14 +221,28 @@ const BoxVsOnlineReport = () => {
     });
     
     // Process BMS seats - use actual BMS data with show information
+    // Group BMS seats by class for debugging
+    const bmsSeatsByClass: Record<string, Record<string, string[]>> = {};
+    
     bmsSeats.forEach(bmsSeat => {
       console.log('🎫 Processing BMS seat:', bmsSeat);
       
       // Use the show information that was added during data fetching
       const show = bmsSeat.show;
-      const classLabel = extractClassFromSeatId(bmsSeat.seatId);
+      
+      // Use the class from the BMS seat data if available, otherwise determine from seat ID
+      const classLabel = bmsSeat.class || extractClassFromSeatId(bmsSeat.seatId);
       const key = `${show}-${classLabel}`;
       console.log('🔑 BMS seat key:', key, 'show:', show, 'class:', classLabel);
+      
+      // Track seats by class for debugging
+      if (!bmsSeatsByClass[show]) {
+        bmsSeatsByClass[show] = {};
+      }
+      if (!bmsSeatsByClass[show][classLabel]) {
+        bmsSeatsByClass[show][classLabel] = [];
+      }
+      bmsSeatsByClass[show][classLabel].push(bmsSeat.seatId);
       
       if (key) {
         const existing = salesDataMap.get(key);
@@ -258,6 +263,17 @@ const BoxVsOnlineReport = () => {
       }
     });
     
+    // Debug log BMS seats by class
+    console.log('🔍 BMS seats by class for income calculation:', bmsSeatsByClass);
+    
+    // Calculate total BMS income for debugging
+    const totalBmsIncome = bmsSeats.reduce((sum, bmsSeat) => {
+      const classLabel = bmsSeat.class || extractClassFromSeatId(bmsSeat.seatId);
+      return sum + (classLabel ? getPriceForClass(classLabel) : 0);
+    }, 0);
+    
+    console.log('💰 Total BMS income calculated:', totalBmsIncome);
+    
     const result = Array.from(salesDataMap.values());
     console.log('📊 Final processed data:', result);
     return result;
@@ -277,15 +293,35 @@ const BoxVsOnlineReport = () => {
   };
 
   const extractClassFromSeatId = (seatId: string): string => {
+    // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
     const rowPrefix = seatId.split('-')[0];
+    
+    // Map row prefixes to class labels - match with server.ts implementation
     const classMapping: Record<string, string> = {
-        'BOX': 'BOX',
-        'SC': 'STAR CLASS',
-      'CB': 'CLASSIC BALCONY',
-        'FC': 'FIRST CLASS',
-      'SEC': 'SECOND CLASS'
-      };
-    return classMapping[rowPrefix] || 'STAR CLASS';
+      'BOX': 'BOX',
+      'SC': 'STAR CLASS',
+      'CB': 'CLASSIC',  // CLASSIC instead of CLASSIC BALCONY to match server.ts
+      'FC': 'FIRST CLASS',
+      'SC2': 'SECOND CLASS'  // SC2 instead of SEC to match server.ts
+    };
+    
+    // Check for exact match first
+    if (classMapping[rowPrefix]) {
+      return classMapping[rowPrefix];
+    }
+    
+    // If no exact match, check for prefix match (for cases like SC2-A1)
+    for (const [prefix, classLabel] of Object.entries(classMapping)) {
+      if (rowPrefix.startsWith(prefix)) {
+        return classLabel;
+      }
+    }
+    
+    // Log warning for unrecognized seat IDs
+    console.warn(`⚠️ Unrecognized seat ID prefix: ${rowPrefix} in ${seatId}`);
+    
+    // Default fallback
+    return 'STAR CLASS';
   };
 
   const getPriceForClass = (classLabel: string): number => {
@@ -1117,4 +1153,4 @@ const BoxVsOnlineReport = () => {
   );
 };
 
-export default BoxVsOnlineReport; 
+export default BoxVsOnlineReport;

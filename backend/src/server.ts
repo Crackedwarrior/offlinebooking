@@ -458,7 +458,8 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
         gte: startOfDay,
         lt: endOfDay
       },
-      show: show as any
+      show: show as any,
+      status: 'BMS_BOOKED' // Ensure we only get BMS_BOOKED seats
     },
     select: {
       seatId: true,
@@ -747,4 +748,4 @@ app.listen(config.server.port, () => {
   console.log(`📊 Environment: ${config.server.nodeEnv}`);
   console.log(`🔗 CORS Origin: ${config.api.corsOrigin}`);
   console.log(`🔧 Error handling: Enabled`);
-}); 
+});

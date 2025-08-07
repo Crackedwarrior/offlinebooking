@@ -347,8 +347,8 @@ const BookingHistory = () => {
           
           showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
             const seatId = bmsSeat.seatId;
-            // Determine class from seat ID (e.g., "SC-D1" -> "STAR CLASS")
-            const classLabel = getClassFromSeatId(seatId);
+            // Use the class from the BMS seat data if available, otherwise determine from seat ID
+            const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
             
             if (classLabel) {
               if (!uniqueSeatsByClass[classLabel]) {
@@ -358,6 +358,16 @@ const BookingHistory = () => {
               const uniqueKey = `${selectedShow}-${seatId}`;
               uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
             }
+          });
+          
+          // Debug log BMS seats by class for this specific show
+          console.log(`🔍 BMS seats for ${selectedShow} show by class:`, {
+            totalBmsSeats: showSeatStatus.bmsSeats.length,
+            classCounts: Object.fromEntries(
+              Object.entries(uniqueSeatsByClass)
+                .filter(([_, sets]) => sets.bms.size > 0)
+                .map(([classLabel, sets]) => [classLabel, sets.bms.size])
+            )
           });
         }
       } else {
@@ -370,7 +380,8 @@ const BookingHistory = () => {
               
               showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
                 const seatId = bmsSeat.seatId;
-                const classLabel = getClassFromSeatId(seatId);
+                // Use the class from the BMS seat data if available, otherwise determine from seat ID
+                const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
                 
                 if (classLabel) {
                   if (!uniqueSeatsByClass[classLabel]) {
@@ -382,6 +393,23 @@ const BookingHistory = () => {
                   uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
                 }
               });
+              
+              // Debug log BMS seats by class for each show
+              const showBmsClassCounts = Object.fromEntries(
+                Object.entries(uniqueSeatsByClass)
+                  .filter(([_, sets]) => sets.bms.size > 0)
+                  .map(([classLabel, sets]) => [
+                    classLabel, 
+                    Array.from(sets.bms).filter(key => key.startsWith(`${showKey}-`)).length
+                  ])
+              );
+              
+              if (Object.keys(showBmsClassCounts).length > 0) {
+                console.log(`🔍 BMS seats for ${showKey} show by class:`, {
+                  totalBmsSeats: showSeatStatus.bmsSeats.length,
+                  classCounts: showBmsClassCounts
+                });
+              }
             }
           });
         }
@@ -462,16 +490,29 @@ const BookingHistory = () => {
     // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
     const rowPrefix = seatId.split('-')[0];
     
-    // Map row prefixes to class labels - match with BoxVsOnlineReport
+    // Map row prefixes to class labels - match with server.ts implementation
     const classMapping: Record<string, string> = {
       'BOX': 'BOX',
       'SC': 'STAR CLASS',
-      'CB': 'CLASSIC BALCONY',
+      'CB': 'CLASSIC',  // CLASSIC instead of CLASSIC BALCONY to match server.ts
       'FC': 'FIRST CLASS',
-      'SEC': 'SECOND CLASS'
+      'SC2': 'SECOND CLASS'  // SC2 instead of SEC to match server.ts
     };
     
-    return classMapping[rowPrefix] || null;
+    // Check for exact match first
+    if (classMapping[rowPrefix]) {
+      return classMapping[rowPrefix];
+    }
+    
+    // If no exact match, check for prefix match (for cases like SC2-A1)
+    for (const [prefix, classLabel] of Object.entries(classMapping)) {
+      if (rowPrefix.startsWith(prefix)) {
+        return classLabel;
+      }
+    }
+    
+    console.warn(`⚠️ Could not determine class for seat ID: ${seatId}`);
+    return 'STAR CLASS'; // Default fallback to match server.ts
   }, []);
 
   // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
@@ -501,30 +542,97 @@ const BookingHistory = () => {
       // For specific show, get BMS seats from that show's seat status
       const showSeatStatus = seatStatusData[selectedShow];
       if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
+        // Group BMS seats by class for debugging and accurate counting
+        const bmsSeatsByClass: Record<string, string[]> = {};
+        
         showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
           const seatId = bmsSeat.seatId;
-          const classLabel = getClassFromSeatId(seatId);
+          // Use the class from the BMS seat data if available, otherwise determine from seat ID
+          const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
+          
           if (classLabel) {
+            // Track seats by class for debugging
+            if (!bmsSeatsByClass[classLabel]) {
+              bmsSeatsByClass[classLabel] = [];
+            }
+            bmsSeatsByClass[classLabel].push(seatId);
+            
             // Use dynamic pricing from settings store (same as regular seats)
             const price = getPriceForClass(classLabel);
             bmsIncome += price;
           }
         });
+        
+        // Debug log the BMS seats by class with more details
+        console.log('🔍 BMS seats by class for income calculation:', {
+          bmsSeatsByClass,
+          totalBmsSeats: showSeatStatus.bmsSeats.length,
+          totalBmsIncome: showSeatStatus.bmsSeats.reduce((sum, bmsSeat) => {
+            const classLabel = bmsSeat.class || getClassFromSeatId(bmsSeat.seatId);
+            return sum + (classLabel ? getPriceForClass(classLabel) : 0);
+          }, 0)
+        });
+        
+        // Debug log the BMS seats by class
+        console.log('🔍 BMS seats by class for income calculation:', bmsSeatsByClass);
       }
     } else {
       // For all shows, aggregate BMS income from all shows
+      const allBmsSeatsByClass: Record<string, Record<string, string[]>> = {};
+      
       Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
         if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-                  showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
-          const seatId = bmsSeat.seatId;
-          const classLabel = getClassFromSeatId(seatId);
-          if (classLabel) {
-            // Use dynamic pricing from settings store (same as regular seats)
-            const price = getPriceForClass(classLabel);
-            bmsIncome += price;
-          }
-        });
+          // Group BMS seats by class for this show
+          const bmsSeatsByClass: Record<string, string[]> = {};
+          
+          showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
+            const seatId = bmsSeat.seatId;
+            // Use the class from the BMS seat data if available, otherwise determine from seat ID
+            const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
+            
+            if (classLabel) {
+              // Track seats by class for debugging
+              if (!bmsSeatsByClass[classLabel]) {
+                bmsSeatsByClass[classLabel] = [];
+              }
+              bmsSeatsByClass[classLabel].push(seatId);
+              
+              // Use dynamic pricing from settings store (same as regular seats)
+              const price = getPriceForClass(classLabel);
+              bmsIncome += price;
+            }
+          });
+          
+          // Calculate show-specific BMS income for debugging
+          const showBmsIncome = showSeatStatus.bmsSeats.reduce((sum, bmsSeat) => {
+            const classLabel = bmsSeat.class || getClassFromSeatId(bmsSeat.seatId);
+            return sum + (classLabel ? getPriceForClass(classLabel) : 0);
+          }, 0);
+          
+          // Store detailed information for this show
+          allBmsSeatsByClass[showKey] = {
+            seats: bmsSeatsByClass,
+            count: showSeatStatus.bmsSeats.length,
+            income: showBmsIncome
+          };
         }
+      });
+      
+      // Debug log the BMS seats by class for all shows with detailed breakdown
+      console.log('🔍 BMS seats by class for all shows:', {
+        showBreakdown: allBmsSeatsByClass,
+        totalBmsSeats: Object.values(allBmsSeatsByClass).reduce((sum, showData) => sum + showData.count, 0),
+        totalBmsIncome: Object.values(allBmsSeatsByClass).reduce((sum, showData) => sum + showData.income, 0),
+        classSummary: Object.values(allBmsSeatsByClass).reduce((summary, showData) => {
+          // Combine seat counts by class across all shows
+          Object.entries(showData.seats).forEach(([classLabel, seats]) => {
+            if (!summary[classLabel]) {
+              summary[classLabel] = [];
+            }
+            summary[classLabel] = [...summary[classLabel], ...seats];
+          });
+          return summary;
+        }, {} as Record<string, string[]>)
       });
     }
     
