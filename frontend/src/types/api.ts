@@ -102,16 +102,21 @@ export interface SeatStatusResponse {
   data: {
     date: string;
     show: Show;
-    bookedSeats: Array<{
+    bookedSeats?: Array<{
       seatId: string;
       class: string;
     }>;
-    bmsSeats: Array<{
+    bmsSeats?: Array<{
       seatId: string;
       class: string;
+    }>;
+    selectedSeats?: Array<{
+      seatId: string;
+      class?: string;
     }>;
     totalBooked: number;
     totalBms: number;
+    totalSelected?: number;
   };
 }
 
@@ -310,4 +315,4 @@ export interface ShowTimeSettings {
   startTime: string;
   endTime: string;
   enabled: boolean;
-} 
+}

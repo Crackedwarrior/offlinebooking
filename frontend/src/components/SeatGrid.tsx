@@ -48,20 +48,14 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       const response = await getSeatStatus({ date: selectedDate, show: selectedShow });
       
       if (response.success && response.data) {
-
-        
-        // Update seat status based on database data
-        const bookedSeats = response.data.bookedSeats || [];
-        const bmsSeats = response.data.bmsSeats || [];
-        const selectedSeats = response.data.selectedSeats || [];
-        const bookedSeatIds = new Set(bookedSeats.map((seat: any) => seat.seatId));
-        const bmsSeatIds = new Set(bmsSeats.map((seat: any) => seat.seatId));
+        const data: any = response.data;
+        const bookedSeats = data.bookedSeats || [];
+        const bmsSeats = data.bmsSeats || [];
+        const selectedSeats = (data.selectedSeats || []) as Array<{ seatId: string }>;
+        const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+        const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
         const selectedSeatIds = selectedSeats.map((seat: any) => seat.seatId);
-        
-
-        
-        // Use the new syncSeatStatus function to properly sync seat status
-        syncSeatStatus(Array.from(bookedSeatIds), Array.from(bmsSeatIds), selectedSeatIds);
+        syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
         
 
         
@@ -71,8 +65,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         
         // Check if any seat IDs weren't found
         const allSeatIds = seats.map(s => s.id);
-        const notFoundBookedSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id));
-        const notFoundBmsSeats = Array.from(bmsSeatIds).filter(id => !allSeatIds.includes(id));
+        const notFoundBookedSeats = Array.from(bookedSeatIds).filter(id => !allSeatIds.includes(id as string));
+        const notFoundBmsSeats = Array.from(bmsSeatIds).filter(id => !allSeatIds.includes(id as string));
         
         if (notFoundBookedSeats.length > 0) {
           console.warn('⚠️ Some booked seat IDs from API not found in seat matrix:', notFoundBookedSeats);
