@@ -13,12 +13,20 @@ interface PrinterStatus {
   errorStatus: string;
 }
 
+interface PrinterConfig {
+  port: string;
+  theaterName: string;
+  location: string;
+  gstin: string;
+}
+
 export const PrinterConfig: React.FC = () => {
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isRefreshingPrinters, setIsRefreshingPrinters] = useState(false);
   const [printers, setPrinters] = useState<string[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('COM1');
   const [useManualPort, setUseManualPort] = useState(false);
   const [config, setConfig] = useState({
     port: 'COM1',
@@ -31,25 +39,73 @@ export const PrinterConfig: React.FC = () => {
     fetchPrinters();
     checkPrinterStatus();
   }, []);
+  
+  // Set the selected printer when printers are loaded
+  useEffect(() => {
+    if (printers.length > 0 && !selectedPrinter) {
+      setSelectedPrinter(printers[0]);
+      setConfig(prev => ({ ...prev, port: printers[0] }));
+    } else if (printers.length === 0 && !useManualPort) {
+      // If no printers are detected, automatically switch to manual mode
+      setUseManualPort(true);
+      setSelectedPrinter('__manual__');
+      console.log('No printers detected, switching to manual port input mode');
+    }
+  }, [printers, selectedPrinter, useManualPort]);
 
   const fetchPrinters = async () => {
+    setIsRefreshingPrinters(true);
     try {
-      // For browser environment, just use default printers
-      setPrinters(['COM1', 'COM2', 'COM3']);
+      // Check if we're running in Tauri
+      const isTauri = window.__TAURI__ !== undefined;
+      
+      if (isTauri) {
+        console.log('🔍 Using Tauri API to fetch printers');
+        try {
+          // Use Tauri command to get printers
+          const { invoke } = await import('@tauri-apps/api');
+          const printerList = await invoke('list_printers');
+          
+          console.log('✅ Tauri printer list:', printerList);
+          setPrinters(printerList as string[]);
+        } catch (tauriError) {
+          console.error('❌ Tauri printer list failed:', tauriError);
+          // Don't fall back to defaults anymore, show empty list instead
+          setPrinters([]);
+        }
+      } else {
+        console.log('🔍 Using default printers for browser environment');
+        // For browser environment, just use default printers
+        setPrinters(['COM1', 'COM2', 'COM3']);
+      }
     } catch (error) {
       console.error('Failed to fetch printers:', error);
-      setPrinters(['COM1', 'COM2', 'COM3']);
+      setPrinters([]);
+    } finally {
+      setIsRefreshingPrinters(false);
     }
   };
 
   const handlePrinterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     setSelectedPrinter(value);
+    
     if (value === '__manual__') {
       setUseManualPort(true);
-    } else {
+      // Don't update port yet, wait for manual input
+    } else if (value) {
       setUseManualPort(false);
       setConfig(prev => ({ ...prev, port: value }));
+      
+      // Configure printer service with the selected port
+      printerService.configurePrinter(
+        value,
+        config.theaterName,
+        config.location,
+        config.gstin
+      );
+      
+      console.log(`🖨️ Printer port changed to: ${value}`);
     }
   };
 
@@ -131,8 +187,20 @@ export const PrinterConfig: React.FC = () => {
     }
   };
 
-  const updateConfig = (field: string, value: string) => {
-    setConfig(prev => ({ ...prev, [field]: value }));
+  const updateConfig = (field: keyof PrinterConfig, value: string) => {
+    setConfig(prev => {
+      const newConfig = { ...prev, [field]: value };
+      
+      // Update printer service configuration with all fields
+      printerService.configurePrinter(
+        newConfig.port,
+        newConfig.theaterName,
+        newConfig.location,
+        newConfig.gstin
+      );
+      
+      return newConfig;
+    });
   };
 
   return (
@@ -165,19 +233,38 @@ export const PrinterConfig: React.FC = () => {
 
         {/* Printer Selection Dropdown */}
         <div>
-          <Label htmlFor="printer-select">Select Printer</Label>
+          <div className="flex justify-between items-center">
+            <Label htmlFor="printer-select">Select Printer</Label>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchPrinters}
+              className="text-xs"
+              disabled={isRefreshingPrinters}
+            >
+              {isRefreshingPrinters ? 'Scanning...' : 'Refresh Printers'}
+            </Button>
+          </div>
           <select
             id="printer-select"
             className="w-full border rounded px-2 py-1 mt-1"
-            value={useManualPort ? '__manual__' : config.port}
+            value={useManualPort ? '__manual__' : selectedPrinter}
             onChange={handlePrinterChange}
           >
-            <option value="">-- Select Printer --</option>
-            {printers.map((printer) => (
-              <option key={printer} value={printer}>{printer}</option>
-            ))}
+            {printers.length > 0 ? (
+              printers.map((printer) => (
+                <option key={printer} value={printer}>{printer}</option>
+              ))
+            ) : (
+              <option value="" disabled>No printers detected</option>
+            )}
             <option value="__manual__">Other / Manual</option>
           </select>
+          {printers.length === 0 && (
+            <div className="text-sm text-amber-600 mt-1">
+              No printers detected. Please use manual mode to specify your printer port or click Refresh to scan again.
+            </div>
+          )}
         </div>
 
         {/* Manual Port Input */}
@@ -187,9 +274,26 @@ export const PrinterConfig: React.FC = () => {
             <Input
               id="port"
               value={config.port}
-              onChange={(e) => updateConfig('port', e.target.value)}
-              placeholder="COM1"
+              onChange={(e) => {
+                const value = e.target.value;
+                updateConfig('port', value);
+                
+                // Configure printer service with the manual port
+                printerService.configurePrinter(
+                  value,
+                  config.theaterName,
+                  config.location,
+                  config.gstin
+                );
+                
+                console.log(`🖨️ Manual printer port changed to: ${value}`);
+              }}
+              placeholder="Enter port name (e.g., COM1, /dev/ttyUSB0)"
             />
+            <div className="text-sm text-gray-500 mt-1">
+              Enter the exact port name of your printer. For Windows, it's usually COM1, COM2, etc. 
+              For Linux, it might be /dev/ttyUSB0 or similar. You can find this in your system's device manager.
+            </div>
           </div>
         )}
 
@@ -255,4 +359,4 @@ export const PrinterConfig: React.FC = () => {
   );
 };
 
-export default PrinterConfig; 
+export default PrinterConfig;

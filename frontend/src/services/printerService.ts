@@ -187,45 +187,36 @@ export class PrinterService {
     }
   }
 
-  // Send data to printer via backend API
+  // Send data to printer via backend API or Tauri commands
   private async sendToPrinter(commands: string): Promise<void> {
     try {
-      console.log('📤 Sending to printer via backend API');
-      console.log('📤 Backend URL: http://localhost:3001/api/printer/print');
+      console.log('📤 Sending to printer');
       console.log('📤 Commands length:', commands.length);
       
-      // Send print request to backend
-      const response = await fetch('http://localhost:3001/api/printer/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tickets: [{
-            commands: commands,
-            timestamp: new Date().toISOString()
-          }],
-          printerConfig: {
-            port: this.printerPort,
-            theaterName: this.theaterName,
-            location: this.location,
-            gstin: this.gstin
-          }
-        })
-      });
-
-      console.log('📤 Response status:', response.status);
-      console.log('📤 Response ok:', response.ok);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('📤 Error response text:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ Printer response:', result);
+      // Check if we're running in Tauri
+      const isTauri = window.__TAURI__ !== undefined;
       
+      if (isTauri) {
+        console.log('📤 Using Tauri API for printing');
+        try {
+          // Use Tauri command to print
+          const { invoke } = await import('@tauri-apps/api');
+          const result = await invoke('print_ticket', { 
+            port: this.printerPort,
+            commands: commands
+          });
+          
+          console.log('✅ Tauri printer response:', result);
+        } catch (tauriError) {
+          console.error('❌ Tauri printing failed, falling back to backend API:', tauriError);
+          // Fall back to backend API
+          await this.sendToPrinterViaBackend(commands);
+        }
+      } else {
+        console.log('📤 Using backend API for printing');
+        // Use backend API
+        await this.sendToPrinterViaBackend(commands);
+      }
     } catch (error) {
       console.error('❌ Printer communication failed:', error);
       console.error('❌ Error details:', {
@@ -236,41 +227,72 @@ export class PrinterService {
       throw new Error(`Printer communication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+  
+  // Send data to printer via backend API
+  private async sendToPrinterViaBackend(commands: string): Promise<void> {
+    console.log('📤 Sending to printer via backend API');
+    console.log('📤 Backend URL: http://localhost:3001/api/printer/print');
+    
+    // Send print request to backend
+    const response = await fetch('http://localhost:3001/api/printer/print', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tickets: [{
+          commands: commands,
+          timestamp: new Date().toISOString()
+        }],
+        printerConfig: {
+          port: this.printerPort,
+          theaterName: this.theaterName,
+          location: this.location,
+          gstin: this.gstin
+        }
+      })
+    });
+
+    console.log('📤 Response status:', response.status);
+    console.log('📤 Response ok:', response.ok);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('📤 Error response text:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Printer response:', result);
+  }
 
   // Test printer connection
   async testConnection(): Promise<boolean> {
     try {
       console.log('🔍 Testing printer connection...');
-      console.log('🔍 Backend URL: http://localhost:3001/api/printer/test');
       
-      // Send test request to backend
-      const response = await fetch('http://localhost:3001/api/printer/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          printerConfig: {
-            port: this.printerPort,
-            theaterName: this.theaterName,
-            location: this.location,
-            gstin: this.gstin
-          }
-        })
-      });
-
-      console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response ok:', response.ok);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('🔍 Error response text:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      // Check if we're running in Tauri
+      const isTauri = window.__TAURI__ !== undefined;
+      
+      if (isTauri) {
+        console.log('🔍 Using Tauri API for printer connection test');
+        try {
+          // Use Tauri command to test printer connection
+          const { invoke } = await import('@tauri-apps/api');
+          const result = await invoke('test_printer_connection', { port: this.printerPort });
+          
+          console.log('✅ Tauri printer connection test result:', result);
+          return true;
+        } catch (tauriError) {
+          console.error('❌ Tauri printer test failed, falling back to backend API:', tauriError);
+          // Fall back to backend API
+          return await this.testConnectionViaBackend();
+        }
+      } else {
+        console.log('🔍 Using backend API for printer connection test');
+        // Use backend API
+        return await this.testConnectionViaBackend();
       }
-
-      const result = await response.json();
-      console.log('✅ Printer connection test successful:', result);
-      return true;
     } catch (error) {
       console.error('❌ Printer connection test failed:', error);
       console.error('❌ Error details:', {
@@ -280,6 +302,41 @@ export class PrinterService {
       });
       return false;
     }
+  }
+  
+  // Test printer connection via backend API
+  private async testConnectionViaBackend(): Promise<boolean> {
+    console.log('🔍 Testing printer connection via backend API');
+    console.log('🔍 Backend URL: http://localhost:3001/api/printer/test');
+    
+    // Send test request to backend
+    const response = await fetch('http://localhost:3001/api/printer/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        printerConfig: {
+          port: this.printerPort,
+          theaterName: this.theaterName,
+          location: this.location,
+          gstin: this.gstin
+        }
+      })
+    });
+
+    console.log('🔍 Response status:', response.status);
+    console.log('🔍 Response ok:', response.ok);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('🔍 Error response text:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Printer connection test successful:', result);
+    return true;
   }
 
   // Get printer status
@@ -310,4 +367,4 @@ export class PrinterService {
   }
 }
 
-export default PrinterService.getInstance(); 
+export default PrinterService.getInstance();
