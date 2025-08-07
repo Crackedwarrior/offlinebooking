@@ -28,9 +28,15 @@ async fn start_backend() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn list_printers() -> Vec<String> {
+    // Return default printer list for now
+    vec!["COM1".to_string(), "COM2".to_string(), "COM3".to_string()]
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![start_backend])
+        .invoke_handler(tauri::generate_handler![start_backend, list_printers])
         .setup(|app| {
             // Get the app data directory for database persistence
             let app_data_dir = app.path().app_data_dir().unwrap();

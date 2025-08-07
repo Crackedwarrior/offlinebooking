@@ -17,6 +17,9 @@ export const PrinterConfig: React.FC = () => {
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [printers, setPrinters] = useState<string[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [useManualPort, setUseManualPort] = useState(false);
   const [config, setConfig] = useState({
     port: 'COM1',
     theaterName: 'SREELEKHA THEATER',
@@ -25,8 +28,30 @@ export const PrinterConfig: React.FC = () => {
   });
 
   useEffect(() => {
+    fetchPrinters();
     checkPrinterStatus();
   }, []);
+
+  const fetchPrinters = async () => {
+    try {
+      // For browser environment, just use default printers
+      setPrinters(['COM1', 'COM2', 'COM3']);
+    } catch (error) {
+      console.error('Failed to fetch printers:', error);
+      setPrinters(['COM1', 'COM2', 'COM3']);
+    }
+  };
+
+  const handlePrinterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedPrinter(value);
+    if (value === '__manual__') {
+      setUseManualPort(true);
+    } else {
+      setUseManualPort(false);
+      setConfig(prev => ({ ...prev, port: value }));
+    }
+  };
 
   const checkPrinterStatus = async () => {
     try {
@@ -138,8 +163,25 @@ export const PrinterConfig: React.FC = () => {
           </div>
         )}
 
-        {/* Configuration Fields */}
-        <div className="space-y-3">
+        {/* Printer Selection Dropdown */}
+        <div>
+          <Label htmlFor="printer-select">Select Printer</Label>
+          <select
+            id="printer-select"
+            className="w-full border rounded px-2 py-1 mt-1"
+            value={useManualPort ? '__manual__' : config.port}
+            onChange={handlePrinterChange}
+          >
+            <option value="">-- Select Printer --</option>
+            {printers.map((printer) => (
+              <option key={printer} value={printer}>{printer}</option>
+            ))}
+            <option value="__manual__">Other / Manual</option>
+          </select>
+        </div>
+
+        {/* Manual Port Input */}
+        {useManualPort && (
           <div>
             <Label htmlFor="port">Printer Port</Label>
             <Input
@@ -149,7 +191,10 @@ export const PrinterConfig: React.FC = () => {
               placeholder="COM1"
             />
           </div>
+        )}
 
+        {/* Configuration Fields */}
+        <div className="space-y-3">
           <div>
             <Label htmlFor="theaterName">Theater Name</Label>
             <Input
@@ -159,7 +204,6 @@ export const PrinterConfig: React.FC = () => {
               placeholder="SREELEKHA THEATER"
             />
           </div>
-
           <div>
             <Label htmlFor="location">Location</Label>
             <Input
@@ -169,7 +213,6 @@ export const PrinterConfig: React.FC = () => {
               placeholder="Chickmagalur"
             />
           </div>
-
           <div>
             <Label htmlFor="gstin">GSTIN</Label>
             <Input
@@ -191,7 +234,6 @@ export const PrinterConfig: React.FC = () => {
           >
             {isTesting ? "Testing..." : "Test Connection"}
           </Button>
-          
           <Button 
             onClick={printTestTicket} 
             disabled={isPrinting || !printerStatus?.connected}
@@ -200,7 +242,6 @@ export const PrinterConfig: React.FC = () => {
             {isPrinting ? "Printing..." : "Print Test"}
           </Button>
         </div>
-
         <Button 
           onClick={checkPrinterStatus} 
           variant="ghost" 

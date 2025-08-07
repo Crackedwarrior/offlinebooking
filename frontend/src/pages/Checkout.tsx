@@ -11,6 +11,8 @@ import { SEAT_CLASSES, SHOW_TIMES, MOVIE_CONFIG, getSeatClassByRow } from '@/lib
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus } from '@/services/api';
 import { usePricing } from '@/hooks/use-pricing';
+import { seatsByRow } from '@/lib/seatMatrix';
+import type { Show } from '@/types/api';
 // import { toast } from '@/hooks/use-toast';
 
 // CLASS_INFO will be created dynamically with current pricing
@@ -229,18 +231,18 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     } else {
       // If no manual selection handler is available, still use the store but log a warning
       console.warn('No manual selection handler available, using direct store update');
-    setSelectedShow(showKey as any);
+      setSelectedShow(showKey as ShowTime);
     }
     setShowDropdownOpen(false);
     
     // Load seats for the new show - use a small delay to ensure state is updated
     setTimeout(async () => {
       try {
-        await loadBookingForDate(selectedDate, showKey as any);
+        await loadBookingForDate(selectedDate, showKey as ShowTime);
         
         // Also fetch current seat status from backend for this specific show
         try {
-          const response = await getSeatStatus({ date: selectedDate, show: showKey });
+          const response = await getSeatStatus({ date: selectedDate, show: showKey as Show });
           
           if (response.success && response.data) {
             const { bookedSeats, bmsSeats } = response.data as any;
@@ -692,33 +694,108 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     return [];
   }
 
+  // Helper function to check if a row has aisles/gaps
+  const hasAisles = (row: string) => {
+    const seatArray = seatsByRow[row];
+    if (!seatArray) return false;
+    return seatArray.includes('');
+  };
+
+  // Helper function to find the center gap position in a row
+  const findCenterGapPosition = (row: string) => {
+    const seatArray = seatsByRow[row];
+    if (!seatArray) return -1;
+    
+    const gapIndex = seatArray.findIndex(seat => seat === '');
+    if (gapIndex === -1) return -1;
+    
+    return gapIndex;
+  };
+
+  // Helper function to get center-first seat selection for rows with aisles
+  const getCenterFirstSeats = (rowSeats: any[], count: number, row: string) => {
+    if (!hasAisles(row)) return null;
+    
+    const gapPosition = findCenterGapPosition(row);
+    if (gapPosition === -1) return null;
+    
+    // Get available seats sorted by seat number
+    const availableSeats = rowSeats.filter(seat => seat.status === 'AVAILABLE').sort((a, b) => a.number - b.number);
+    
+    if (availableSeats.length < count) return null;
+    
+    // Find the best starting position by prioritizing seats closest to the center gap
+    // while ensuring the entire block is contiguous
+    let bestBlock = null;
+    let bestDistance = Infinity;
+    
+    // Try all possible starting positions for contiguous blocks
+    for (let startIndex = 0; startIndex <= availableSeats.length - count; startIndex++) {
+      const candidate = availableSeats.slice(startIndex, startIndex + count);
+      
+      // Check if this is a contiguous block (families must sit together)
+      const isContiguous = candidate.every((seat, index, arr) => {
+        if (index === 0) return true;
+        return seat.number === arr[index - 1].number + 1;
+      });
+      
+      if (isContiguous) {
+        // Calculate the average distance from the center gap
+        const avgDistance = candidate.reduce((sum, seat) => {
+          return sum + Math.abs(seat.number - gapPosition);
+        }, 0) / candidate.length;
+        
+        // If this block is closer to center than previous best, update
+        if (avgDistance < bestDistance) {
+          bestDistance = avgDistance;
+          bestBlock = candidate;
+        }
+      }
+    }
+    
+    // If no contiguous block found, try to find the best possible block
+    // but still prioritize keeping families together
+    if (!bestBlock) {
+      // Look for any available seats that can form a block, even if not optimal
+      for (let startIndex = 0; startIndex <= availableSeats.length - count; startIndex++) {
+        const candidate = availableSeats.slice(startIndex, startIndex + count);
+        
+        // Still check for contiguity - families must sit together
+        const isContiguous = candidate.every((seat, index, arr) => {
+          if (index === 0) return true;
+          return seat.number === arr[index - 1].number + 1;
+        });
+        
+        if (isContiguous) {
+          bestBlock = candidate;
+          break; // Take the first available contiguous block
+        }
+      }
+    }
+    
+    return bestBlock;
+  };
+
   // Helper function to find contiguous block starting from a specific position
   const findContiguousBlock = (rowSeats: any[], count: number, startFromIndex: number = 0) => {
-  
-    
     if (rowSeats.length < count + startFromIndex) {
       return null;
     }
     
     const candidate = rowSeats.slice(startFromIndex, startFromIndex + count);
-  
     
     const isContiguous = candidate.every((s: any, j: number, arr: any[]) => {
       if (j === 0) return true;
       const isConsecutive = s.number === arr[j - 1].number + 1;
-    
       return isConsecutive;
     });
     
-  
     return isContiguous ? candidate : null;
   };
 
-  // Handler for class card click - select contiguous seats with grow-or-relocate logic
+  // Handler for class card click - select contiguous seats with center-first strategy for aisled rows
   const handleClassCardClick = (cls: any) => {
     const classKey = cls.key || cls.label;
-    
-    
     
     // Reset booking completed state when new seats are selected
     if (bookingCompleted) {
@@ -730,22 +807,25 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     const currentCount = previouslySelected.length;
     const newCount = currentCount + 1;
     
-    
-    
     // CASE 1: Nothing selected yet — find next available block
     if (previouslySelected.length === 0) {
-    
-      
-      // Try to find N contiguous seats starting from the first available seat
+      // Try to find N contiguous seats using center-first strategy for aisled rows
       for (const row of cls.rows) {
-      
-        
         const allSeatsInRow = seats.filter(seat => seat.row === row);
         const rowSeats = allSeatsInRow
           .filter(seat => seat.status === 'AVAILABLE')
           .sort((a, b) => a.number - b.number);
         
-        const block = findContiguousBlock(rowSeats, newCount, 0);
+        let block = null;
+        
+        // Check if this row has aisles - use center-first strategy
+        if (hasAisles(row)) {
+          block = getCenterFirstSeats(rowSeats, newCount, row);
+        } else {
+          // No aisles - use normal left-to-right strategy
+          block = findContiguousBlock(rowSeats, newCount, 0);
+        }
+        
         if (block) {
           block.forEach(seat => {
             toggleSeatStatus(seat.id, 'SELECTED');
@@ -767,7 +847,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
       return;
     }
     
-    // CASE 2: Try growing the existing block in the same row
+    // CASE 2: Try growing the existing block in the same row (keep families together)
     const currentRow = previouslySelected[0].row;
     
     const allSeatsInCurrentRow = seats.filter(seat => seat.row === currentRow);
@@ -782,14 +862,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     const startIndex = allSeatsInCurrentRowSorted.findIndex(seat => seat.number === lowestSelectedSeat.number);
     const grownBlock = findContiguousBlock(allSeatsInCurrentRowSorted, newCount, startIndex);
     if (grownBlock) {
-      // Deselect current seats and select the grown block
+      // Deselect current seats and select the grown block (families stay together)
       previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
       grownBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
       return;
     }
     
     // CASE 3: Cannot grow in same row — find new block in next available row
-    
     // Find the next row after current row
     const currentRowIndex = cls.rows.indexOf(currentRow);
     const nextRows = cls.rows.slice(currentRowIndex + 1);
@@ -800,9 +879,18 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
         .filter(seat => seat.status === 'AVAILABLE')
         .sort((a, b) => a.number - b.number);
       
-      const newBlock = findContiguousBlock(rowSeats, newCount, 0);
+      let newBlock = null;
+      
+      // Check if this row has aisles - use center-first strategy
+      if (hasAisles(row)) {
+        newBlock = getCenterFirstSeats(rowSeats, newCount, row);
+      } else {
+        // No aisles - use normal left-to-right strategy
+        newBlock = findContiguousBlock(rowSeats, newCount, 0);
+      }
+      
       if (newBlock) {
-        // Deselect current seats and select the new block
+        // Deselect current seats and select the new block (families stay together)
         previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
         newBlock.forEach(seat => toggleSeatStatus(seat.id, 'SELECTED'));
         return;
@@ -810,6 +898,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     }
     
     // CASE 4: No valid block found anywhere — reset to 0
+    // This ensures families don't get split apart if no suitable block is available
     previouslySelected.forEach(seat => toggleSeatStatus(seat.id, 'AVAILABLE'));
   };
 
@@ -855,7 +944,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
                   <span className="text-sm whitespace-nowrap">{showDetails[selectedShow]?.timing || ''}</span>
                   <span className="text-base font-semibold ml-2">{(() => {
                     const totalSeats = seats.length;
-                    const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
+                    const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
                     return `${availableSeats}/${totalSeats}`;
                   })()}</span>
                 </div>
@@ -939,7 +1028,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
                                   <span className="text-sm whitespace-nowrap">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</span>
                                   <span className="text-base font-semibold ml-2">{(() => {
                                     const totalSeats = seats.length;
-                                    const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
+                                    const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
                                     return `${availableSeats}/${totalSeats}`;
                                   })()}</span>
                                 </div>
@@ -948,9 +1037,9 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
                               {/* Class Boxes for this show */}
                               {createClassInfo.map((cls, i) => {
                                 const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
-                                const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS-BOOKED').length;
+                                const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
                                 const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
-                                const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS-BOOKED').length;
+                                const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS_BOOKED').length;
                                 const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
                                 const price = getPriceForClass(cls.label);
                                 

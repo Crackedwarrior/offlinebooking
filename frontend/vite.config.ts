@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
       host: env.VITE_HOST || "::",
       port: parseInt(env.VITE_PORT || '8080'),
       strictPort: true,
+      open: false, // Always prevent browser from opening automatically
       watch: {
         usePolling: true,
         interval: 100,

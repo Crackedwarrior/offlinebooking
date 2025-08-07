@@ -488,22 +488,6 @@ const Settings = () => {
         </div>
       )}
 
-      {/* Debug: Force Save Button (remove this later) */}
-      <div className="fixed bottom-6 left-6 z-50">
-        <Button
-          onClick={() => {
-            console.log('🔍 Debug: Forcing save button to show');
-            setShowSaveButton(true);
-            hasChangesRef.current = true;
-          }}
-          variant="outline"
-          size="sm"
-        >
-          Debug: Show Save
-        </Button>
-      </div>
-
-
     </div>
   );
 };

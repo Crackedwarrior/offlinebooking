@@ -29,7 +29,7 @@ export interface BookingState {
   saveBooking: () => void;
   loadBookingForDate: (date: string, show: ShowTime) => void;
   initializeSeats: () => void;
-  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[]) => void;
+  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds?: string[]) => void;
   getBookingStats: () => {
     total: number;
     available: number;
@@ -116,7 +116,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   
   initializeSeats: () => set({ seats: createInitialSeats() }),
   
-  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds: string[] = []) => {
+  syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds?: string[]) => {
     const state = get();
     const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
@@ -158,7 +158,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     
     // Mark selected seats from backend
     let selectedCount = 0;
-    selectedSeatIds.forEach(seatId => {
+    selectedSeatIds?.forEach(seatId => {
       const seatIndex = newSeats.findIndex(s => s.id === seatId);
       if (seatIndex !== -1) {
         newSeats[seatIndex].status = 'SELECTED';
@@ -171,7 +171,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     // Restore currently selected seats that are still available and not already marked as selected
     let restoredCount = 0;
     currentlySelectedSeats.forEach(seat => {
-      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id) && !selectedSeatIds.includes(seat.id)) {
+      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id) && !selectedSeatIds?.includes(seat.id)) {
         const seatIndex = newSeats.findIndex(s => s.id === seat.id);
         if (seatIndex !== -1) {
           newSeats[seatIndex].status = 'SELECTED';

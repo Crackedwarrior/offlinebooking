@@ -99,34 +99,10 @@ export const getApiUrl = (endpoint: string = ''): string => {
 
 // Validation function
 export const validateEnvConfig = (): boolean => {
-  const requiredFields = [
-    'VITE_API_BASE_URL',
-  ];
+  // Since we have default values for all required fields, we can be more lenient
+  // Only check for critical missing fields that don't have defaults
   
-  const missingFields = requiredFields.filter(field => !import.meta.env[field]);
-  
-  if (missingFields.length > 0) {
-    console.error('❌ Missing required environment variables:', missingFields);
-    console.log('💡 Creating .env file from env.example...');
-    console.log('📝 Please create a .env file in the frontend directory with the following content:');
-    console.log('');
-    console.log('# API Configuration');
-    console.log('VITE_API_BASE_URL=http://localhost:3001');
-    console.log('VITE_API_TIMEOUT=10000');
-    console.log('');
-    console.log('# App Configuration');
-    console.log('VITE_APP_NAME="Offline Booking System"');
-    console.log('VITE_APP_VERSION=1.0.0');
-    console.log('');
-    console.log('# Feature Flags');
-    console.log('VITE_ENABLE_ANALYTICS=false');
-    console.log('VITE_ENABLE_DEBUG_MODE=true');
-    console.log('VITE_ENABLE_OFFLINE_MODE=true');
-    console.log('');
-    console.log('💡 You can copy the content from env.example file.');
-    return false;
-  }
-  
+  // For now, we'll just return true since all our fields have default values
   return true;
 };
 

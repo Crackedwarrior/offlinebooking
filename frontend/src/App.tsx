@@ -21,7 +21,7 @@ const App = () => {
     const initDesktopApi = async () => {
       try {
         // Check if we're running in Tauri
-        if (window.__TAURI__) {
+        if (typeof window !== 'undefined' && (window as any).__TAURI__) {
           console.log('Running in Tauri environment');
           
           // Check if backend is running, start if not
@@ -29,6 +29,8 @@ const App = () => {
           if (!isBackendRunning) {
             await desktopApi.startBackend();
           }
+        } else {
+          console.log('Running in browser environment');
         }
       } catch (error) {
         console.error('Failed to initialize desktop API:', error);
