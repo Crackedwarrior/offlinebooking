@@ -1082,15 +1082,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
 
   return (
     <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
-      {/* Family Seating Banner */}
-      <div className="fixed top-0 left-0 right-0 bg-amber-100 border-b border-amber-200 p-2 z-50 flex justify-center items-center">
-        <div className="flex items-center max-w-screen-xl mx-auto">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-          </svg>
-          <span className="text-sm font-medium text-amber-800">THEATRES ARE USUALLY VISITED BY FAMILIES, SO WE DO NOT WANT THEM SEPARATED</span>
-        </div>
-      </div>
+
       
       <div className="flex-[3] flex flex-col mt-8">
         <div className="font-bold text-xl mb-0 ml-0">Checkout Summary</div>
