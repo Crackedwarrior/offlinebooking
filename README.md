@@ -1,130 +1,76 @@
-AuditoriumX - Offline Movie Ticket Booking System 🎬🍿
-Overview 🚀
-Welcome to AuditoriumX, the ultimate offline movie ticket booking system built to handle the toughest cinema booking scenarios with style. Perfect for local theaters, small cinema chains, and those nostalgic for simpler times when the internet wasn’t a thing. Featuring a real-time seat booking system, automatic ticket printing, and robust reporting, AuditoriumX is a rock-solid solution for managing your movie theater—offline and with zero compromise on features.
 
-This system is designed to be lightning-fast, bulletproof in handling large ticket volumes, and completely offline so that your booking process doesn't hinge on unreliable internet connections.
 
-Why AuditoriumX? 🤔
-Offline-First: Works even when the internet is down. Need we say more?
+# **AuditoriumX - Offline Movie Ticket Booking System** 🎬🍿
 
-Real-Time Updates: No more “Whoops, this seat is already taken!” moments.
+## **Overview** 🚀
 
-Seamless Integration: Easily integrates with external booking systems (BookMyShow, anyone?).
+**AuditoriumX** is a **high-performance offline movie ticket booking system** built to handle **real-time seat booking**, **automatic ticket printing**, and **robust reporting**. This system is designed for **local theaters**, **small cinema chains**, and venues that need an **offline-first solution** to manage ticket bookings efficiently without relying on the internet.
 
-POS Printer Integration: Print tickets as soon as seats are booked (without the annoying setup hassle).
+---
 
-Endless Reports: The app keeps track of everything for you—no more digging through messy spreadsheets.
+## **Key Features** ⚡
 
-Database Persistence: Data sticks around, even if the app is uninstalled. That's right—it's like a superhero for your booking data.
+* **Offline-First**: Operates fully without the internet. Perfect for **local setups**.
+* **Real-Time Seat Booking**: Instantly updates available seats as they are booked. No more "**Oops, that seat is taken!**"
+* **POS Integration**: Prints tickets automatically on **POS printers** when seats are booked.
+* **BMS Integration**: Syncs seamlessly with external booking systems.
+* **Reports & Analytics**: Generate detailed reports on bookings, revenue, and GST.
+* **Database Persistence**: Booking data is saved locally in **SQLite**, even if the app is uninstalled.
 
-Features ⚡
-Real-Time Seat Selection: Seat booking updates instantly on every click. No more waiting for the refresh button.
+---
 
-Multiple Showtimes: Morning, matinee, evening, and night shows—AuditoriumX can handle them all.
+## **Tech Stack & Tools** 🔧
 
-Class-Based Pricing: Each seat class (BOX, STAR CLASS, CLASSIC) has its own pricing scheme. Price them like a boss!
+* **Frontend**: **React** + **TypeScript** with **Shadcn UI** for a clean, modern UI.
+* **Backend**: **Node.js** + **Express** for handling all the booking logic and interactions.
+* **Database**: **Prisma ORM** with **SQLite** for local storage.
+* **Desktop App**: **Tauri** for packaging the app as a native desktop application.
+* **POS Printing**: Integrates with POS printers using **ESC/POS commands**.
 
-BMS Integration: Already using an external booking system? No problem! AuditoriumX syncs seamlessly with third-party booking platforms.
+---
 
-Ticket Printing: The moment a seat is booked, the ticket prints automatically. Yes, it's that smooth.
+## **Quick Setup** 🔥
 
-Reporting & Analytics: Dive deep into your booking data with robust reports that include GST breakdowns, ticket revenue, seat occupancy, and more.
+1. **Install Dependencies**:
 
-Database Persistence: Your data will survive app uninstallation. AuditoriumX ensures your data is stored locally and is always accessible.
+   ```bash
+   npm run install:all
+   ```
 
-Quick Start 🔥
-Install Dependencies
-Install all the dependencies required for both the frontend and backend.
+2. **Start the Application**:
 
-bash
-Copy
-Edit
-npm run install:all
-Start the Application
-Run the app in development mode and start both frontend and backend:
+   ```bash
+   npm run dev
+   ```
 
-bash
-Copy
-Edit
-npm run dev
-Frontend: http://localhost:8080
+   * **Frontend**: [http://localhost:8080](http://localhost:8080)
+   * **Backend**: [http://localhost:3001](http://localhost:3001)
 
-Backend: http://localhost:3001
+3. **Start Booking**:
 
-Start Booking Tickets
-Select your seats, print tickets, and enjoy the smooth booking experience.
+   * Select seats.
+   * Click "**Print**" to print tickets.
+   * **All bookings are saved automatically**.
 
-Features Deep Dive 🕵️‍♂️
-🎟️ Booking System
-Real-Time Updates: Book seats and watch them fill up in real-time.
+---
 
-Class-Based Pricing: BOX, STAR CLASS, and CLASSIC seats each have their own fixed pricing structure, and prices are customizable.
+## **How It Works** 🛠️
 
-Multiple Showtimes: Add, manage, and book for multiple show times—morning to late-night.
+* **Seat Booking**: Choose a seat, and it's instantly marked as booked in the system.
+* **POS Integration**: Once seats are booked, **tickets are printed automatically** using ESC/POS commands.
+* **Reports**: Generate **PDF reports** for show data, bookings, and revenue.
+* **Offline Support**: Everything works without an internet connection, ensuring uninterrupted operation.
 
-BMS Integration: Sync your local bookings with external systems like BookMyShow without a hiccup.
+---
 
-🖨️ Ticket Printing
-Automatic Ticket Generation: Once a seat is booked, the ticket prints. No more manual interventions.
+## **Production-Ready** ✅
 
-Error Handling: If anything goes wrong with the print, the booking is rolled back automatically. No lost data!
+* Fully tested and deployed to work in **offline environments**.
+* **No external dependencies**—everything runs locally.
+* **No internet? No problem!** This system is perfect for **small and medium-scale theaters** looking for a reliable, offline ticket booking solution.
 
-📊 Reports & Analytics
-Show-wise Reports: Daily reports for each show including seat occupancy, revenue breakdowns (net income, GST, MC).
+---
 
-Historical Data: Track past bookings, print dates, and make informed decisions.
+## **About** 👾
 
-PDF Exports: Export reports as PDFs for offline review or emailing.
-
-🛠️ Development & Deployment
-Backend: Node.js with Express. The backend API handles all business logic, including seat booking and report generation.
-
-Frontend: React with TypeScript, powered by Shadcn UI for a sleek, responsive interface.
-
-Desktop App: Powered by Tauri, the app can be compiled into a native executable for easy distribution.
-
-⚙️ Configuration
-Database
-Persistence: Local SQLite database stores all booking data.
-
-Location: The database is stored in %APPDATA%/AuditoriumX/database/ for persistence across app installations.
-
-Backup: Automatic backup and restore ensure your booking data is safe.
-
-🚀 Production Ready
-The application is production-ready and fully optimized for offline environments. It's perfect for small-to-medium theaters, especially those that want a lightweight, cost-effective solution without relying on constant internet access.
-
-🔧 Troubleshooting
-Common Issues:
-
-Printer not connected? Check USB or serial connection and confirm the COM port.
-
-Backend not running? Run npm run dev:backend to start the server.
-
-Frontend not loading? Try npm run dev:frontend to spin up the frontend.
-
-📚 Documentation
-Setup Guide: ENVIRONMENT_SETUP.md
-
-API Documentation: API Documentation
-
-Printing Setup: See PRINTING_SETUP.md for how to configure ticket printers.
-
-Built with:
-React for the frontend
-
-TypeScript for type safety
-
-Node.js & Express for the backend
-
-Prisma & SQLite for local data management
-
-Tauri for a slick desktop app
-
-Shadcn UI for a responsive and modern user interface
-
-Contribute 💪
-Feel free to fork, clone, or submit a pull request! We'd love to have more features, bug fixes, and enhancements. Remember, contributors are like superheroes—they save the day!
-
-👾 About the Author
-Hey, I’m Ujwal Shetty - a passionate developer who likes building tools that actually solve problems. This project started as a way to help theaters go paperless (or more like "digital"?) with zero stress. Join the journey
+**Crackedwarrior** developed **AuditoriumX** to provide a **simple, reliable, and offline-first solution** for cinema ticketing. Built to ensure **seamless performance**, even in low or no internet environments, this tool helps manage theater bookings with ease.
