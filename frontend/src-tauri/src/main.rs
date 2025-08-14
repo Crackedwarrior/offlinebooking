@@ -57,6 +57,236 @@ fn list_printers() -> Vec<String> {
 }
 
 #[tauri::command]
+fn list_usb_printers() -> Vec<String> {
+    // For Windows, we'll use PowerShell to get actual printer names
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        // Use PowerShell instead of wmic - more reliable in Tauri
+        let output = Command::new("powershell")
+            .args(&["-Command", "Get-Printer | Where-Object {$_.PortName -like '*USB*' -or $_.Name -like '*USB*' -or $_.Name -like '*EPSON*' -or $_.Name -like '*Receipt*'} | Select-Object Name,PortName | ConvertTo-Csv -NoTypeInformation"])
+            .output();
+        
+        match output {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let lines: Vec<&str> = output_str.lines().collect();
+                
+                let mut printers = Vec::new();
+                for line in lines.iter().skip(1) { // Skip header
+                    if !line.trim().is_empty() {
+                        let parts: Vec<&str> = line.split(',').collect();
+                        if parts.len() >= 2 {
+                            let printer_name = parts[0].trim_matches('"');
+                            let port_name = parts[1].trim_matches('"');
+                            
+                            if !printer_name.trim().is_empty() {
+                                printers.push(format!("{} ({})", printer_name, port_name));
+                            }
+                        }
+                    }
+                }
+                
+                println!("Detected Windows USB printers via PowerShell: {:?}", printers);
+                printers
+            },
+            Err(e) => {
+                eprintln!("Error getting Windows USB printers via PowerShell: {}", e);
+                vec![]
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Fallback for non-Windows systems
+        match serialport::available_ports() {
+            Ok(ports) => {
+                let usb_ports: Vec<String> = ports
+                    .iter()
+                    .filter(|p| {
+                        let port_name = p.port_name.to_lowercase();
+                        port_name.contains("usb") || port_name.contains("ttyusb")
+                    })
+                    .map(|p| p.port_name.clone())
+                    .collect();
+                
+                println!("Detected USB ports (non-Windows): {:?}", usb_ports);
+                usb_ports
+            },
+            Err(e) => {
+                eprintln!("Error listing USB ports: {}", e);
+                vec![]
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn list_com_printers() -> Vec<String> {
+    // For Windows, get COM port printers
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        // Use PowerShell instead of wmic - more reliable in Tauri
+        let output = Command::new("powershell")
+            .args(&["-Command", "Get-Printer | Where-Object {$_.PortName -like '*COM*'} | Select-Object Name,PortName | ConvertTo-Csv -NoTypeInformation"])
+            .output();
+        
+        match output {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let lines: Vec<&str> = output_str.lines().collect();
+                
+                let mut printers = Vec::new();
+                for line in lines.iter().skip(1) { // Skip header
+                    if !line.trim().is_empty() {
+                        let parts: Vec<&str> = line.split(',').collect();
+                        if parts.len() >= 2 {
+                            let printer_name = parts[0].trim_matches('"');
+                            let port_name = parts[1].trim_matches('"');
+                            
+                            if !printer_name.trim().is_empty() {
+                                printers.push(format!("{} ({})", printer_name, port_name));
+                            }
+                        }
+                    }
+                }
+                
+                println!("Detected Windows COM printers via PowerShell: {:?}", printers);
+                printers
+            },
+            Err(e) => {
+                eprintln!("Error getting Windows COM printers via PowerShell: {}", e);
+                vec![]
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Fallback for non-Windows systems
+        match serialport::available_ports() {
+            Ok(ports) => {
+                let com_ports: Vec<String> = ports
+                    .iter()
+                    .filter(|p| {
+                        let port_name = p.port_name.to_lowercase();
+                        port_name.contains("com") || port_name.contains("ttys")
+                    })
+                    .map(|p| p.port_name.clone())
+                    .collect();
+                
+                println!("Detected COM ports (non-Windows): {:?}", com_ports);
+                com_ports
+            },
+            Err(e) => {
+                eprintln!("Error listing COM ports: {}", e);
+                vec![]
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn list_all_printers() -> Vec<String> {
+    // Get all printers regardless of type
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        // Use PowerShell instead of wmic - more reliable in Tauri
+        let output = Command::new("powershell")
+            .args(&["-Command", "Get-Printer | Select-Object Name,PortName | ConvertTo-Csv -NoTypeInformation"])
+            .output();
+        
+        match output {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let lines: Vec<&str> = output_str.lines().collect();
+                
+                let mut printers = Vec::new();
+                for line in lines.iter().skip(1) { // Skip header
+                    if !line.trim().is_empty() {
+                        let parts: Vec<&str> = line.split(',').collect();
+                        if parts.len() >= 2 {
+                            let printer_name = parts[0].trim_matches('"');
+                            let port_name = parts[1].trim_matches('"');
+                            
+                            if !printer_name.trim().is_empty() {
+                                printers.push(format!("{} ({})", printer_name, port_name));
+                            }
+                        }
+                    }
+                }
+                
+                println!("Detected all Windows printers via PowerShell: {:?}", printers);
+                printers
+            },
+            Err(e) => {
+                eprintln!("Error getting Windows printers via PowerShell: {}", e);
+                
+                // Fallback: try wmic if PowerShell fails
+                let wmic_output = Command::new("wmic")
+                    .args(&["printer", "get", "name,portname", "/format:csv"])
+                    .output();
+                
+                match wmic_output {
+                    Ok(wmic_output) => {
+                        let wmic_str = String::from_utf8_lossy(&wmic_output.stdout);
+                        let wmic_lines: Vec<&str> = wmic_str.lines().collect();
+                        
+                        let mut wmic_printers = Vec::new();
+                        for line in wmic_lines.iter().skip(1) {
+                            if !line.trim().is_empty() {
+                                let parts: Vec<&str> = line.split(',').collect();
+                                if parts.len() >= 2 {
+                                    let printer_name = parts[1].trim_matches('"');
+                                    let port_name = parts[2].trim_matches('"');
+                                    
+                                    if !printer_name.trim().is_empty() {
+                                        wmic_printers.push(format!("{} ({})", printer_name, port_name));
+                                    }
+                                }
+                            }
+                        }
+                        
+                        println!("Detected Windows printers via wmic fallback: {:?}", wmic_printers);
+                        wmic_printers
+                    },
+                    Err(wmic_err) => {
+                        eprintln!("Both PowerShell and wmic failed: PowerShell: {}, wmic: {}", e, wmic_err);
+                        vec![]
+                    }
+                }
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Fallback for non-Windows systems
+        match serialport::available_ports() {
+            Ok(ports) => {
+                let port_names: Vec<String> = ports
+                    .iter()
+                    .map(|p| p.port_name.clone())
+                    .collect();
+                
+                println!("Detected all ports (non-Windows): {:?}", port_names);
+                port_names
+            },
+            Err(e) => {
+                eprintln!("Error listing all ports: {}", e);
+                vec![]
+            }
+        }
+    }
+}
+
+#[tauri::command]
 async fn test_printer_connection(port: String) -> Result<bool, String> {
     println!("Testing printer connection on port: {}", port);
     
@@ -128,9 +358,20 @@ async fn print_ticket(port: String, commands: String) -> Result<bool, String> {
     }
 }
 
+#[tauri::command]
+fn test_printers() -> Vec<String> {
+    // Simple test command that returns hardcoded data
+    println!("🧪 Test printers command called");
+    vec![
+        "Test Printer 1 (USB001)".to_string(),
+        "Test Printer 2 (COM1)".to_string(),
+        "EPSON TM-T81 ReceiptE4 (USB002)".to_string()
+    ]
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![start_backend, list_printers, test_printer_connection, print_ticket])
+        .invoke_handler(tauri::generate_handler![start_backend, list_printers, list_usb_printers, list_com_printers, list_all_printers, test_printer_connection, print_ticket, test_printers])
         .setup(|app| {
             // Get the app data directory for database persistence
             let app_data_dir = app.path().app_data_dir().unwrap();

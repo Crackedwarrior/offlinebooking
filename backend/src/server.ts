@@ -110,44 +110,105 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       printerConfig
     });
     
-    // Get the printer port from the configuration
-    const printerPort = printerConfig?.port || 'COM1';
-    console.log(`🔌 Connecting to printer on port ${printerPort}...`);
+    // Get the printer name from the configuration
+    const printerName = printerConfig?.name || 'EPSON TM-T81 ReceiptE4';
+    console.log(`🔌 Printing to Windows printer: ${printerName}...`);
     
-    // Attempt to connect to the printer and send commands
+    // Attempt to print using Windows printing
     let success = false;
     let errorMessage = '';
     
     try {
-      // Use the serialport library to connect to the printer
-      const SerialPort = require('serialport');
-      const port = new SerialPort(printerPort, {
-        baudRate: 9600,
-        dataBits: 8,
-        parity: 'none',
-        stopBits: 1,
-        flowControl: false
-      });
-      
-      // Send each ticket's commands to the printer
-      for (const ticket of tickets) {
-        const commandBytes = Buffer.from(ticket.commands, 'utf8');
+      // Check if we're on Windows
+      if (process.platform === 'win32') {
+        const { exec } = require('child_process');
+        const util = require('util');
+        const execAsync = util.promisify(exec);
+        
+        // Concatenate all ticket ESC/POS commands
+        const rawData: Buffer = Buffer.concat(
+          tickets.map((t: any) => Buffer.from(t.commands, 'binary'))
+        );
+        const base64Payload = rawData.toString('base64');
+        
+        // PowerShell script to send RAW bytes to printer using Win32 API
+        const psScript = `
+$printerName = '${printerName.Replace(/'/g, "''")}';
+$base64 = '${base64Payload}';
+$bytes = [System.Convert]::FromBase64String($base64);
+Add-Type -Namespace Printing -Name Win32Print -MemberDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32Print {
+  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  public struct DOC_INFO_1 { public string pDocName; public string pOutputFile; public string pDatatype; }
+  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOC_INFO_1 di);
+  [DllImport("winspool.drv", SetLastError=true)]
+  public static extern bool StartPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)]
+  public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
+  [DllImport("winspool.drv", SetLastError=true)]
+  public static extern bool EndPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)]
+  public static extern bool EndDocPrinter(IntPtr hPrinter);
+  [DllImport("winspool.drv", SetLastError=true)]
+  public static extern bool ClosePrinter(IntPtr hPrinter);
+}
+"@;
+[IntPtr]$h = [IntPtr]::Zero;
+if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw 'OpenPrinter failed'; }
+$doc = New-Object Printing.Win32Print+DOC_INFO_1;
+$doc.pDocName = 'Receipt';
+$doc.pDatatype = 'RAW';
+if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw 'StartDocPrinter failed'; }
+if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw 'StartPagePrinter failed'; }
+[int]$written = 0;
+if (-not [Printing.Win32Print]::WritePrinter($h, $bytes, $bytes.Length, [ref]$written)) { throw 'WritePrinter failed'; }
+[Printing.Win32Print]::EndPagePrinter($h) | Out-Null;
+[Printing.Win32Print]::EndDocPrinter($h) | Out-Null;
+[Printing.Win32Print]::ClosePrinter($h) | Out-Null;
+Write-Output $written;
+`;
+        
+        const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command \"${psScript.replace(/"/g, '""')}\"`;
+        console.log('🖨️ Executing RAW print to spooler...');
+        const { stdout, stderr } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+        if (stderr) console.warn('⚠️ PowerShell stderr:', stderr);
+        console.log('✅ Bytes written to spooler:', stdout.trim());
+        success = true;
+      } else {
+        // Non-Windows: fallback to serialport for serial printers
+        const { SerialPort } = require('serialport');
+        const printerPort = printerConfig?.port || 'COM1';
+        
+        console.log(`🔌 Falling back to serial port: ${printerPort}`);
+        
+        const port = new SerialPort({
+          path: printerPort,
+          baudRate: 9600,
+          dataBits: 8,
+          parity: 'none',
+          stopBits: 1,
+          flowControl: false
+        });
+        
+        // Send raw bytes directly
+        const rawData: Buffer = Buffer.concat(
+          tickets.map((t: any) => Buffer.from(t.commands, 'binary'))
+        );
         await new Promise((resolve, reject) => {
-          port.write(commandBytes, (err: Error | null | undefined) => {
-            if (err) {
-              reject(err);
-            } else {
-              port.drain(resolve);
-            }
+          port.write(rawData, (err: Error | null | undefined) => {
+            if (err) reject(err); else port.drain(resolve);
           });
         });
+        await new Promise(resolve => port.close(resolve));
+        success = true;
       }
-      
-      // Close the port
-      await new Promise(resolve => port.close(resolve));
-      success = true;
     } catch (printError: any) {
-      console.error('❌ Error connecting to printer:', printError);
+      console.error('❌ Error printing:', printError);
       errorMessage = printError.message;
       success = false;
     }
@@ -158,7 +219,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         message: `${tickets?.length || 0} tickets printed successfully`,
         timestamp: new Date().toISOString(),
         printerInfo: {
-          port: printerPort,
+          name: printerName,
           status: 'ready',
           jobId: Date.now().toString()
         }
