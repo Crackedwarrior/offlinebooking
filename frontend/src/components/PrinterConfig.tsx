@@ -4,13 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Loader2, Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import printerService from '@/services/printerService';
 
-interface PrinterStatus {
+interface PrinterInfo {
+  name: string;
+  port: string;
+  type: 'USB' | 'COM' | 'Network';
   connected: boolean;
-  ready: boolean;
-  paperStatus: string;
-  errorStatus: string;
 }
 
 interface PrinterConfig {
@@ -21,13 +23,13 @@ interface PrinterConfig {
 }
 
 export const PrinterConfig: React.FC = () => {
-  const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
+  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<PrinterInfo | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isRefreshingPrinters, setIsRefreshingPrinters] = useState(false);
-  const [printers, setPrinters] = useState<string[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('COM1');
-  const [useManualPort, setUseManualPort] = useState(false);
+  const [printerStatus, setPrinterStatus] = useState<'connected' | 'disconnected' | 'error' | null>(null);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [config, setConfig] = useState({
     port: 'COM1',
     theaterName: 'SREELEKHA THEATER',
@@ -36,125 +38,328 @@ export const PrinterConfig: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchPrinters();
-    checkPrinterStatus();
-  }, []);
-  
-  // Set the selected printer when printers are loaded
-  useEffect(() => {
-    if (printers.length > 0 && !selectedPrinter) {
-      setSelectedPrinter(printers[0]);
-      setConfig(prev => ({ ...prev, port: printers[0] }));
-    } else if (printers.length === 0 && !useManualPort) {
-      // If no printers are detected, automatically switch to manual mode
-      setUseManualPort(true);
-      setSelectedPrinter('__manual__');
-      console.log('No printers detected, switching to manual port input mode');
+    // Only scan if no printer is configured and we haven't scanned yet
+    const savedConfig = localStorage.getItem('selectedPrinter');
+    if (!savedConfig && !hasScanned) {
+      scanForPrinters();
     }
-  }, [printers, selectedPrinter, useManualPort]);
+  }, [hasScanned]);
 
-  const fetchPrinters = async () => {
-    setIsRefreshingPrinters(true);
+  // Load saved printer configuration
+  useEffect(() => {
     try {
-      // Check if we're running in Tauri
-      const isTauri = window.__TAURI__ !== undefined;
+      const savedConfig = localStorage.getItem('selectedPrinter');
+      if (savedConfig) {
+        const parsed = JSON.parse(savedConfig);
+        console.log('📋 Loading saved printer configuration:', parsed);
+        
+        // Update config state
+        setConfig(prev => ({
+          ...prev,
+          theaterName: parsed.theaterName || prev.theaterName,
+          location: parsed.location || prev.location,
+          gstin: parsed.gstin || prev.gstin
+        }));
+
+        // Configure printer service
+        printerService.configurePrinter(
+          parsed.name,
+          parsed.port,
+          parsed.theaterName,
+          parsed.location,
+          parsed.gstin
+        );
+
+        // Find and select the saved printer in the detected list
+        if (printers.length > 0) {
+          const savedPrinter = printers.find(p => 
+            p.name === parsed.name && p.port === parsed.port
+          );
+          if (savedPrinter) {
+            setSelectedPrinter(savedPrinter);
+            setPrinterStatus('connected');
+            console.log('✅ Restored saved printer selection:', savedPrinter);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load saved printer configuration:', error);
+    }
+  }, [printers]);
+  
+  const scanForPrinters = async () => {
+    setIsScanning(true);
+    try {
+      // Check if we're running in Tauri - multiple detection methods for Tauri v2
+      let isTauri = false;
+      
+      // Method 1: Try to import Tauri API directly - this will work if we're in Tauri
+      try {
+        const { core } = await import('@tauri-apps/api');
+        if (core && core.invoke) {
+          isTauri = true;
+          console.log('✅ Tauri detected via direct API import');
+        }
+      } catch (importError) {
+        console.log('❌ Tauri API import failed:', importError);
+      }
+      
+      // Method 2: Check for Tauri global object if direct import failed
+      if (!isTauri && typeof window !== 'undefined') {
+        // Tauri v2 structure
+        if ((window as any).__TAURI__?.tauri !== undefined) {
+          isTauri = true;
+          console.log('✅ Tauri v2 detected via __TAURI__.tauri');
+        }
+        // Tauri v1 structure (fallback)
+        else if ((window as any).__TAURI__ !== undefined) {
+          isTauri = true;
+          console.log('✅ Tauri v1 detected via __TAURI__');
+        }
+        // Check if we're in a desktop environment by other means
+        else if ((window as any).navigator?.userAgent?.includes('Tauri')) {
+          isTauri = true;
+          console.log('✅ Tauri detected via user agent');
+        }
+        // Check if we're in a desktop environment by checking for desktop-specific APIs
+        else if ((window as any).navigator?.platform === 'Win32' && 
+                 (window as any).navigator?.userAgent?.includes('Electron') === false &&
+                 (window as any).navigator?.userAgent?.includes('Chrome') === false) {
+          isTauri = true;
+          console.log('✅ Tauri detected via platform detection');
+        }
+      }
+      
+      console.log('🔍 Environment check:', { 
+        hasWindow: typeof window !== 'undefined',
+        hasTauri: (window as any).__TAURI__ !== undefined,
+        hasTauriTauri: (window as any).__TAURI__?.tauri !== undefined,
+        userAgent: (window as any).navigator?.userAgent,
+        platform: (window as any).navigator?.platform,
+        isTauri
+      });
       
       if (isTauri) {
-        console.log('🔍 Using Tauri API to fetch printers');
+        console.log('🔍 Scanning for Windows printers in Tauri...');
         try {
-          // Use Tauri command to get printers
-          const { invoke } = await import('@tauri-apps/api');
-          const printerList = await invoke('list_printers');
+          // Import Tauri API - this should work now
+          const { core } = await import('@tauri-apps/api');
+          console.log('✅ Tauri API imported successfully:', core);
           
-          console.log('✅ Tauri printer list:', printerList);
-          setPrinters(printerList as string[]);
+          // Use the invoke function from the core module
+          const invoke = core.invoke;
+          
+          if (!invoke) {
+            throw new Error('Tauri invoke function not found');
+          }
+          
+          // First, test if Tauri is working with a simple command
+          console.log('🧪 Testing Tauri with simple command...');
+          try {
+            const testResult = await invoke('list_printers');
+            console.log('🧪 Test command result:', testResult);
+          } catch (testError) {
+            console.error('🧪 Test command failed:', testError);
+          }
+          
+          // Test the new test_printers command
+          console.log('🧪 Testing test_printers command...');
+          try {
+            const testPrintersResult = await invoke('test_printers');
+            console.log('🧪 Test printers command result:', testPrintersResult);
+          } catch (testPrintersError) {
+            console.error('🧪 Test printers command failed:', testPrintersError);
+          }
+          
+          // First try to get all printers (Windows approach)
+          console.log('🔍 Calling list_all_printers...');
+          const allPrinters = await invoke('list_all_printers') as string[];
+          console.log('✅ All printers found:', allPrinters);
+          
+          if (allPrinters.length > 0) {
+            // Convert printer strings to PrinterInfo objects
+            const printerInfos: PrinterInfo[] = allPrinters.map(printerStr => {
+              // Parse printer string like "EPSON TM-T81 ReceiptE4 (USB001)"
+              const match = printerStr.match(/^(.+?)\s*\((.+?)\)$/);
+              if (match) {
+                const name = match[1].trim();
+                const port = match[2].trim();
+                const type = port.toLowerCase().includes('usb') ? 'USB' as const : 'COM' as const;
+                return {
+                  name,
+                  port,
+                  type,
+                  connected: true
+                };
+              } else {
+                // Fallback if parsing fails
+                return {
+                  name: printerStr,
+                  port: 'Unknown',
+                  type: 'COM' as const,
+                  connected: true
+                };
+              }
+            });
+            
+            setPrinters(printerInfos);
+            
+            // Auto-select first printer
+            if (printerInfos.length > 0) {
+              const firstPrinter = printerInfos[0];
+              setSelectedPrinter(firstPrinter);
+              setConfig(prev => ({ ...prev, port: firstPrinter.port }));
+              testPrinterConnection(firstPrinter.port);
+            }
+          } else {
+            // Fallback to individual detection methods
+            console.log('🔍 Trying fallback detection methods...');
+            
+            console.log('🔍 Calling list_usb_printers...');
+            const usbPrinters = await invoke('list_usb_printers') as string[];
+            console.log('🔍 USB printers result:', usbPrinters);
+            
+            console.log('🔍 Calling list_com_printers...');
+            const comPrinters = await invoke('list_com_printers') as string[];
+            console.log('🔍 COM printers result:', comPrinters);
+            
+            const allPrinters: PrinterInfo[] = [
+              ...usbPrinters.map(port => ({
+                name: `USB Printer (${port})`,
+                port,
+                type: 'USB' as const,
+                connected: true
+              })),
+              ...comPrinters.map(port => ({
+                name: `COM Printer (${port})`,
+                port,
+                type: 'COM' as const,
+                connected: true
+              }))
+            ];
+            
+            console.log('✅ Fallback printer detection:', allPrinters);
+            setPrinters(allPrinters);
+            
+            if (allPrinters.length > 0) {
+              const usbPrinter = allPrinters.find(p => p.type === 'USB');
+              const firstPrinter = usbPrinter || allPrinters[0];
+              setSelectedPrinter(firstPrinter);
+              setConfig(prev => ({ ...prev, port: firstPrinter.port }));
+              testPrinterConnection(firstPrinter.port);
+            }
+          }
         } catch (tauriError) {
-          console.error('❌ Tauri printer list failed:', tauriError);
-          // Don't fall back to defaults anymore, show empty list instead
-          setPrinters([]);
+          console.error('❌ Tauri printer scan failed:', tauriError);
+          // Fallback to default COM ports
+          const fallbackPrinters: PrinterInfo[] = [
+            { name: 'COM1', port: 'COM1', type: 'COM', connected: false },
+            { name: 'COM2', port: 'COM2', type: 'COM', connected: false },
+            { name: 'COM3', port: 'COM3', type: 'COM', connected: false }
+          ];
+          setPrinters(fallbackPrinters);
         }
       } else {
-        console.log('🔍 Using default printers for browser environment');
-        // For browser environment, just use default printers
-        setPrinters(['COM1', 'COM2', 'COM3']);
+        console.log('🔍 Browser environment - using default printers');
+        const defaultPrinters: PrinterInfo[] = [
+          { name: 'COM1', port: 'COM1', type: 'COM', connected: false },
+          { name: 'COM2', port: 'COM2', type: 'COM', connected: false }
+        ];
+        setPrinters(defaultPrinters);
       }
+      setHasScanned(true);
+      setLastScanTime(new Date());
     } catch (error) {
-      console.error('Failed to fetch printers:', error);
+      console.error('Failed to scan printers:', error);
       setPrinters([]);
+      setHasScanned(true);
+      setLastScanTime(new Date());
     } finally {
-      setIsRefreshingPrinters(false);
+      setIsScanning(false);
     }
   };
 
-  const handlePrinterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setSelectedPrinter(value);
-    
-    if (value === '__manual__') {
-      setUseManualPort(true);
-      // Don't update port yet, wait for manual input
-    } else if (value) {
-      setUseManualPort(false);
-      setConfig(prev => ({ ...prev, port: value }));
-      
-      // Configure printer service with the selected port
-      printerService.configurePrinter(
-        value,
-        config.theaterName,
-        config.location,
-        config.gstin
-      );
-      
-      console.log(`🖨️ Printer port changed to: ${value}`);
-    }
-  };
-
-  const checkPrinterStatus = async () => {
+  const testPrinterConnection = async (port: string) => {
     try {
+      printerService.configurePrinter(selectedPrinter?.name || 'EPSON TM-T81 ReceiptE4', port, config.theaterName, config.location, config.gstin);
       const status = await printerService.getPrinterStatus();
-      setPrinterStatus(status);
-    } catch (error) {
-      console.error('Failed to get printer status:', error);
-    }
-  };
-
-  const testConnection = async () => {
-    setIsTesting(true);
-    try {
-      // Configure printer with current settings
-      printerService.configurePrinter(
-        config.port,
-        config.theaterName,
-        config.location,
-        config.gstin
-      );
-
-      const success = await printerService.testConnection();
-      if (success) {
-        await checkPrinterStatus();
-        console.log('✅ Printer connection test successful');
+      
+      if (status.connected) {
+        setPrinterStatus('connected');
+        console.log('✅ Printer connected successfully');
       } else {
-        console.error('❌ Printer connection test failed');
+        setPrinterStatus('disconnected');
+        console.log('❌ Printer not connected');
       }
     } catch (error) {
-      console.error('❌ Printer connection test error:', error);
-    } finally {
-      setIsTesting(false);
+      setPrinterStatus('error');
+      console.error('❌ Printer connection test failed:', error);
+    }
+  };
+
+  const handlePrinterSelect = (printer: PrinterInfo) => {
+    setSelectedPrinter(printer);
+    setConfig(prev => ({ ...prev, port: printer.port }));
+    testPrinterConnection(printer.port);
+  };
+
+  const handleConfigurePrinter = () => {
+    if (!selectedPrinter) {
+      console.warn('⚠️ No printer selected for configuration');
+      return;
+    }
+
+    try {
+      // Configure the printer service with the selected printer
+      printerService.configurePrinter(
+        selectedPrinter.name,
+        selectedPrinter.port,
+        config.theaterName,
+        config.location,
+        config.gstin
+      );
+
+      console.log('✅ Printer configured successfully:', {
+        name: selectedPrinter.name,
+        port: selectedPrinter.port,
+        theaterName: config.theaterName,
+        location: config.location,
+        gstin: config.gstin
+      });
+
+      // Show success feedback
+      setPrinterStatus('connected');
+      toast.success('Printer configured successfully!');
+      
+      // You could also save to localStorage or backend here
+      localStorage.setItem('selectedPrinter', JSON.stringify({
+        name: selectedPrinter.name,
+        port: selectedPrinter.port,
+        theaterName: config.theaterName,
+        location: config.location,
+        gstin: config.gstin
+      }));
+
+    } catch (error) {
+      console.error('❌ Failed to configure printer:', error);
+      setPrinterStatus('error');
+      toast.error('Failed to configure printer.');
     }
   };
 
   const printTestTicket = async () => {
+    if (!selectedPrinter) return;
+    
     setIsPrinting(true);
     try {
-      // Configure printer
       printerService.configurePrinter(
-        config.port,
+        selectedPrinter.name,
+        selectedPrinter.port,
         config.theaterName,
         config.location,
         config.gstin
       );
 
-      // Get current date and time
       const currentDate = new Date().toISOString().split('T')[0];
       const currentTime = new Date().toLocaleTimeString('en-US', { 
         hour12: true, 
@@ -162,7 +367,6 @@ export const PrinterConfig: React.FC = () => {
         minute: '2-digit' 
       });
 
-      // Create a test ticket with realistic data
       const testTicket = printerService.formatTicketData(
         'A1',
         'A',
@@ -188,172 +392,221 @@ export const PrinterConfig: React.FC = () => {
   };
 
   const updateConfig = (field: keyof PrinterConfig, value: string) => {
-    setConfig(prev => {
-      const newConfig = { ...prev, [field]: value };
-      
-      // Update printer service configuration with all fields
-      printerService.configurePrinter(
-        newConfig.port,
-        newConfig.theaterName,
-        newConfig.location,
-        newConfig.gstin
-      );
-      
-      return newConfig;
-    });
+    setConfig(prev => ({ ...prev, [field]: value }));
+  };
+
+  const getStatusIcon = () => {
+    switch (printerStatus) {
+      case 'connected':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'disconnected':
+        return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+      default:
+        return <AlertCircle className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getStatusText = () => {
+    switch (printerStatus) {
+      case 'connected':
+        return selectedPrinter ? `${selectedPrinter.name} - Connected` : 'Connected';
+      case 'disconnected':
+        return 'Not Connected';
+      case 'error':
+        return 'Connection Error';
+      default:
+        return selectedPrinter ? 'Ready to Configure' : 'No Printer Selected';
+    }
+  };
+
+  const handleRefreshPrinters = () => {
+    setHasScanned(false);
+    scanForPrinters();
   };
 
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          🖨️ Printer Configuration
+          🖨️ Printer Setup
           {printerStatus && (
-            <Badge variant={printerStatus.connected ? "default" : "destructive"}>
-              {printerStatus.connected ? "Connected" : "Disconnected"}
+            <Badge variant={printerStatus === 'connected' ? "default" : "destructive"}>
+              {getStatusText()}
             </Badge>
           )}
         </CardTitle>
         <CardDescription>
-          Configure Epson TM-T20 M249A POS printer settings
+          Automatic printer detection and configuration
         </CardDescription>
       </CardHeader>
+      
       <CardContent className="space-y-4">
-        {/* Printer Status */}
-        {printerStatus && (
-          <div className="space-y-2">
-            <Label>Printer Status</Label>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>Ready: <Badge variant={printerStatus.ready ? "default" : "secondary"}>{printerStatus.ready ? "Yes" : "No"}</Badge></div>
-              <div>Paper: <Badge variant={printerStatus.paperStatus === "OK" ? "default" : "destructive"}>{printerStatus.paperStatus}</Badge></div>
-              <div>Error: <Badge variant={printerStatus.errorStatus === "No Error" ? "default" : "destructive"}>{printerStatus.errorStatus}</Badge></div>
+        {/* Printer Detection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Detected Printers</Label>
+            {lastScanTime && (
+              <p className="text-xs text-gray-500 mt-1">
+                Last updated: {lastScanTime.toLocaleTimeString()}
+              </p>
+            )}
+            <div className="flex gap-2">
+              {selectedPrinter && (
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Configured
+                </Badge>
+              )}
+              <Button
+                onClick={scanForPrinters}
+                disabled={isScanning}
+                size="sm"
+                variant="outline"
+              >
+                {isScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Scan
+                  </>
+                )}
+              </Button>
             </div>
           </div>
-        )}
-
-        {/* Printer Selection Dropdown */}
-        <div>
-          <div className="flex justify-between items-center">
-            <Label htmlFor="printer-select">Select Printer</Label>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchPrinters}
-              className="text-xs"
-              disabled={isRefreshingPrinters}
-            >
-              {isRefreshingPrinters ? 'Scanning...' : 'Refresh Printers'}
-            </Button>
-          </div>
-          <select
-            id="printer-select"
-            className="w-full border rounded px-2 py-1 mt-1"
-            value={useManualPort ? '__manual__' : selectedPrinter}
-            onChange={handlePrinterChange}
-          >
-            {printers.length > 0 ? (
-              printers.map((printer) => (
-                <option key={printer} value={printer}>{printer}</option>
-              ))
-            ) : (
-              <option value="" disabled>No printers detected</option>
-            )}
-            <option value="__manual__">Other / Manual</option>
-          </select>
-          {printers.length === 0 && (
-            <div className="text-sm text-amber-600 mt-1">
-              No printers detected. Please use manual mode to specify your printer port or click Refresh to scan again.
+          
+          {printers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              {selectedPrinter ? (
+                <div>
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500" />
+                  <p className="font-medium text-gray-700">Printer Already Configured</p>
+                  <p className="text-sm">Your EPSON TM-T81 is ready to use</p>
+                  <Button
+                    onClick={handleRefreshPrinters}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                  >
+                    Refresh Printer List
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <Printer className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>No printers found. Click Scan to search for USB and COM printers.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {printers.map((printer) => (
+                <div
+                  key={printer.port}
+                  onClick={() => handlePrinterSelect(printer)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    selectedPrinter?.name === printer.name && selectedPrinter?.port === printer.port
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{printer.name}</div>
+                      <div className="text-sm text-gray-500">{printer.port}</div>
+                    </div>
+                    <Badge variant="outline">{printer.type}</Badge>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Manual Port Input */}
-        {useManualPort && (
-          <div>
-            <Label htmlFor="port">Printer Port</Label>
-            <Input
-              id="port"
-              value={config.port}
-              onChange={(e) => {
-                const value = e.target.value;
-                updateConfig('port', value);
-                
-                // Configure printer service with the manual port
-                printerService.configurePrinter(
-                  value,
-                  config.theaterName,
-                  config.location,
-                  config.gstin
-                );
-                
-                console.log(`🖨️ Manual printer port changed to: ${value}`);
-              }}
-              placeholder="Enter port name (e.g., COM1, /dev/ttyUSB0)"
-            />
-            <div className="text-sm text-gray-500 mt-1">
-              Enter the exact port name of your printer. For Windows, it's usually COM1, COM2, etc. 
-              For Linux, it might be /dev/ttyUSB0 or similar. You can find this in your system's device manager.
+        {/* Configure Button */}
+        {selectedPrinter && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-blue-900">
+                  Selected Printer: {selectedPrinter.name}
+                </h4>
+                <p className="text-xs text-blue-700 mt-1">
+                  Port: {selectedPrinter.port} | Type: {selectedPrinter.type}
+                </p>
+                {printerStatus === 'connected' && (
+                  <Badge variant="secondary" className="mt-2 bg-green-100 text-green-800">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Configured
+                  </Badge>
+                )}
+              </div>
+              <button
+                onClick={handleConfigurePrinter}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              >
+                Configure Printer
+              </button>
             </div>
           </div>
         )}
 
-        {/* Configuration Fields */}
+        {/* Theater Information */}
         <div className="space-y-3">
+          <Label>Theater Information</Label>
           <div>
-            <Label htmlFor="theaterName">Theater Name</Label>
             <Input
-              id="theaterName"
               value={config.theaterName}
               onChange={(e) => updateConfig('theaterName', e.target.value)}
-              placeholder="SREELEKHA THEATER"
+              placeholder="Theater Name"
+              className="mb-2"
             />
-          </div>
-          <div>
-            <Label htmlFor="location">Location</Label>
             <Input
-              id="location"
               value={config.location}
               onChange={(e) => updateConfig('location', e.target.value)}
-              placeholder="Chickmagalur"
+              placeholder="Location"
+              className="mb-2"
             />
-          </div>
-          <div>
-            <Label htmlFor="gstin">GSTIN</Label>
             <Input
-              id="gstin"
               value={config.gstin}
               onChange={(e) => updateConfig('gstin', e.target.value)}
-              placeholder="29AAVFS7423E120"
+              placeholder="GSTIN"
             />
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          <Button 
-            onClick={testConnection} 
-            disabled={isTesting}
-            variant="outline"
-            className="flex-1"
-          >
-            {isTesting ? "Testing..." : "Test Connection"}
-          </Button>
+        {/* Status and Test */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            {getStatusIcon()}
+            <span className="text-sm">
+              {selectedPrinter ? `${selectedPrinter.name} - ${getStatusText()}` : 'No printer selected'}
+            </span>
+          </div>
+          
           <Button 
             onClick={printTestTicket} 
-            disabled={isPrinting || !printerStatus?.connected}
-            className="flex-1"
+            disabled={isPrinting || !selectedPrinter || printerStatus !== 'connected'}
+            className="w-full"
           >
-            {isPrinting ? "Printing..." : "Print Test"}
+            {isPrinting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Printing Test Ticket...
+              </>
+            ) : (
+              <>
+                <Printer className="w-4 h-4 mr-2" />
+                Print Test Ticket
+              </>
+            )}
           </Button>
         </div>
-        <Button 
-          onClick={checkPrinterStatus} 
-          variant="ghost" 
-          size="sm"
-          className="w-full"
-        >
-          Refresh Status
-        </Button>
       </CardContent>
     </Card>
   );

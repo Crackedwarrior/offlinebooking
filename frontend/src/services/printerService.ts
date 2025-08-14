@@ -25,7 +25,8 @@ export interface PrintJob {
 
 export class PrinterService {
   private static instance: PrinterService;
-  private printerPort: string = 'COM1'; // Default port, can be configured
+  private printerName: string = 'EPSON TM-T81 ReceiptE4'; // Default printer name for Windows
+  private printerPort: string = 'COM1'; // Fallback port for serial printers
   private theaterName: string = 'SREELEKHA THEATER';
   private location: string = 'Chickmagalur';
   private gstin: string = '29AAVFS7423E120';
@@ -40,7 +41,8 @@ export class PrinterService {
   }
 
   // Configure printer settings
-  configurePrinter(port?: string, theaterName?: string, location?: string, gstin?: string) {
+  configurePrinter(printerName?: string, port?: string, theaterName?: string, location?: string, gstin?: string) {
+    if (printerName) this.printerName = printerName;
     if (port) this.printerPort = port;
     if (theaterName) this.theaterName = theaterName;
     if (location) this.location = location;
@@ -112,26 +114,55 @@ export class PrinterService {
 
   // Generate ESC/POS commands for the ticket
   private generateEscPosCommands(ticket: TicketData): string {
+    // Epson TM-T81 on 80mm typically supports ~42 columns with Font A
+    const maxCols = 42;
+    const wrap = (text: string): string => {
+      const lines: string[] = [];
+      let i = 0;
+      while (i < text.length) {
+        lines.push(text.slice(i, i + maxCols));
+        i += maxCols;
+      }
+      return lines.join('\n');
+    };
+
+    const center = (text: string): string => {
+      if (text.length >= maxCols) return text;
+      const pad = Math.floor((maxCols - text.length) / 2);
+      return ' '.repeat(pad) + text;
+    };
+
     const commands = [
       '\x1B\x40', // Initialize printer
+      '\x1B\x74\x00', // Set code page (PC437) for stable ASCII
+      '\x1B\x52\x00', // Select USA character set
+
+      // Header
       '\x1B\x61\x01', // Center alignment
-      '\x1B\x21\x10', // Double height and width
-      `${ticket.theaterName}\n`,
-      '\x1B\x21\x00', // Normal size
-      `${ticket.location}\n`,
+      '\x1D\x21\x01', // Double height (not width) for title
+      `${center(ticket.theaterName)}` + '\n',
+      '\x1D\x21\x00', // Normal size
+      `${center(ticket.location)}` + '\n',
+
+      // Body
       '\x1B\x61\x00', // Left alignment
-      `Date : ${ticket.date}\n`,
-      `Film : ${ticket.film}\n`,
-      `Class : ${ticket.class}\n`,
-      `SHOWTIME: ${ticket.showtime}\n`,
-      `Row: ${ticket.row}-Seats: [${ticket.seatNumber}]\n`,
-      `[NET:${ticket.netAmount.toFixed(2)}] [CGST:${ticket.cgst.toFixed(2)}] [SGST:${ticket.sgst.toFixed(2)}] [MC:${ticket.mc.toFixed(2)}]\n`,
-      `${ticket.date} / ${ticket.showtime} ${ticket.transactionId}\n`,
-      '\x1B\x21\x10', // Double height and width
-      `Ticket Cost: ${ticket.totalAmount.toFixed(2)}\n`,
-      '\x1B\x21\x00', // Normal size
-      '\n\n\n', // Feed paper
-      '\x1B\x69', // Cut paper
+      `${wrap(`Date : ${ticket.date}`)}\n`,
+      `${wrap(`Film : ${ticket.film}`)}\n`,
+      `${wrap(`Class : ${ticket.class}`)}\n`,
+      `${wrap(`SHOWTIME: ${ticket.showtime}`)}\n`,
+      `${wrap(`Row: ${ticket.row}-Seats: [${ticket.seatNumber}]`)}\n`,
+      `${wrap(`[NET:${ticket.netAmount.toFixed(2)}] [CGST:${ticket.cgst.toFixed(2)}] [SGST:${ticket.sgst.toFixed(2)}] [MC:${ticket.mc.toFixed(2)}]`)}\n`,
+      `${wrap(`${ticket.date} / ${ticket.showtime} ${ticket.transactionId}`)}\n`,
+
+      // Price emphasized but still safe width
+      '\x1B\x61\x01',
+      '\x1D\x21\x01', // Double height
+      `${center(`Ticket Cost: ${ticket.totalAmount.toFixed(2)}`)}\n`,
+      '\x1D\x21\x00',
+      '\x1B\x61\x00',
+
+      '\n\n', // Feed a bit
+      '\x1D\x56\x00' // Full cut
     ];
 
     return commands.join('');
@@ -249,7 +280,8 @@ export class PrinterService {
           timestamp: new Date().toISOString()
         }],
         printerConfig: {
-          port: this.printerPort,
+          name: this.printerName, // Send printer name for Windows printing
+          port: this.printerPort, // Keep port as fallback for serial printers
           theaterName: this.theaterName,
           location: this.location,
           gstin: this.gstin

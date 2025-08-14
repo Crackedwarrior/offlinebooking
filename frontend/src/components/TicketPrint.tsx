@@ -150,7 +150,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const total = groups.reduce((sum, g) => sum + g.price, 0);
   const totalTickets = selectedSeats.length;
   const [selectedGroupIdxs, setSelectedGroupIdxs] = useState<number[]>([]);
-  const [showPrintModal, setShowPrintModal] = useState(false);
+
   const selectedShow = useBookingStore(state => state.selectedShow);
   const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
   const { getMovieForShow } = useSettingsStore();
@@ -199,11 +199,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   };
 
   const handlePrint = () => {
-    setShowPrintModal(true);
+    // Directly call handleConfirmPrint without showing modal
+    handleConfirmPrint();
   };
 
   const handleConfirmPrint = async () => {
-    setShowPrintModal(false);
     
     try {
       console.log('🖨️ Starting print process...');
@@ -470,27 +470,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         </div>
       </div>
       
-      {/* Print confirmation modal */}
-      {showPrintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-[350px] max-w-full">
-            <div className="font-bold text-lg mb-2">Confirm Print</div>
-            <div className="mb-4 max-h-60 overflow-y-auto">
-              {groups.map((g, idx) => (
-                <div key={g.classLabel + g.row + g.seats.join(',')} className="mb-2 p-2 rounded border bg-gray-50">
-                  <div className="font-semibold">{g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}</div>
-                  <div className="text-sm">Price: ₹{g.price} &nbsp; | &nbsp; Count: {g.seats.length}</div>
-                </div>
-              ))}
-            </div>
-            <div className="font-semibold mb-2">Total: ₹{total} ({totalTickets} ticket{totalTickets !== 1 ? 's' : ''})</div>
-            <div className="flex gap-2 justify-end">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 font-semibold" onClick={() => setShowPrintModal(false)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold" onClick={handleConfirmPrint}>Confirm Print</button>
-            </div>
-          </div>
-        </div>
-      )}
+
       
       {/* Hide the vertical scrollbar but keep scrolling */}
       <style>{`
