@@ -343,32 +343,28 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         const { exec } = require('child_process');
         const util = require('util');
         const execAsync = util.promisify(exec);
-        
-        // Concatenate all ticket ESC/POS commands
+        const fs = require('fs');
+
+        // Concatenate all ticket ESC/POS commands into a single raw buffer
         const rawData: Buffer = Buffer.concat(
           tickets.map((t: any) => Buffer.from(t.commands, 'binary'))
         );
-        const base64Payload = rawData.toString('base64');
-        
-        // Method 1: Use Winspool RAW via PowerShell with temp file (most reliable)
+        console.log('🖨️ Bytes to send:', rawData.length);
+
+        // Method 1: Winspool RAW via PowerShell using WritePrinter API
         try {
-          console.log('🖨️ Method 1: Winspool RAW via PowerShell...');
+          const tempDir = 'C:\\temp';
+          const tempFileRaw = `${tempDir}\\ticket_raw_${Date.now()}.prn`;
 
-          const fs = require('fs');
-          const tempFileRaw = `C:\\temp\\ticket_raw_${Date.now()}.prn`;
-
-          // Ensure temp directory exists
-          if (!fs.existsSync('C:\\temp')) {
-            fs.mkdirSync('C:\\temp', { recursive: true });
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
           }
-
-          // Write the raw ESC/POS data to temp file
           fs.writeFileSync(tempFileRaw, rawData);
-          console.log(`📁 Created temp RAW file: ${tempFileRaw}`);
+          console.log('📁 Wrote RAW file:', tempFileRaw);
 
-          // PowerShell script to send RAW bytes to printer using Win32 API reading from file
           const psRawScript = `
-          $printerName = '${printerName.replace(/'/g, "''")}';
+          $ErrorActionPreference = 'Stop'
+          $printerName = '${String(printerName).replace(/'/g, "''")}';
           $filePath = '${tempFileRaw.replace(/\\/g, "\\\\")}';
           $bytes = [System.IO.File]::ReadAllBytes($filePath);
           Add-Type -Namespace Printing -Name Win32Print -MemberDefinition @"
@@ -391,155 +387,52 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
             public static extern bool EndDocPrinter(IntPtr hPrinter);
             [DllImport("winspool.drv", SetLastError=true)]
             public static extern bool ClosePrinter(IntPtr hPrinter);
+            [DllImport("kernel32.dll")] public static extern uint GetLastError();
           }
           "@;
           [IntPtr]$h = [IntPtr]::Zero;
-          if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw 'OpenPrinter failed'; }
+          if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw "OpenPrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
           $doc = New-Object Printing.Win32Print+DOC_INFO_1;
-          $doc.pDocName = 'ESC_POS_Receipt';
+          $doc.pDocName = 'ESC_POS_Tickets';
           $doc.pDatatype = 'RAW';
-          if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw 'StartDocPrinter failed'; }
-          if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw 'StartPagePrinter failed'; }
-          [int]$written = 0;
-          if (-not [Printing.Win32Print]::WritePrinter($h, $bytes, $bytes.Length, [ref]$written)) { throw 'WritePrinter failed'; }
+          if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw "StartDocPrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
+          if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw "StartPagePrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
+          [int]$totalWritten = 0;
+          $chunkSize = 1024;
+          for ($offset = 0; $offset -lt $bytes.Length; $offset += $chunkSize) {
+            $len = [Math]::Min($chunkSize, $bytes.Length - $offset);
+            $chunk = New-Object byte[] $len;
+            [Array]::Copy($bytes, $offset, $chunk, 0, $len);
+            [int]$written = 0;
+            if (-not [Printing.Win32Print]::WritePrinter($h, $chunk, $chunk.Length, [ref]$written)) {
+              throw "WritePrinter failed at offset $offset length $len (" + [Printing.Win32Print]::GetLastError() + ")";
+            }
+            $totalWritten += $written;
+          }
           [Printing.Win32Print]::EndPagePrinter($h) | Out-Null;
           [Printing.Win32Print]::EndDocPrinter($h) | Out-Null;
           [Printing.Win32Print]::ClosePrinter($h) | Out-Null;
-          Write-Output $written;
+          Write-Output $totalWritten;
           `;
 
           const rawCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psRawScript.replace(/"/g, '""')}"`;
           const { stdout: rawStdout, stderr: rawStderr } = await execAsync(rawCommand, { maxBuffer: 10 * 1024 * 1024, timeout: 30000 });
-          if (rawStderr) console.warn('⚠️ Winspool RAW stderr:', rawStderr);
-          console.log('✅ Bytes written via Winspool RAW:', rawStdout.trim());
+          if (rawStderr) console.warn('⚠️ Winspool stderr:', rawStderr);
+          const writtenStr = String(rawStdout).trim();
+          const written = parseInt(writtenStr || '0', 10);
+          console.log('✅ Bytes written (Winspool):', isNaN(written) ? '(unknown)' : written);
 
-          // Clean up temp file
           try { fs.unlinkSync(tempFileRaw); } catch {}
-          success = true;
-        } catch (rawError) {
-          console.warn('⚠️ Method 1 (Winspool RAW) failed, trying Method 2...', rawError);
-
-          // Method 2: Try using Windows copy command (more reliable than Out-Printer for some setups)
-          try {
-            console.log('🖨️ Method 2: Using Windows copy command...');
-          
-          // Create a temporary file with the ESC/POS commands
-          const tempFile = `C:\\temp\\ticket_${Date.now()}.prn`;
-          const fs = require('fs');
-          
-          // Ensure temp directory exists
-          if (!fs.existsSync('C:\\temp')) {
-            fs.mkdirSync('C:\\temp', { recursive: true });
-          }
-          
-          // Write the raw ESC/POS data to temp file
-          fs.writeFileSync(tempFile, rawData);
-          console.log(`📁 Created temp file: ${tempFile}`);
-          
-          // Use copy command to send to printer
-          const copyCommand = `copy "${tempFile}" "${printerName}"`;
-          console.log(`🖨️ Executing: ${copyCommand}`);
-          
-          const { stdout: copyStdout, stderr: copyStderr } = await execAsync(copyCommand, { 
-            maxBuffer: 10 * 1024 * 1024,
-            timeout: 30000
-          });
-          
-          if (copyStderr) console.warn('⚠️ Copy command stderr:', copyStderr);
-          console.log('✅ Copy command output:', copyStdout);
-          
-          // Clean up temp file
-          fs.unlinkSync(tempFile);
-          console.log('🗑️ Cleaned up temp file');
-          
-          success = true;
-          } catch (copyError) {
-            console.warn('⚠️ Method 2 (copy) failed, trying Method 3...', copyError);
-          
-          // Method 2: Try using PowerShell with simpler approach
-          try {
-            console.log('🖨️ Method 3: Using PowerShell with simpler approach...');
-            
-            // Create temp file again for PowerShell
-            const tempFile2 = `C:\\temp\\ticket_ps_${Date.now()}.prn`;
-            const fs = require('fs');
-            
-            if (!fs.existsSync('C:\\temp')) {
-              fs.mkdirSync('C:\\temp', { recursive: true });
-            }
-            
-            fs.writeFileSync(tempFile2, rawData);
-            
-            // Simpler PowerShell command using Out-Printer
-            const psCommand = `Get-Content "${tempFile2}" | Out-Printer -Name "${printerName}"`;
-            console.log(`🖨️ PowerShell command: ${psCommand}`);
-            
-            const { stdout: psStdout, stderr: psStderr } = await execAsync(
-              `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand}"`,
-              { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
-            );
-            
-            if (psStderr) console.warn('⚠️ PowerShell stderr:', psStderr);
-            console.log('✅ PowerShell output:', psStdout);
-            
-            // Clean up temp file
-            fs.unlinkSync(tempFile2);
-            console.log('🗑️ Cleaned up temp file');
-            
+          if (!isNaN(written) && written > 0) {
             success = true;
-          } catch (psError) {
-            console.warn('⚠️ Method 3 (PowerShell) failed, trying Method 4 (direct serial)...', psError);
-            
-            // Method 3: Try direct serial communication for thermal printers
-            try {
-              console.log('🖨️ Method 4: Using direct serial communication...');
-              
-              // Check if this is a thermal printer (EPSON, etc.)
-              if (printerName.toLowerCase().includes('epson') || printerName.toLowerCase().includes('thermal') || printerName.toLowerCase().includes('receipt')) {
-                console.log('🔌 Detected thermal printer, trying direct serial...');
-                
-                // Try to find the actual COM port from the printer name
-                const { stdout: portStdout } = await execAsync(
-                  `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Printer -Name '${printerName}' | Select-Object PortName | ConvertTo-Json"`,
-                  { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
-                );
-                
-                if (portStdout && portStdout.trim()) {
-                  const portInfo = JSON.parse(portStdout.trim());
-                  const actualPort = portInfo.PortName;
-                  console.log(`🔌 Actual printer port: ${actualPort}`);
-                  
-                  if (actualPort && (actualPort.includes('COM') || actualPort.includes('USB'))) {
-                    // Try to send data directly to the port
-                    const directCommand = `echo "${rawData.toString('hex')}" | powershell -Command "[System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Open(); [System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Write('${rawData.toString('hex')}', 0, ${rawData.length}); [System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Close()"`;
-                    
-                    console.log(`🖨️ Trying direct serial communication to ${actualPort}...`);
-                    const { stdout: directStdout, stderr: directStderr } = await execAsync(directCommand, { 
-                      maxBuffer: 10 * 1024 * 1024, 
-                      timeout: 30000 
-                    });
-                    
-                    if (directStderr) console.warn('⚠️ Direct serial stderr:', directStderr);
-                    console.log('✅ Direct serial output:', directStdout);
-                    success = true;
-                  } else {
-                    throw new Error(`Unsupported port type: ${actualPort}`);
-                  }
-                } else {
-                  throw new Error('Could not determine printer port');
-                }
-              } else {
-                throw new Error('Not a thermal printer, skipping direct serial');
-              }
-            } catch (directError) {
-              console.error('❌ All printing methods failed:', { copyError, psError, directError });
-              const copyMsg = copyError instanceof Error ? copyError.message : String(copyError);
-              const psMsg = psError instanceof Error ? psError.message : String(psError);
-              const directMsg = directError instanceof Error ? directError.message : String(directError);
-              throw new Error(`Printing failed: ${copyMsg}, ${psMsg}, ${directMsg}`);
-            }
+          } else {
+            throw new Error(`Winspool reported 0 bytes written`);
           }
+        } catch (rawErr: any) {
+          console.error('❌ Winspool RAW failed:', rawErr?.message || rawErr);
+          throw rawErr;
         }
+
       } else {
         // Non-Windows: fallback to serialport for serial printers
         const { SerialPort } = require('serialport');
