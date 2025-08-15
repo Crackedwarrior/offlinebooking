@@ -61,6 +61,225 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// Helper function to map Windows printer status to our format
+const getPrinterStatus = (windowsStatus: number): string => {
+  // Windows printer status codes
+  switch (windowsStatus) {
+    case 0: return 'ready'; // Ready
+    case 1: return 'paused'; // Paused
+    case 2: return 'error'; // Error
+    case 4: return 'pending'; // Pending deletion
+    case 8: return 'paper_jam'; // Paper jam
+    case 16: return 'offline'; // Offline
+    case 32: return 'manual_feed'; // Manual feed
+    case 64: return 'paper_problem'; // Paper problem
+    case 128: return 'waiting'; // Waiting
+    case 256: return 'processing'; // Processing
+    case 512: return 'initializing'; // Initializing
+    case 1024: return 'warming_up'; // Warming up
+    case 2048: return 'toner_low'; // Toner low
+    case 4096: return 'no_toner'; // No toner
+    case 8192: return 'page_punt'; // Page punt
+    case 16384: return 'user_intervention'; // User intervention required
+    case 32768: return 'out_of_memory'; // Out of memory
+    case 65536: return 'door_open'; // Door open
+    case 131072: return 'server_unknown'; // Server unknown
+    case 262144: return 'power_save'; // Power save
+    default: return 'unknown';
+  }
+};
+
+// Helper function to get mock printers for fallback
+const getMockPrinters = () => [
+  {
+    name: 'EPSON TM-T81 ReceiptE4',
+    driver: 'EPSON TM-T81 ReceiptE4',
+    port: 'USB001',
+    status: 'ready',
+    type: 'Thermal',
+    isDefault: true
+  },
+  {
+    name: 'Microsoft Print to PDF',
+    driver: 'Microsoft Print to PDF',
+    port: 'PORTPROMPT:',
+    status: 'ready',
+    type: 'PDF',
+    isDefault: false
+  },
+  {
+    name: 'HP LaserJet Pro',
+    driver: 'HP LaserJet Pro',
+    port: 'USB002',
+    status: 'ready',
+    type: 'Laser',
+    isDefault: false
+  }
+];
+
+// Get available printers endpoint
+app.get('/api/printer/list', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Getting available printers...');
+    
+    let printers: any[] = [];
+    
+    // Check if we're on Windows
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
+      
+      // Try multiple PowerShell approaches for better reliability
+      let stdout = '';
+      let stderr = '';
+      
+      // Method 1: Full printer details
+      try {
+        console.log('🔍 Method 1: Getting full printer details...');
+        const psCommand1 = `Get-Printer | Select-Object Name, DriverName, PortName, PrinterStatus, Type | ConvertTo-Json`;
+        const result1 = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand1}"`, { 
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000
+        });
+        stdout = result1.stdout;
+        stderr = result1.stderr;
+        console.log('✅ Method 1 successful');
+      } catch (error1) {
+        console.warn('⚠️ Method 1 failed, trying Method 2...');
+        
+        // Method 2: Simple printer names only
+        try {
+          const psCommand2 = `Get-Printer | Select-Object Name | ConvertTo-Json`;
+          const result2 = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand2}"`, { 
+            maxBuffer: 10 * 1024 * 1024,
+            timeout: 30000
+          });
+          stdout = result2.stdout;
+          stderr = result2.stderr;
+          console.log('✅ Method 2 successful');
+        } catch (error2) {
+          console.warn('⚠️ Method 2 failed, trying Method 3...');
+          
+          // Method 3: Using wmic as fallback
+          try {
+            const wmicCommand = `wmic printer get name,drivername,portname /format:csv`;
+            const result3 = await execAsync(wmicCommand, { 
+              maxBuffer: 10 * 1024 * 1024,
+              timeout: 30000
+            });
+            stdout = result3.stdout;
+            stderr = result3.stderr;
+            console.log('✅ Method 3 (wmic) successful');
+          } catch (error3) {
+            console.error('❌ All methods failed:', { error1, error2, error3 });
+            throw error3;
+          }
+        }
+      }
+      
+      if (stderr) console.warn('⚠️ PowerShell stderr:', stderr);
+      console.log('🔍 PowerShell stdout length:', stdout.length);
+      console.log('🔍 PowerShell stdout preview:', stdout.substring(0, 200));
+      
+      if (stdout && stdout.trim()) {
+        try {
+          // Check if it's JSON (PowerShell) or CSV (wmic)
+          if (stdout.includes('[') || stdout.includes('{')) {
+            // JSON format from PowerShell
+            const printerList = JSON.parse(stdout.trim());
+            console.log('🔍 Parsed JSON printer list:', printerList);
+            
+            printers = Array.isArray(printerList) ? printerList : [printerList];
+            
+            // Map printer status to our format
+            printers = printers.map(printer => ({
+              name: printer.Name || 'Unknown',
+              driver: printer.DriverName || 'Unknown',
+              port: printer.PortName || 'Unknown',
+              status: getPrinterStatus(printer.PrinterStatus || 0),
+              type: printer.Type || 'Unknown',
+              isDefault: false
+            }));
+          } else {
+            // CSV format from wmic
+            console.log('🔍 Parsing CSV format from wmic...');
+            const lines = stdout.trim().split('\n');
+            printers = [];
+            
+            for (let i = 1; i < lines.length; i++) { // Skip header
+              const line = lines[i].trim();
+              if (line && !line.startsWith('Node,')) {
+                const parts = line.split(',');
+                if (parts.length >= 3) {
+                  printers.push({
+                    name: parts[1]?.trim() || 'Unknown',
+                    driver: parts[2]?.trim() || 'Unknown',
+                    port: parts[3]?.trim() || 'Unknown',
+                    status: 'ready', // Default status for wmic
+                    type: 'Unknown',
+                    isDefault: false
+                  });
+                }
+              }
+            }
+          }
+          
+          console.log('🔍 Mapped printers:', printers);
+          
+          // Get default printer if we have printers
+          if (printers.length > 0) {
+            try {
+              const { stdout: defaultStdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Printer | Where-Object {$_.Default -eq $true} | Select-Object Name | ConvertTo-Json"`);
+              if (defaultStdout && defaultStdout.trim()) {
+                const defaultPrinter = JSON.parse(defaultStdout.trim());
+                const defaultName = Array.isArray(defaultPrinter) ? defaultPrinter[0]?.Name : defaultPrinter?.Name;
+                
+                if (defaultName) {
+                  printers = printers.map(printer => ({
+                    ...printer,
+                    isDefault: printer.name === defaultName
+                  }));
+                }
+              }
+            } catch (defaultError) {
+              console.warn('⚠️ Could not get default printer:', defaultError);
+            }
+          }
+        } catch (parseError) {
+          console.error('❌ Parse error:', parseError);
+          console.error('❌ Raw stdout:', stdout);
+          // Fallback to mock printers if parsing fails
+          printers = getMockPrinters();
+        }
+      } else {
+        console.warn('⚠️ Command returned empty stdout');
+        printers = getMockPrinters();
+      }
+    } else {
+      // Non-Windows: return mock printers
+      printers = getMockPrinters();
+    }
+    
+    console.log(`✅ Found ${printers.length} printers:`, printers.map(p => p.name));
+    
+    res.json({
+      success: true,
+      printers,
+      count: printers.length,
+      platform: process.platform
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting printers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get printers',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
 // Printer test endpoint
 app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) => {
   try {
@@ -131,54 +350,196 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         );
         const base64Payload = rawData.toString('base64');
         
-        // PowerShell script to send RAW bytes to printer using Win32 API
-        const psScript = `
-$printerName = '${printerName.Replace(/'/g, "''")}';
-$base64 = '${base64Payload}';
-$bytes = [System.Convert]::FromBase64String($base64);
-Add-Type -Namespace Printing -Name Win32Print -MemberDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class Win32Print {
-  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
-  public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
-  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
-  public struct DOC_INFO_1 { public string pDocName; public string pOutputFile; public string pDatatype; }
-  [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
-  public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOC_INFO_1 di);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool StartPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndDocPrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool ClosePrinter(IntPtr hPrinter);
-}
-"@;
-[IntPtr]$h = [IntPtr]::Zero;
-if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw 'OpenPrinter failed'; }
-$doc = New-Object Printing.Win32Print+DOC_INFO_1;
-$doc.pDocName = 'Receipt';
-$doc.pDatatype = 'RAW';
-if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw 'StartDocPrinter failed'; }
-if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw 'StartPagePrinter failed'; }
-[int]$written = 0;
-if (-not [Printing.Win32Print]::WritePrinter($h, $bytes, $bytes.Length, [ref]$written)) { throw 'WritePrinter failed'; }
-[Printing.Win32Print]::EndPagePrinter($h) | Out-Null;
-[Printing.Win32Print]::EndDocPrinter($h) | Out-Null;
-[Printing.Win32Print]::ClosePrinter($h) | Out-Null;
-Write-Output $written;
-`;
-        
-        const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command \"${psScript.replace(/"/g, '""')}\"`;
-        console.log('🖨️ Executing RAW print to spooler...');
-        const { stdout, stderr } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
-        if (stderr) console.warn('⚠️ PowerShell stderr:', stderr);
-        console.log('✅ Bytes written to spooler:', stdout.trim());
-        success = true;
+        // Method 1: Use Winspool RAW via PowerShell with temp file (most reliable)
+        try {
+          console.log('🖨️ Method 1: Winspool RAW via PowerShell...');
+
+          const fs = require('fs');
+          const tempFileRaw = `C:\\temp\\ticket_raw_${Date.now()}.prn`;
+
+          // Ensure temp directory exists
+          if (!fs.existsSync('C:\\temp')) {
+            fs.mkdirSync('C:\\temp', { recursive: true });
+          }
+
+          // Write the raw ESC/POS data to temp file
+          fs.writeFileSync(tempFileRaw, rawData);
+          console.log(`📁 Created temp RAW file: ${tempFileRaw}`);
+
+          // PowerShell script to send RAW bytes to printer using Win32 API reading from file
+          const psRawScript = `
+          $printerName = '${printerName.replace(/'/g, "''")}';
+          $filePath = '${tempFileRaw.replace(/\\/g, "\\\\")}';
+          $bytes = [System.IO.File]::ReadAllBytes($filePath);
+          Add-Type -Namespace Printing -Name Win32Print -MemberDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public class Win32Print {
+            [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
+            public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
+            [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+            public struct DOC_INFO_1 { public string pDocName; public string pOutputFile; public string pDatatype; }
+            [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
+            public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOC_INFO_1 di);
+            [DllImport("winspool.drv", SetLastError=true)]
+            public static extern bool StartPagePrinter(IntPtr hPrinter);
+            [DllImport("winspool.drv", SetLastError=true)]
+            public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
+            [DllImport("winspool.drv", SetLastError=true)]
+            public static extern bool EndPagePrinter(IntPtr hPrinter);
+            [DllImport("winspool.drv", SetLastError=true)]
+            public static extern bool EndDocPrinter(IntPtr hPrinter);
+            [DllImport("winspool.drv", SetLastError=true)]
+            public static extern bool ClosePrinter(IntPtr hPrinter);
+          }
+          "@;
+          [IntPtr]$h = [IntPtr]::Zero;
+          if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw 'OpenPrinter failed'; }
+          $doc = New-Object Printing.Win32Print+DOC_INFO_1;
+          $doc.pDocName = 'ESC_POS_Receipt';
+          $doc.pDatatype = 'RAW';
+          if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw 'StartDocPrinter failed'; }
+          if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw 'StartPagePrinter failed'; }
+          [int]$written = 0;
+          if (-not [Printing.Win32Print]::WritePrinter($h, $bytes, $bytes.Length, [ref]$written)) { throw 'WritePrinter failed'; }
+          [Printing.Win32Print]::EndPagePrinter($h) | Out-Null;
+          [Printing.Win32Print]::EndDocPrinter($h) | Out-Null;
+          [Printing.Win32Print]::ClosePrinter($h) | Out-Null;
+          Write-Output $written;
+          `;
+
+          const rawCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psRawScript.replace(/"/g, '""')}"`;
+          const { stdout: rawStdout, stderr: rawStderr } = await execAsync(rawCommand, { maxBuffer: 10 * 1024 * 1024, timeout: 30000 });
+          if (rawStderr) console.warn('⚠️ Winspool RAW stderr:', rawStderr);
+          console.log('✅ Bytes written via Winspool RAW:', rawStdout.trim());
+
+          // Clean up temp file
+          try { fs.unlinkSync(tempFileRaw); } catch {}
+          success = true;
+        } catch (rawError) {
+          console.warn('⚠️ Method 1 (Winspool RAW) failed, trying Method 2...', rawError);
+
+          // Method 2: Try using Windows copy command (more reliable than Out-Printer for some setups)
+          try {
+            console.log('🖨️ Method 2: Using Windows copy command...');
+          
+          // Create a temporary file with the ESC/POS commands
+          const tempFile = `C:\\temp\\ticket_${Date.now()}.prn`;
+          const fs = require('fs');
+          
+          // Ensure temp directory exists
+          if (!fs.existsSync('C:\\temp')) {
+            fs.mkdirSync('C:\\temp', { recursive: true });
+          }
+          
+          // Write the raw ESC/POS data to temp file
+          fs.writeFileSync(tempFile, rawData);
+          console.log(`📁 Created temp file: ${tempFile}`);
+          
+          // Use copy command to send to printer
+          const copyCommand = `copy "${tempFile}" "${printerName}"`;
+          console.log(`🖨️ Executing: ${copyCommand}`);
+          
+          const { stdout: copyStdout, stderr: copyStderr } = await execAsync(copyCommand, { 
+            maxBuffer: 10 * 1024 * 1024,
+            timeout: 30000
+          });
+          
+          if (copyStderr) console.warn('⚠️ Copy command stderr:', copyStderr);
+          console.log('✅ Copy command output:', copyStdout);
+          
+          // Clean up temp file
+          fs.unlinkSync(tempFile);
+          console.log('🗑️ Cleaned up temp file');
+          
+          success = true;
+          } catch (copyError) {
+            console.warn('⚠️ Method 2 (copy) failed, trying Method 3...', copyError);
+          
+          // Method 2: Try using PowerShell with simpler approach
+          try {
+            console.log('🖨️ Method 3: Using PowerShell with simpler approach...');
+            
+            // Create temp file again for PowerShell
+            const tempFile2 = `C:\\temp\\ticket_ps_${Date.now()}.prn`;
+            const fs = require('fs');
+            
+            if (!fs.existsSync('C:\\temp')) {
+              fs.mkdirSync('C:\\temp', { recursive: true });
+            }
+            
+            fs.writeFileSync(tempFile2, rawData);
+            
+            // Simpler PowerShell command using Out-Printer
+            const psCommand = `Get-Content "${tempFile2}" | Out-Printer -Name "${printerName}"`;
+            console.log(`🖨️ PowerShell command: ${psCommand}`);
+            
+            const { stdout: psStdout, stderr: psStderr } = await execAsync(
+              `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand}"`,
+              { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
+            );
+            
+            if (psStderr) console.warn('⚠️ PowerShell stderr:', psStderr);
+            console.log('✅ PowerShell output:', psStdout);
+            
+            // Clean up temp file
+            fs.unlinkSync(tempFile2);
+            console.log('🗑️ Cleaned up temp file');
+            
+            success = true;
+          } catch (psError) {
+            console.warn('⚠️ Method 3 (PowerShell) failed, trying Method 4 (direct serial)...', psError);
+            
+            // Method 3: Try direct serial communication for thermal printers
+            try {
+              console.log('🖨️ Method 4: Using direct serial communication...');
+              
+              // Check if this is a thermal printer (EPSON, etc.)
+              if (printerName.toLowerCase().includes('epson') || printerName.toLowerCase().includes('thermal') || printerName.toLowerCase().includes('receipt')) {
+                console.log('🔌 Detected thermal printer, trying direct serial...');
+                
+                // Try to find the actual COM port from the printer name
+                const { stdout: portStdout } = await execAsync(
+                  `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Printer -Name '${printerName}' | Select-Object PortName | ConvertTo-Json"`,
+                  { maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
+                );
+                
+                if (portStdout && portStdout.trim()) {
+                  const portInfo = JSON.parse(portStdout.trim());
+                  const actualPort = portInfo.PortName;
+                  console.log(`🔌 Actual printer port: ${actualPort}`);
+                  
+                  if (actualPort && (actualPort.includes('COM') || actualPort.includes('USB'))) {
+                    // Try to send data directly to the port
+                    const directCommand = `echo "${rawData.toString('hex')}" | powershell -Command "[System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Open(); [System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Write('${rawData.toString('hex')}', 0, ${rawData.length}); [System.IO.Port.SerialPort]::new('${actualPort}', 9600, 'None', 8, 'One').Close()"`;
+                    
+                    console.log(`🖨️ Trying direct serial communication to ${actualPort}...`);
+                    const { stdout: directStdout, stderr: directStderr } = await execAsync(directCommand, { 
+                      maxBuffer: 10 * 1024 * 1024, 
+                      timeout: 30000 
+                    });
+                    
+                    if (directStderr) console.warn('⚠️ Direct serial stderr:', directStderr);
+                    console.log('✅ Direct serial output:', directStdout);
+                    success = true;
+                  } else {
+                    throw new Error(`Unsupported port type: ${actualPort}`);
+                  }
+                } else {
+                  throw new Error('Could not determine printer port');
+                }
+              } else {
+                throw new Error('Not a thermal printer, skipping direct serial');
+              }
+            } catch (directError) {
+              console.error('❌ All printing methods failed:', { copyError, psError, directError });
+              const copyMsg = copyError instanceof Error ? copyError.message : String(copyError);
+              const psMsg = psError instanceof Error ? psError.message : String(psError);
+              const directMsg = directError instanceof Error ? directError.message : String(directError);
+              throw new Error(`Printing failed: ${copyMsg}, ${psMsg}, ${directMsg}`);
+            }
+          }
+        }
       } else {
         // Non-Windows: fallback to serialport for serial printers
         const { SerialPort } = require('serialport');

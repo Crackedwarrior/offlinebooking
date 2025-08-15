@@ -11,6 +11,7 @@ import BookingHistory from '@/components/BookingHistory';
 import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
 import Settings from '@/components/Settings';
 import BookingConfirmation from '@/components/BookingConfirmation';
+
 import DateSelector from '@/components/DateSelector';
 import ShowSelector from '@/components/ShowSelector';
 import { getSeatClassByRow } from '@/lib/config';
@@ -24,6 +25,7 @@ const sidebarItems = [
   { id: 'history', label: 'Booking History', icon: History },
   { id: 'reports', label: 'Reports', icon: Download },
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
+
 ];
 
 interface IndexProps {
@@ -465,6 +467,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                 {activeView === 'history' && 'Booking History'}
                 {activeView === 'reports' && 'Reports & Analytics'}
                 {activeView === 'settings' && 'Settings'}
+                
               </h2>
             )}
             {activeView === 'booking' && (
@@ -509,6 +512,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
           {activeView === 'history' && <BookingHistory />}
           {activeView === 'reports' && <BoxVsOnlineReport />}
           {activeView === 'settings' && <Settings />}
+
           {activeView === 'checkout' && (
             <Checkout
               checkoutData={checkoutData}
