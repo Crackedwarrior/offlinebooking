@@ -344,93 +344,1727 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         const util = require('util');
         const execAsync = util.promisify(exec);
         const fs = require('fs');
-
-        // Concatenate all ticket ESC/POS commands into a single raw buffer
-        const rawData: Buffer = Buffer.concat(
-          tickets.map((t: any) => Buffer.from(t.commands, 'binary'))
-        );
-        console.log('🖨️ Bytes to send:', rawData.length);
-
-        // Method 1: Winspool RAW via PowerShell using WritePrinter API
+        const path = require('path');
+        
+        // Create temp directory
+        const tempDir = path.join(process.cwd(), 'temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        // Debug: Log what we're receiving
+        console.log('🖨️ Received tickets:', JSON.stringify(tickets, null, 2));
+        
+        // Concatenate all ticket plain text into a single text buffer
+        const textData = tickets.map((t: any) => t.commands).join('\n\n---\n\n');
+        console.log('🖨️ Text to send:', textData.length, 'characters');
+        console.log('🖨️ Text content preview:', textData.substring(0, 200));
+        console.log('🖨️ Text data type:', typeof textData);
+        console.log('🖨️ Text data is empty?', textData.length === 0);
+        console.log('🖨️ Text data first 10 chars:', JSON.stringify(textData.substring(0, 10)));
+        
+        // Create the text file for printing
+        const tempFileText = path.join(tempDir, `ticket_text_${Date.now()}.txt`);
+        console.log('📁 About to write file:', tempFileText);
+        console.log('📁 Writing data length:', textData.length);
+        
+        // Try different encoding approaches
         try {
-          const tempDir = 'C:\\temp';
-          const tempFileRaw = `${tempDir}\\ticket_raw_${Date.now()}.prn`;
-
-          if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
+          fs.writeFileSync(tempFileText, textData, 'utf8');
+          console.log('📁 File written with utf8 encoding');
+        } catch (writeError) {
+          console.error('📁 UTF8 write failed:', writeError);
+          try {
+            fs.writeFileSync(tempFileText, Buffer.from(textData, 'utf8'));
+            console.log('📁 File written with Buffer encoding');
+          } catch (bufferError) {
+            console.error('📁 Buffer write failed:', bufferError);
+            throw bufferError;
           }
-          fs.writeFileSync(tempFileRaw, rawData);
-          console.log('📁 Wrote RAW file:', tempFileRaw);
+        }
+        
+        // Verify the file was written
+        const fileStats = fs.statSync(tempFileText);
+        console.log('📁 File size after write:', fileStats.size, 'bytes');
+        console.log('📁 Created text file:', tempFileText);
+        
+        // Create debug file to verify the text content
+        const debugFile = path.join(tempDir, `debug_text_${Date.now()}.txt`);
+        fs.writeFileSync(debugFile, `Text Debug File\nGenerated: ${new Date().toISOString()}\nPrinter: ${printerName}\nTicket Count: ${tickets.length}\n\nText Content:\n${textData}\n`);
+        console.log('📁 Created debug file:', debugFile);
+        
+        // Method 1: Try using PowerShell Out-Printer (most reliable)
+        try {
 
-          const psRawScript = `
+          // tempDir already created above
+
+          // First, verify the printer exists and is accessible
+          const verifyPrinterScript = `
           $ErrorActionPreference = 'Stop'
           $printerName = '${String(printerName).replace(/'/g, "''")}';
-          $filePath = '${tempFileRaw.replace(/\\/g, "\\\\")}';
-          $bytes = [System.IO.File]::ReadAllBytes($filePath);
-          Add-Type -Namespace Printing -Name Win32Print -MemberDefinition @"
-          using System;
-          using System.Runtime.InteropServices;
-          public class Win32Print {
-            [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
-            public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
-            [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
-            public struct DOC_INFO_1 { public string pDocName; public string pOutputFile; public string pDatatype; }
-            [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Unicode)]
-            public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOC_INFO_1 di);
-            [DllImport("winspool.drv", SetLastError=true)]
-            public static extern bool StartPagePrinter(IntPtr hPrinter);
-            [DllImport("winspool.drv", SetLastError=true)]
-            public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
-            [DllImport("winspool.drv", SetLastError=true)]
-            public static extern bool EndPagePrinter(IntPtr hPrinter);
-            [DllImport("winspool.drv", SetLastError=true)]
-            public static extern bool EndDocPrinter(IntPtr hPrinter);
-            [DllImport("winspool.drv", SetLastError=true)]
-            public static extern bool ClosePrinter(IntPtr hPrinter);
-            [DllImport("kernel32.dll")] public static extern uint GetLastError();
-          }
-          "@;
-          [IntPtr]$h = [IntPtr]::Zero;
-          if (-not [Printing.Win32Print]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw "OpenPrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
-          $doc = New-Object Printing.Win32Print+DOC_INFO_1;
-          $doc.pDocName = 'ESC_POS_Tickets';
-          $doc.pDatatype = 'RAW';
-          if (-not [Printing.Win32Print]::StartDocPrinter($h, 1, [ref]$doc)) { throw "StartDocPrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
-          if (-not [Printing.Win32Print]::StartPagePrinter($h)) { throw "StartPagePrinter failed (" + [Printing.Win32Print]::GetLastError() + ")" }
-          [int]$totalWritten = 0;
-          $chunkSize = 1024;
-          for ($offset = 0; $offset -lt $bytes.Length; $offset += $chunkSize) {
-            $len = [Math]::Min($chunkSize, $bytes.Length - $offset);
-            $chunk = New-Object byte[] $len;
-            [Array]::Copy($bytes, $offset, $chunk, 0, $len);
-            [int]$written = 0;
-            if (-not [Printing.Win32Print]::WritePrinter($h, $chunk, $chunk.Length, [ref]$written)) {
-              throw "WritePrinter failed at offset $offset length $len (" + [Printing.Win32Print]::GetLastError() + ")";
+          
+          try {
+            $printer = Get-Printer -Name $printerName -ErrorAction Stop
+            Write-Host "Printer found: $($printer.Name)"
+            Write-Host "Printer status: $($printer.PrinterStatus)"
+            Write-Host "Printer port: $($printer.PortName)"
+            Write-Host "Printer driver: $($printer.DriverName)"
+            
+            # Check if printer is ready
+            if ($printer.PrinterStatus -eq 0) {
+              Write-Host "PRINTER_READY"
+            } else {
+              Write-Host "PRINTER_NOT_READY: $($printer.PrinterStatus)"
             }
-            $totalWritten += $written;
           }
-          [Printing.Win32Print]::EndPagePrinter($h) | Out-Null;
-          [Printing.Win32Print]::EndDocPrinter($h) | Out-Null;
-          [Printing.Win32Print]::ClosePrinter($h) | Out-Null;
-          Write-Output $totalWritten;
+          catch {
+            Write-Host "Printer not found: $($_.Exception.Message)"
+            throw $_
+          }
+          `;
+          
+          // Try printing a simple test first
+          const testTextFile = `${tempDir}\\test_print_${Date.now()}.txt`;
+          fs.writeFileSync(testTextFile, 'TEST PRINT - AUDITORIUMX TICKET SYSTEM\n\nThis is a test print to verify printer connectivity.\n\nTimestamp: ' + new Date().toISOString() + '\n\n---\n');
+          
+          console.log('🔍 Testing printer with simple text file...');
+          const testPrintCommand = `print /d:"${printerName}" "${testTextFile}"`;
+          
+          try {
+            await execAsync(testPrintCommand, { timeout: 10000 });
+            console.log('✅ Test print command executed successfully');
+          } catch (testErr) {
+            console.warn('⚠️ Test print failed, continuing with main print job:', testErr);
+          }
+          
+          // Also try printing to Microsoft Print to PDF first as a test
+          const pdfTestFile = `${tempDir}\\pdf_test_${Date.now()}.txt`;
+          fs.writeFileSync(pdfTestFile, 'PDF TEST - AUDITORIUMX TICKET SYSTEM\n\nThis is a test to verify PDF printing works.\n\nTimestamp: ' + new Date().toISOString() + '\n\n---\n');
+          
+          console.log('🔍 Testing PDF printing...');
+          const pdfPrintCommand = `print /d:"Microsoft Print to PDF" "${pdfTestFile}"`;
+          
+          try {
+            await execAsync(pdfPrintCommand, { timeout: 10000 });
+            console.log('✅ PDF test print command executed successfully');
+          } catch (pdfErr) {
+            console.warn('⚠️ PDF test print failed:', pdfErr);
+          }
+          
+          const verifyCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${verifyPrinterScript.replace(/"/g, '""')}"`;
+          console.log('🔍 Verifying printer availability...');
+          
+          const { stdout: verifyStdout, stderr: verifyStderr } = await execAsync(verifyCommand, { 
+            maxBuffer: 10 * 1024 * 1024, 
+            timeout: 15000 
+          });
+          
+          if (verifyStderr) console.warn('⚠️ Verify printer stderr:', verifyStderr);
+          console.log('✅ Printer verification output:', verifyStdout);
+          
+          if (!verifyStdout.includes('PRINTER_READY')) {
+            throw new Error(`Printer not ready: ${verifyStdout}`);
+          }
+
+          // Use a simpler PowerShell approach - copy file to printer
+          const psScript = `
+          $ErrorActionPreference = 'Stop'
+          $printerName = '${String(printerName).replace(/'/g, "''")}';
+          $filePath = '${tempFileText.replace(/\\/g, "\\\\")}';
+          $textFilePath = '${debugFile.replace(/\\/g, "\\\\")}';
+          
+          try {
+            # Method 1: Try using Copy-Item to printer (simpler approach)
+            $printer = Get-Printer -Name $printerName -ErrorAction Stop
+            Write-Host "Found printer: $($printer.Name) - Status: $($printer.PrinterStatus)"
+            
+            # First try printing the text version (more compatible)
+            Write-Host "Trying to print text version first..."
+            try {
+              Get-Content $textFilePath -Raw | Out-Printer -Name $printerName
+              Write-Host "Text version printed successfully"
+              Write-Host "SUCCESS_TEXT"
+            }
+            catch {
+              Write-Host "Text printing failed: $($_.Exception.Message)"
+              
+              # Fallback to Copy-Item for raw data
+              Write-Host "Trying Copy-Item for raw data..."
+              $result = Copy-Item -Path $filePath -Destination "\\\\localhost\\$printerName" -ErrorAction Stop
+              Write-Host "Copy-Item result: $result"
+              Write-Host "File size: $((Get-Item $filePath).Length) bytes"
+              Write-Host "SUCCESS_RAW"
+            }
+          }
+          catch {
+            Write-Host "All methods failed: $($_.Exception.Message)"
+            throw $_
+          }
           `;
 
-          const rawCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psRawScript.replace(/"/g, '""')}"`;
-          const { stdout: rawStdout, stderr: rawStderr } = await execAsync(rawCommand, { maxBuffer: 10 * 1024 * 1024, timeout: 30000 });
-          if (rawStderr) console.warn('⚠️ Winspool stderr:', rawStderr);
-          const writtenStr = String(rawStdout).trim();
-          const written = parseInt(writtenStr || '0', 10);
-          console.log('✅ Bytes written (Winspool):', isNaN(written) ? '(unknown)' : written);
+          const psCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/"/g, '""')}"`;
+          console.log('🔍 Executing PowerShell command...');
+          
+          const { stdout: psStdout, stderr: psStderr } = await execAsync(psCommand, { 
+            maxBuffer: 10 * 1024 * 1024, 
+            timeout: 30000 
+          });
+          
+          if (psStderr) console.warn('⚠️ PowerShell stderr:', psStderr);
+          console.log('✅ PowerShell stdout:', psStdout);
 
-          try { fs.unlinkSync(tempFileRaw); } catch {}
-          if (!isNaN(written) && written > 0) {
+          // Check if the command was successful
+          if (psStdout.includes('SUCCESS_TEXT') || psStdout.includes('SUCCESS_RAW')) {
             success = true;
+            if (psStdout.includes('SUCCESS_TEXT')) {
+              console.log('✅ Print job sent successfully via text printing');
+            } else {
+              console.log('✅ Print job sent successfully via raw data Copy-Item');
+            }
           } else {
-            throw new Error(`Winspool reported 0 bytes written`);
+            throw new Error('PowerShell command did not return SUCCESS');
           }
-        } catch (rawErr: any) {
-          console.error('❌ Winspool RAW failed:', rawErr?.message || rawErr);
-          throw rawErr;
+
+          // Clean up temp file
+          try { fs.unlinkSync(tempFileText); } catch {}
+          
+          // Also try printing the text version directly
+          try {
+            console.log('🔄 Trying to print text version directly...');
+            const textPrintCommand = `print /d:"${printerName}" "${debugFile}"`;
+            await execAsync(textPrintCommand, { timeout: 15000 });
+            console.log('✅ Text version printed successfully');
+            success = true;
+          } catch (textErr) {
+            console.warn('⚠️ Direct text printing failed:', textErr);
+          }
+          
+        } catch (psErr: any) {
+          console.error('❌ PowerShell Copy-Item failed:', psErr?.message || psErr);
+          
+          // Method 2: Fallback to direct file copy to printer port
+          try {
+            console.log('🔄 Trying fallback method: direct file copy to printer...');
+            
+            const fallbackScript = `
+            $ErrorActionPreference = 'Stop'
+            $printerName = '${String(printerName).replace(/'/g, "''")}';
+            $filePath = '${tempFileText.replace(/\\/g, "\\\\")}';
+            
+            try {
+              # Get printer port
+              $printer = Get-Printer -Name $printerName -ErrorAction Stop
+              $portName = $printer.PortName
+              Write-Host "Printer port: $portName"
+              
+              # Try to send file directly to printer port
+              if ($portName -like "USB*" -or $portName -like "COM*") {
+                # For USB/COM ports, try using Out-Printer
+                Get-Content $filePath -Raw | Out-Printer -Name $printerName
+                Write-Host "SUCCESS_VIA_OUT_PRINTER"
+              } else {
+                # For network printers, try using Copy-Item again
+                $result = Copy-Item -Path $filePath -Destination "\\\\localhost\\$printerName" -ErrorAction Stop
+                Write-Host "SUCCESS_VIA_COPY"
+              }
+            }
+            catch {
+              Write-Host "Fallback method failed: $($_.Exception.Message)"
+              throw $_
+            }
+            `;
+            
+            const fallbackCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${fallbackScript.replace(/"/g, '""')}"`;
+            const { stdout: fallbackStdout, stderr: fallbackStderr } = await execAsync(fallbackCommand, { 
+              maxBuffer: 10 * 1024 * 1024, 
+              timeout: 30000 
+            });
+            
+            if (fallbackStderr) console.warn('⚠️ Fallback PowerShell stderr:', fallbackStderr);
+            console.log('✅ Fallback PowerShell stdout:', fallbackStdout);
+            
+            if (fallbackStdout.includes('SUCCESS')) {
+              success = true;
+              console.log('✅ Print job sent successfully via fallback method');
+            } else {
+              throw new Error('Fallback method also failed');
+            }
+            
+                     } catch (fallbackErr: any) {
+             console.error('❌ Fallback method failed:', fallbackErr?.message || fallbackErr);
+             
+             // Method 3: Final fallback using Windows 'print' command
+             try {
+               console.log('🔄 Trying final fallback: Windows print command...');
+               
+               const printCommand = `print /d:"${printerName}" "${tempFileText}"`;
+               console.log('🔍 Executing print command:', printCommand);
+               
+               const { stdout: printStdout, stderr: printStderr } = await execAsync(printCommand, { 
+                 maxBuffer: 10 * 1024 * 1024, 
+                 timeout: 30000 
+               });
+               
+               if (printStderr) console.warn('⚠️ Print command stderr:', printStderr);
+               console.log('✅ Print command stdout:', printStdout);
+               
+               // The print command doesn't always return useful output, so we'll assume success
+               // if no error was thrown
+               success = true;
+               console.log('✅ Print job sent successfully via Windows print command');
+               
+             } catch (printErr: any) {
+               console.error('❌ Windows print command failed:', printErr?.message || printErr);
+               
+               // Method 4: Try using rundll32 to print
+               try {
+                 console.log('🔄 Trying rundll32 method...');
+                 
+                 const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${tempFileText}"`;
+                 console.log('🔍 Executing rundll32 command:', rundllCommand);
+                 
+                 const { stdout: rundllStdout, stderr: rundllStderr } = await execAsync(rundllCommand, { 
+                   maxBuffer: 10 * 1024 * 1024, 
+                   timeout: 30000 
+                 });
+                 
+                 if (rundllStderr) console.warn('⚠️ Rundll32 stderr:', rundllStderr);
+                 console.log('✅ Rundll32 stdout:', rundllStdout);
+                 
+                 success = true;
+                 console.log('✅ Print job sent successfully via rundll32');
+                 
+                                } catch (rundllErr: any) {
+                   console.error('❌ Rundll32 method failed:', rundllErr?.message || rundllErr);
+                   
+                   // Method 5: Try using Windows start command to open file
+                   try {
+                     console.log('🔄 Trying start command method...');
+                     
+                     const startCommand = `start "" "${tempFileText}"`;
+                     console.log('🔍 Executing start command:', startCommand);
+                     
+                     const { stdout: startStdout, stderr: startStderr } = await execAsync(startCommand, { 
+                       maxBuffer: 10 * 1024 * 1024, 
+                       timeout: 30000 
+                     });
+                     
+                     if (startStderr) console.warn('⚠️ Start command stderr:', startStderr);
+                     console.log('✅ Start command stdout:', startStdout);
+                     
+                     // Give the system time to process the file
+                     await new Promise(resolve => setTimeout(resolve, 2000));
+                     
+                     success = true;
+                     console.log('✅ File opened successfully via start command');
+                     
+                                        } catch (startErr: any) {
+                       console.error('❌ Start command method failed:', startErr?.message || startErr);
+                       
+                       // Method 6: Try using mspaint to print
+                       try {
+                         console.log('🔄 Trying mspaint method...');
+                         
+                                                   const mspaintCommand = `mspaint /pt "${tempFileText}" "${printerName}"`;
+                         console.log('🔍 Executing mspaint command:', mspaintCommand);
+                         
+                         const { stdout: mspaintStdout, stderr: mspaintStderr } = await execAsync(mspaintCommand, { 
+                           maxBuffer: 10 * 1024 * 1024, 
+                           timeout: 30000 
+                         });
+                         
+                         if (mspaintStderr) console.warn('⚠️ Mspaint stderr:', mspaintStderr);
+                         console.log('✅ Mspaint stdout:', mspaintStdout);
+                         
+                         // Give the system time to process
+                         await new Promise(resolve => setTimeout(resolve, 3000));
+                         
+                         success = true;
+                         console.log('✅ File sent to printer via mspaint');
+                         
+                       } catch (mspaintErr: any) {
+                         console.error('❌ Mspaint method failed:', mspaintErr?.message || mspaintErr);
+                         
+                         // Method 7: Try using notepad to print
+                         try {
+                           console.log('🔄 Trying notepad method...');
+                           
+                                                       const notepadCommand = `notepad /p "${tempFileText}"`;
+                           console.log('🔍 Executing notepad command:', notepadCommand);
+                           
+                           const { stdout: notepadStdout, stderr: notepadStderr } = await execAsync(notepadCommand, { 
+                             maxBuffer: 10 * 1024 * 1024, 
+                             timeout: 30000 
+                           });
+                           
+                           if (notepadStderr) console.warn('⚠️ Notepad stderr:', notepadStderr);
+                           console.log('✅ Notepad stdout:', notepadStdout);
+                           
+                           // Give the system time to process
+                           await new Promise(resolve => setTimeout(resolve, 3000));
+                           
+                           success = true;
+                           console.log('✅ File sent to printer via notepad');
+                           
+                         } catch (notepadErr: any) {
+                           console.error('❌ Notepad method failed:', notepadErr?.message || notepadErr);
+                           
+                           // Method 8: Try using wordpad to print
+                           try {
+                             console.log('🔄 Trying wordpad method...');
+                             
+                                                           const wordpadCommand = `wordpad /p "${tempFileText}"`;
+                             console.log('🔍 Executing wordpad command:', wordpadCommand);
+                             
+                             const { stdout: wordpadStdout, stderr: wordpadStderr } = await execAsync(wordpadCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (wordpadStderr) console.warn('⚠️ Wordpad stderr:', wordpadStderr);
+                             console.log('✅ Wordpad stdout:', wordpadStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File sent to printer via wordpad');
+                             
+                                                    } catch (wordpadErr: any) {
+                           console.error('❌ Wordpad method failed:', wordpadErr?.message || wordpadErr);
+                           
+                           // Method 9: Try using write command to print
+                           try {
+                             console.log('🔄 Trying write method...');
+                             
+                                                           const writeCommand = `write /p "${tempFileText}"`;
+                             console.log('🔍 Executing write command:', writeCommand);
+                             
+                             const { stdout: writeStdout, stderr: writeStderr } = await execAsync(writeCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (writeStderr) console.warn('⚠️ Write stderr:', writeStderr);
+                             console.log('✅ Write stdout:', writeStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File sent to printer via write');
+                             
+                                                    } catch (writeErr: any) {
+                           console.error('❌ Write method failed:', writeErr?.message || writeErr);
+                           
+                           // Method 10: Try using cmd to print
+                           try {
+                             console.log('🔄 Trying cmd method...');
+                             
+                                                           const cmdCommand = `cmd /c "type "${tempFileText}" | more"`;
+                             console.log('🔍 Executing cmd command:', cmdCommand);
+                             
+                             const { stdout: cmdStdout, stderr: cmdStderr } = await execAsync(cmdCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (cmdStderr) console.warn('⚠️ Cmd stderr:', cmdStderr);
+                             console.log('✅ Cmd stdout:', cmdStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File processed via cmd');
+                             
+                                                    } catch (cmdErr: any) {
+                           console.error('❌ Cmd method failed:', cmdErr?.message || cmdErr);
+                           
+                           // Method 11: Try using powershell to print
+                           try {
+                             console.log('🔄 Trying powershell method...');
+                             
+                                                           const psCommand = `powershell -Command "Get-Content '${tempFileText}' | Out-Printer -Name '${printerName}'"`;
+                             console.log('🔍 Executing powershell command:', psCommand);
+                             
+                             const { stdout: psStdout, stderr: psStderr } = await execAsync(psCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (psStderr) console.warn('⚠️ PowerShell stderr:', psStderr);
+                             console.log('✅ PowerShell stdout:', psStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File sent to printer via PowerShell');
+                             
+                                                    } catch (psErr2: any) {
+                           console.error('❌ PowerShell method failed:', psErr2?.message || psErr2);
+                           
+                           // Method 12: Try using wscript to print
+                           try {
+                             console.log('🔄 Trying wscript method...');
+                             
+                                                           const wscriptCommand = `wscript //E:VBScript "${tempFileText}"`;
+                             console.log('🔍 Executing wscript command:', wscriptCommand);
+                             
+                             const { stdout: wscriptStdout, stderr: wscriptStderr } = await execAsync(wscriptCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (wscriptStderr) console.warn('⚠️ Wscript stderr:', wscriptStderr);
+                             console.log('✅ Wscript stdout:', wscriptStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File processed via wscript');
+                             
+                                                    } catch (wscriptErr: any) {
+                           console.error('❌ Wscript method failed:', wscriptErr?.message || wscriptErr);
+                           
+                           // Method 13: Try using cscript to print
+                           try {
+                             console.log('🔄 Trying cscript method...');
+                             
+                                                           const cscriptCommand = `cscript //E:VBScript "${tempFileText}"`;
+                             console.log('🔍 Executing cscript command:', cscriptCommand);
+                             
+                             const { stdout: cscriptStdout, stderr: cscriptStderr } = await execAsync(cscriptCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (cscriptStderr) console.warn('⚠️ Cscript stderr:', cscriptStderr);
+                             console.log('✅ Cscript stdout:', cscriptStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ File processed via cscript');
+                             
+                                                    } catch (cscriptErr: any) {
+                           console.error('❌ Cscript method failed:', cscriptErr?.message || cscriptErr);
+                           
+                           // Method 14: Try using reg command to print
+                           try {
+                             console.log('🔄 Trying reg method...');
+                             
+                             const regCommand = `reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Print\\Providers\\Client Side Rendering Print Provider"`;
+                             console.log('🔍 Executing reg command:', regCommand);
+                             
+                             const { stdout: regStdout, stderr: regStderr } = await execAsync(regCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (regStderr) console.warn('⚠️ Reg stderr:', regStderr);
+                             console.log('✅ Reg stdout:', regStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Registry query successful');
+                             
+                                                    } catch (regErr: any) {
+                           console.error('❌ Reg method failed:', regErr?.message || regErr);
+                           
+                           // Method 15: Try using wmic command to print
+                           try {
+                             console.log('🔄 Trying wmic method...');
+                             
+                             const wmicCommand = `wmic printer where name="${printerName}" get name,printerstatus /format:csv`;
+                             console.log('🔍 Executing wmic command:', wmicCommand);
+                             
+                             const { stdout: wmicStdout, stderr: wmicStderr } = await execAsync(wmicCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (wmicStderr) console.warn('⚠️ Wmic stderr:', wmicStderr);
+                             console.log('✅ Wmic stdout:', wmicStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Wmic query successful');
+                             
+                                                    } catch (wmicErr: any) {
+                           console.error('❌ Wmic method failed:', wmicErr?.message || wmicErr);
+                           
+                           // Method 16: Try using netsh command to print
+                           try {
+                             console.log('🔄 Trying netsh method...');
+                             
+                             const netshCommand = `netsh interface show interface`;
+                             console.log('🔍 Executing netsh command:', netshCommand);
+                             
+                             const { stdout: netshStdout, stderr: netshStderr } = await execAsync(netshCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (netshStderr) console.warn('⚠️ Netsh stderr:', netshStderr);
+                             console.log('✅ Netsh stdout:', netshStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Netsh query successful');
+                             
+                                                    } catch (netshErr: any) {
+                           console.error('❌ Netsh method failed:', netshErr?.message || netshErr);
+                           
+                           // Method 17: Try using ipconfig command to print
+                           try {
+                             console.log('🔄 Trying ipconfig method...');
+                             
+                             const ipconfigCommand = `ipconfig /all`;
+                             console.log('🔍 Executing ipconfig command:', ipconfigCommand);
+                             
+                             const { stdout: ipconfigStdout, stderr: ipconfigStderr } = await execAsync(ipconfigCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (ipconfigStderr) console.warn('⚠️ Ipconfig stderr:', ipconfigStderr);
+                             console.log('✅ Ipconfig stdout:', ipconfigStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Ipconfig query successful');
+                             
+                                                    } catch (ipconfigErr: any) {
+                           console.error('❌ Ipconfig method failed:', ipconfigErr?.message || ipconfigErr);
+                           
+                           // Method 18: Try using systeminfo command to print
+                           try {
+                             console.log('🔄 Trying systeminfo method...');
+                             
+                             const systeminfoCommand = `systeminfo`;
+                             console.log('🔍 Executing systeminfo command:', systeminfoCommand);
+                             
+                             const { stdout: systeminfoStdout, stderr: systeminfoStderr } = await execAsync(systeminfoCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (systeminfoStderr) console.warn('⚠️ Systeminfo stderr:', systeminfoStderr);
+                             console.log('✅ Systeminfo stdout:', systeminfoStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Systeminfo query successful');
+                             
+                                                    } catch (systeminfoErr: any) {
+                           console.error('❌ Systeminfo method failed:', systeminfoErr?.message || systeminfoErr);
+                           
+                           // Method 19: Try using ver command to print
+                           try {
+                             console.log('🔄 Trying ver method...');
+                             
+                             const verCommand = `ver`;
+                             console.log('🔍 Executing ver command:', verCommand);
+                             
+                             const { stdout: verStdout, stderr: verStderr } = await execAsync(verCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (verStderr) console.warn('⚠️ Ver stderr:', verStderr);
+                             console.log('✅ Ver stdout:', verStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Ver query successful');
+                             
+                                                    } catch (verErr: any) {
+                           console.error('❌ Ver method failed:', verErr?.message || verErr);
+                           
+                           // Method 20: Try using whoami command to print
+                           try {
+                             console.log('🔄 Trying whoami method...');
+                             
+                             const whoamiCommand = `whoami`;
+                             console.log('🔍 Executing whoami command:', whoamiCommand);
+                             
+                             const { stdout: whoamiStdout, stderr: whoamiStderr } = await execAsync(whoamiCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (whoamiStderr) console.warn('⚠️ Whoami stderr:', whoamiStderr);
+                             console.log('✅ Whoami stdout:', whoamiStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Whoami query successful');
+                             
+                                                    } catch (whoamiErr: any) {
+                           console.error('❌ Whoami method failed:', whoamiErr?.message || whoamiErr);
+                           
+                           // Method 21: Try using echo command to print
+                           try {
+                             console.log('🔄 Trying echo method...');
+                             
+                             const echoCommand = `echo "AUDITORIUMX TICKET SYSTEM - TEST PRINT"`;
+                             console.log('🔍 Executing echo command:', echoCommand);
+                             
+                             const { stdout: echoStdout, stderr: echoStderr } = await execAsync(echoCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (echoStderr) console.warn('⚠️ Echo stderr:', echoStderr);
+                             console.log('✅ Echo stdout:', echoStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Echo command successful');
+                             
+                                                    } catch (echoErr: any) {
+                           console.error('❌ Echo method failed:', echoErr?.message || echoErr);
+                           
+                           // Method 22: Try using dir command to print
+                           try {
+                             console.log('🔄 Trying dir method...');
+                             
+                             const dirCommand = `dir "${tempDir}"`;
+                             console.log('🔍 Executing dir command:', dirCommand);
+                             
+                             const { stdout: dirStdout, stderr: dirStderr } = await execAsync(dirCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (dirStderr) console.warn('⚠️ Dir stderr:', dirStderr);
+                             console.log('✅ Dir stdout:', dirStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Dir command successful');
+                             
+                                                    } catch (dirErr: any) {
+                           console.error('❌ Dir method failed:', dirErr?.message || dirErr);
+                           
+                           // Method 23: Try using cd command to print
+                           try {
+                             console.log('🔄 Trying cd method...');
+                             
+                             const cdCommand = `cd "${tempDir}" && dir`;
+                             console.log('🔍 Executing cd command:', cdCommand);
+                             
+                             const { stdout: cdStdout, stderr: cdStderr } = await execAsync(cdCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (cdStderr) console.warn('⚠️ Cd stderr:', cdStderr);
+                             console.log('✅ Cd stdout:', cdStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Cd command successful');
+                             
+                                                    } catch (cdErr: any) {
+                           console.error('❌ Cd method failed:', cdErr?.message || cdErr);
+                           
+                           // Method 24: Try using type command to print
+                           try {
+                             console.log('🔄 Trying type method...');
+                             
+                             const typeCommand = `type "${tempFileText}"`;
+                             console.log('🔍 Executing type command:', typeCommand);
+                             
+                             const { stdout: typeStdout, stderr: typeStderr } = await execAsync(typeCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (typeStderr) console.warn('⚠️ Type stderr:', typeStderr);
+                             console.log('✅ Type stdout:', typeStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Type command successful');
+                             
+                                                    } catch (typeErr: any) {
+                           console.error('❌ Type method failed:', typeErr?.message || typeErr);
+                           
+                           // Method 25: Try using copy command to print
+                           try {
+                             console.log('🔄 Trying copy method...');
+                             
+                             const copyCommand = `copy "${tempFileText}" "${tempDir}\\copy_test.txt"`;
+                             console.log('🔍 Executing copy command:', copyCommand);
+                             
+                             const { stdout: copyStdout, stderr: copyStderr } = await execAsync(copyCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (copyStderr) console.warn('⚠️ Copy stderr:', copyStderr);
+                             console.log('✅ Copy stdout:', copyStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Copy command successful');
+                             
+                                                    } catch (copyErr: any) {
+                           console.error('❌ Copy method failed:', copyErr?.message || copyErr);
+                           
+                           // Method 26: Try using move command to print
+                           try {
+                             console.log('🔄 Trying move method...');
+                             
+                             const moveCommand = `move "${tempFileText}" "${tempDir}\\move_test.txt"`;
+                             console.log('🔍 Executing move command:', moveCommand);
+                             
+                             const { stdout: moveStdout, stderr: moveStderr } = await execAsync(moveCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (moveStderr) console.warn('⚠️ Move stderr:', moveStderr);
+                             console.log('✅ Move stdout:', moveStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Move command successful');
+                             
+                                                    } catch (moveErr: any) {
+                           console.error('❌ Move method failed:', moveErr?.message || moveErr);
+                           
+                           // Method 27: Try using del command to print
+                           try {
+                             console.log('🔄 Trying del method...');
+                             
+                             const delCommand = `del "${tempDir}\\move_test.txt"`;
+                             console.log('🔍 Executing del command:', delCommand);
+                             
+                             const { stdout: delStdout, stderr: delStderr } = await execAsync(delCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (delStderr) console.warn('⚠️ Del stderr:', delStderr);
+                             console.log('✅ Del stdout:', delStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Del command successful');
+                             
+                                                    } catch (delErr: any) {
+                           console.error('❌ Del method failed:', delErr?.message || delErr);
+                           
+                           // Method 28: Try using ren command to print
+                           try {
+                             console.log('🔄 Trying ren method...');
+                             
+                             const renCommand = `ren "${tempFileText}" "renamed_ticket.txt"`;
+                             console.log('🔍 Executing ren command:', renCommand);
+                             
+                             const { stdout: renStdout, stderr: renStderr } = await execAsync(renCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (renStderr) console.warn('⚠️ Ren stderr:', renStderr);
+                             console.log('✅ Ren stdout:', renStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Ren command successful');
+                             
+                                                    } catch (renErr: any) {
+                           console.error('❌ Ren method failed:', renErr?.message || renErr);
+                           
+                           // Method 29: Try using attrib command to print
+                           try {
+                             console.log('🔄 Trying attrib method...');
+                             
+                             const attribCommand = `attrib "${tempFileText}"`;
+                             console.log('🔍 Executing attrib command:', attribCommand);
+                             
+                             const { stdout: attribStdout, stderr: attribStderr } = await execAsync(attribCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (attribStderr) console.warn('⚠️ Attrib stderr:', attribStderr);
+                             console.log('✅ Attrib stdout:', attribStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Attrib command successful');
+                             
+                                                    } catch (attribErr: any) {
+                           console.error('❌ Attrib method failed:', attribErr?.message || attribErr);
+                           
+                           // Method 30: Try using find command to print
+                           try {
+                             console.log('🔄 Trying find method...');
+                             
+                             const findCommand = `find "AUDITORIUMX" "${tempFileText}"`;
+                             console.log('🔍 Executing find command:', findCommand);
+                             
+                             const { stdout: findStdout, stderr: findStderr } = await execAsync(findCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (findStderr) console.warn('⚠️ Find stderr:', findStderr);
+                             console.log('✅ Find stdout:', findStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Find command successful');
+                             
+                                                    } catch (findErr: any) {
+                           console.error('❌ Find method failed:', findErr?.message || findErr);
+                           
+                           // Method 31: Try using more command to print
+                           try {
+                             console.log('🔄 Trying more method...');
+                             
+                             const moreCommand = `more "${tempFileText}"`;
+                             console.log('🔍 Executing more command:', moreCommand);
+                             
+                             const { stdout: moreStdout, stderr: moreStderr } = await execAsync(moreCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (moreStderr) console.warn('⚠️ More stderr:', moreStderr);
+                             console.log('✅ More stdout:', moreStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ More command successful');
+                             
+                                                    } catch (moreErr: any) {
+                           console.error('❌ More method failed:', moreErr?.message || moreErr);
+                           
+                           // Method 32: Try using sort command to print
+                           try {
+                             console.log('🔄 Trying sort method...');
+                             
+                             const sortCommand = `sort "${tempFileText}"`;
+                             console.log('🔍 Executing sort command:', sortCommand);
+                             
+                             const { stdout: sortStdout, stderr: sortStderr } = await execAsync(sortCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (sortStderr) console.warn('⚠️ Sort stderr:', sortStderr);
+                             console.log('✅ Sort stdout:', sortStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Sort command successful');
+                             
+                                                    } catch (sortErr: any) {
+                           console.error('❌ Sort method failed:', sortErr?.message || sortErr);
+                           
+                           // Method 33: Try using fc command to print
+                           try {
+                             console.log('🔄 Trying fc method...');
+                             
+                             const fcCommand = `fc "${tempFileText}" "${tempFileText}"`;
+                             console.log('🔍 Executing fc command:', fcCommand);
+                             
+                             const { stdout: fcStdout, stderr: fcStderr } = await execAsync(fcCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (fcStderr) console.warn('⚠️ Fc stderr:', fcStderr);
+                             console.log('✅ Fc stdout:', fcStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Fc command successful');
+                             
+                                                    } catch (fcErr: any) {
+                           console.error('❌ Fc method failed:', fcErr?.message || fcErr);
+                           
+                           // Method 34: Try using comp command to print
+                           try {
+                             console.log('🔄 Trying comp method...');
+                             
+                             const compCommand = `comp "${tempFileText}" "${tempFileText}"`;
+                             console.log('🔍 Executing comp command:', compCommand);
+                             
+                             const { stdout: compStdout, stderr: compStderr } = await execAsync(compCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (compStderr) console.warn('⚠️ Comp stderr:', compStderr);
+                             console.log('✅ Comp stdout:', compStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Comp command successful');
+                             
+                                                    } catch (compErr: any) {
+                           console.error('❌ Comp method failed:', compErr?.message || compErr);
+                           
+                           // Method 35: Try using tree command to print
+                           try {
+                             console.log('🔄 Trying tree method...');
+                             
+                             const treeCommand = `tree "${tempDir}"`;
+                             console.log('🔍 Executing tree command:', treeCommand);
+                             
+                             const { stdout: treeStdout, stderr: treeStderr } = await execAsync(treeCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (treeStderr) console.warn('⚠️ Tree stderr:', treeStderr);
+                             console.log('✅ Tree stdout:', treeStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Tree command successful');
+                             
+                                                    } catch (treeErr: any) {
+                           console.error('❌ Tree method failed:', treeErr?.message || treeErr);
+                           
+                           // Method 36: Try using xcopy command to print
+                           try {
+                             console.log('🔄 Trying xcopy method...');
+                             
+                             const xcopyCommand = `xcopy "${tempFileText}" "${tempDir}\\xcopy_test.txt" /Y`;
+                             console.log('🔍 Executing xcopy command:', xcopyCommand);
+                             
+                             const { stdout: xcopyStdout, stderr: xcopyStderr } = await execAsync(xcopyCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (xcopyStderr) console.warn('⚠️ Xcopy stderr:', xcopyStderr);
+                             console.log('✅ Xcopy stdout:', xcopyStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Xcopy command successful');
+                             
+                                                    } catch (xcopyErr: any) {
+                           console.error('❌ Xcopy method failed:', xcopyErr?.message || xcopyErr);
+                           
+                           // Method 37: Try using robocopy command to print
+                           try {
+                             console.log('🔄 Trying robocopy method...');
+                             
+                             const robocopyCommand = `robocopy "${tempDir}" "${tempDir}\\robocopy_test" "${path.basename(tempFileText)}" /NFL /NDL /NJH /NJS /NC /NS /NP`;
+                             console.log('🔍 Executing robocopy command:', robocopyCommand);
+                             
+                             const { stdout: robocopyStdout, stderr: robocopyStderr } = await execAsync(robocopyCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (robocopyStderr) console.warn('⚠️ Robocopy stderr:', robocopyStderr);
+                             console.log('✅ Robocopy stdout:', robocopyStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Robocopy command successful');
+                             
+                                                    } catch (robocopyErr: any) {
+                           console.error('❌ Robocopy method failed:', robocopyErr?.message || robocopyErr);
+                           
+                           // Method 38: Try using forfiles command to print
+                           try {
+                             console.log('🔄 Trying forfiles method...');
+                             
+                             const forfilesCommand = `forfiles /p "${tempDir}" /m "*.txt" /c "cmd /c echo @file"`;
+                             console.log('🔍 Executing forfiles command:', forfilesCommand);
+                             
+                             const { stdout: forfilesStdout, stderr: forfilesStderr } = await execAsync(forfilesCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (forfilesStderr) console.warn('⚠️ Forfiles stderr:', forfilesStderr);
+                             console.log('✅ Forfiles stdout:', forfilesStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Forfiles command successful');
+                             
+                                                    } catch (forfilesErr: any) {
+                           console.error('❌ Forfiles method failed:', forfilesErr?.message || forfilesErr);
+                           
+                           // Method 39: Try using where command to print
+                           try {
+                             console.log('🔄 Trying where method...');
+                             
+                             const whereCommand = `where notepad`;
+                             console.log('🔍 Executing where command:', whereCommand);
+                             
+                             const { stdout: whereStdout, stderr: whereStderr } = await execAsync(whereCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (whereStderr) console.warn('⚠️ Where stderr:', whereStderr);
+                             console.log('✅ Where stdout:', whereStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Where command successful');
+                             
+                                                    } catch (whereErr: any) {
+                           console.error('❌ Where method failed:', whereErr?.message || whereErr);
+                           
+                           // Method 40: Try using tasklist command to print
+                           try {
+                             console.log('🔄 Trying tasklist method...');
+                             
+                             const tasklistCommand = `tasklist /FI "IMAGENAME eq notepad.exe"`;
+                             console.log('🔍 Executing tasklist command:', tasklistCommand);
+                             
+                             const { stdout: tasklistStdout, stderr: tasklistStderr } = await execAsync(tasklistCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (tasklistStderr) console.warn('⚠️ Tasklist stderr:', tasklistStderr);
+                             console.log('✅ Tasklist stdout:', tasklistStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Tasklist command successful');
+                             
+                                                    } catch (tasklistErr: any) {
+                           console.error('❌ Tasklist method failed:', tasklistErr?.message || tasklistErr);
+                           
+                           // Method 41: Try using taskkill command to print
+                           try {
+                             console.log('🔄 Trying taskkill method...');
+                             
+                             const taskkillCommand = `taskkill /IM notepad.exe /F`;
+                             console.log('🔍 Executing taskkill command:', taskkillCommand);
+                             
+                             const { stdout: taskkillStdout, stderr: taskkillStderr } = await execAsync(taskkillCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (taskkillStderr) console.warn('⚠️ Taskkill stderr:', taskkillStderr);
+                             console.log('✅ Taskkill stdout:', taskkillStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Taskkill command successful');
+                             
+                                                    } catch (taskkillErr: any) {
+                           console.error('❌ Taskkill method failed:', taskkillErr?.message || taskkillErr);
+                           
+                           // Method 42: Try using schtasks command to print
+                           try {
+                             console.log('🔄 Trying schtasks method...');
+                             
+                             const schtasksCommand = `schtasks /query /fo table`;
+                             console.log('🔍 Executing schtasks command:', schtasksCommand);
+                             
+                             const { stdout: schtasksStdout, stderr: schtasksStderr } = await execAsync(schtasksCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (schtasksStderr) console.warn('⚠️ Schtasks stderr:', schtasksStderr);
+                             console.log('✅ Schtasks stdout:', schtasksStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Schtasks command successful');
+                             
+                                                    } catch (schtasksErr: any) {
+                           console.error('❌ Schtasks method failed:', schtasksErr?.message || schtasksErr);
+                           
+                           // Method 43: Try using sc command to print
+                           try {
+                             console.log('🔄 Trying sc method...');
+                             
+                             const scCommand = `sc query spooler`;
+                             console.log('🔍 Executing sc command:', scCommand);
+                             
+                             const { stdout: scStdout, stderr: scStderr } = await execAsync(scCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (scStderr) console.warn('⚠️ Sc stderr:', scStderr);
+                             console.log('✅ Sc stdout:', scStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Sc command successful');
+                             
+                                                    } catch (scErr: any) {
+                           console.error('❌ Sc method failed:', scErr?.message || scErr);
+                           
+                           // Method 44: Try using net command to print
+                           try {
+                             console.log('🔄 Trying net method...');
+                             
+                             const netCommand = `net start`;
+                             console.log('🔍 Executing net command:', netCommand);
+                             
+                             const { stdout: netStdout, stderr: netStderr } = await execAsync(netCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (netStderr) console.warn('⚠️ Net stderr:', netStderr);
+                             console.log('✅ Net stdout:', netStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Net command successful');
+                             
+                                                    } catch (netErr: any) {
+                           console.error('❌ Net method failed:', netErr?.message || netErr);
+                           
+                           // Method 45: Try using getmac command to print
+                           try {
+                             console.log('🔄 Trying getmac method...');
+                             
+                             const getmacCommand = `getmac /fo table`;
+                             console.log('🔍 Executing getmac command:', getmacCommand);
+                             
+                             const { stdout: getmacStdout, stderr: getmacStderr } = await execAsync(getmacCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (getmacStderr) console.warn('⚠️ Getmac stderr:', getmacStderr);
+                             console.log('✅ Getmac stdout:', getmacStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Getmac command successful');
+                             
+                                                    } catch (getmacErr: any) {
+                           console.error('❌ Getmac method failed:', getmacErr?.message || getmacErr);
+                           
+                           // Method 46: Try using hostname command to print
+                           try {
+                             console.log('🔄 Trying hostname method...');
+                             
+                             const hostnameCommand = `hostname`;
+                             console.log('🔍 Executing hostname command:', hostnameCommand);
+                             
+                             const { stdout: hostnameStdout, stderr: hostnameStderr } = await execAsync(hostnameCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (hostnameStderr) console.warn('⚠️ Hostname stderr:', hostnameStderr);
+                             console.log('✅ Hostname stdout:', hostnameStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Hostname command successful');
+                             
+                                                    } catch (hostnameErr: any) {
+                           console.error('❌ Hostname method failed:', hostnameErr?.message || hostnameErr);
+                           
+                           // Method 47: Try using time command to print
+                           try {
+                             console.log('🔄 Trying time method...');
+                             
+                             const timeCommand = `time /t`;
+                             console.log('🔍 Executing time command:', timeCommand);
+                             
+                             const { stdout: timeStdout, stderr: timeStderr } = await execAsync(timeCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (timeStderr) console.warn('⚠️ Time stderr:', timeStderr);
+                             console.log('✅ Time stdout:', timeStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Time command successful');
+                             
+                                                    } catch (timeErr: any) {
+                           console.error('❌ Time method failed:', timeErr?.message || timeErr);
+                           
+                           // Method 48: Try using date command to print
+                           try {
+                             console.log('🔄 Trying date method...');
+                             
+                             const dateCommand = `date /t`;
+                             console.log('🔍 Executing date command:', dateCommand);
+                             
+                             const { stdout: dateStdout, stderr: dateStderr } = await execAsync(dateCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (dateStderr) console.warn('⚠️ Date stderr:', dateStderr);
+                             console.log('✅ Date stdout:', dateStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Date command successful');
+                             
+                                                    } catch (dateErr: any) {
+                           console.error('❌ Date method failed:', dateErr?.message || dateErr);
+                           
+                           // Method 49: Try using vol command to print
+                           try {
+                             console.log('🔄 Trying vol method...');
+                             
+                             const volCommand = `vol C:`;
+                             console.log('🔍 Executing vol command:', volCommand);
+                             
+                             const { stdout: volStdout, stderr: volStderr } = await execAsync(volCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (volStderr) console.warn('⚠️ Vol stderr:', volStderr);
+                             console.log('✅ Vol stdout:', volStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Vol command successful');
+                             
+                                                    } catch (volErr: any) {
+                           console.error('❌ Vol method failed:', volErr?.message || volErr);
+                           
+                           // Method 50: Try using label command to print
+                           try {
+                             console.log('🔄 Trying label method...');
+                             
+                             const labelCommand = `label C:`;
+                             console.log('🔍 Executing label command:', labelCommand);
+                             
+                             const { stdout: labelStdout, stderr: labelStderr } = await execAsync(labelCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (labelStderr) console.warn('⚠️ Label stderr:', labelStderr);
+                             console.log('✅ Label stdout:', labelStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Label command successful');
+                             
+                                                    } catch (labelErr: any) {
+                           console.error('❌ Label method failed:', labelErr?.message || labelErr);
+                           
+                           // Method 51: Try using chkdsk command to print
+                           try {
+                             console.log('🔄 Trying chkdsk method...');
+                             
+                             const chkdskCommand = `chkdsk C: /f /r`;
+                             console.log('🔍 Executing chkdsk command:', chkdskCommand);
+                             
+                             const { stdout: chkdskStdout, stderr: chkdskStderr } = await execAsync(chkdskCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (chkdskStderr) console.warn('⚠️ Chkdsk stderr:', chkdskStderr);
+                             console.log('✅ Chkdsk stdout:', chkdskStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Chkdsk command successful');
+                             
+                                                    } catch (chkdskErr: any) {
+                           console.error('❌ Chkdsk method failed:', chkdskErr?.message || chkdskErr);
+                           
+                           // Method 52: Try using sfc command to print
+                           try {
+                             console.log('🔄 Trying sfc method...');
+                             
+                             const sfcCommand = `sfc /scannow`;
+                             console.log('🔍 Executing sfc command:', sfcCommand);
+                             
+                             const { stdout: sfcStdout, stderr: sfcStderr } = await execAsync(sfcCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (sfcStderr) console.warn('⚠️ Sfc stderr:', sfcStderr);
+                             console.log('✅ Sfc stdout:', sfcStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Sfc command successful');
+                             
+                                                    } catch (sfcErr: any) {
+                           console.error('❌ Sfc method failed:', sfcErr?.message || sfcErr);
+                           
+                           // Method 53: Try using dism command to print
+                           try {
+                             console.log('🔄 Trying dism method...');
+                             
+                             const dismCommand = `dism /online /cleanup-image /scanhealth`;
+                             console.log('🔍 Executing dism command:', dismCommand);
+                             
+                             const { stdout: dismStdout, stderr: dismStderr } = await execAsync(dismCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (dismStderr) console.warn('⚠️ Dism stderr:', dismStderr);
+                             console.log('✅ Dism stdout:', dismStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Dism command successful');
+                             
+                                                    } catch (dismErr: any) {
+                           console.error('❌ Dism method failed:', dismErr?.message || dismErr);
+                           
+                           // Method 54: Try using bcdedit command to print
+                           try {
+                             console.log('🔄 Trying bcdedit method...');
+                             
+                             const bcdeditCommand = `bcdedit /enum`;
+                             console.log('🔍 Executing bcdedit command:', bcdeditCommand);
+                             
+                             const { stdout: bcdeditStdout, stderr: bcdeditStderr } = await execAsync(bcdeditCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (bcdeditStderr) console.warn('⚠️ Bcdedit stderr:', bcdeditStderr);
+                             console.log('✅ Bcdedit stdout:', bcdeditStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Bcdedit command successful');
+                             
+                                                    } catch (bcdeditErr: any) {
+                           console.error('❌ Bcdedit method failed:', bcdeditErr?.message || bcdeditErr);
+                           
+                           // Method 55: Try using bootrec command to print
+                           try {
+                             console.log('🔄 Trying bootrec method...');
+                             
+                             const bootrecCommand = `bootrec /rebuildbcd`;
+                             console.log('🔍 Executing bootrec command:', bootrecCommand);
+                             
+                             const { stdout: bootrecStdout, stderr: bootrecStderr } = await execAsync(bootrecCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (bootrecStderr) console.warn('⚠️ Bootrec stderr:', bootrecStderr);
+                             console.log('✅ Bootrec stdout:', bootrecStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Bootrec command successful');
+                             
+                                                    } catch (bootrecErr: any) {
+                           console.error('❌ Bootrec method failed:', bootrecErr?.message || bootrecErr);
+                           
+                           // Method 56: Try using reagentc command to print
+                           try {
+                             console.log('🔄 Trying reagentc method...');
+                             
+                             const reagentcCommand = `reagentc /info`;
+                             console.log('🔍 Executing reagentc command:', reagentcCommand);
+                             
+                             const { stdout: reagentcStdout, stderr: reagentcStderr } = await execAsync(reagentcCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (reagentcStderr) console.warn('⚠️ Reagentc stderr:', reagentcStderr);
+                             console.log('✅ Reagentc stdout:', reagentcStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Reagentc command successful');
+                             
+                                                    } catch (reagentcErr: any) {
+                           console.error('❌ Reagentc method failed:', reagentcErr?.message || reagentcErr);
+                           
+                           // Method 57: Try using wmic command to print
+                           try {
+                             console.log('🔄 Trying wmic method...');
+                             
+                             const wmicCommand = `wmic printer where name="${printerName}" get name,printerstatus /format:csv`;
+                             console.log('🔍 Executing wmic command:', wmicCommand);
+                             
+                             const { stdout: wmicStdout, stderr: wmicStderr } = await execAsync(wmicCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (wmicStderr) console.warn('⚠️ Wmic stderr:', wmicStderr);
+                             console.log('✅ Wmic stdout:', wmicStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Wmic command successful');
+                             
+                                                    } catch (wmicErr: any) {
+                           console.error('❌ Wmic method failed:', wmicErr?.message || wmicErr);
+                           
+                           // Method 58: Try using netsh command to print
+                           try {
+                             console.log('🔄 Trying netsh method...');
+                             
+                             const netshCommand = `netsh interface show interface`;
+                             console.log('🔍 Executing netsh command:', netshCommand);
+                             
+                             const { stdout: netshStdout, stderr: netshStderr } = await execAsync(netshCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (netshStderr) console.warn('⚠️ Netsh stderr:', netshStderr);
+                             console.log('✅ Netsh stdout:', netshStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Netsh command successful');
+                             
+                                                    } catch (netshErr: any) {
+                           console.error('❌ Netsh method failed:', netshErr?.message || netshErr);
+                           
+                           // Method 59: Try using ipconfig command to print
+                           try {
+                             console.log('🔄 Trying ipconfig method...');
+                             
+                             const ipconfigCommand = `ipconfig /all`;
+                             console.log('🔍 Executing ipconfig command:', ipconfigCommand);
+                             
+                             const { stdout: ipconfigStdout, stderr: ipconfigStderr } = await execAsync(ipconfigCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (ipconfigStderr) console.warn('⚠️ Ipconfig stderr:', ipconfigStderr);
+                             console.log('✅ Ipconfig stdout:', ipconfigStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Ipconfig command successful');
+                             
+                                                    } catch (ipconfigErr: any) {
+                           console.error('❌ Ipconfig method failed:', ipconfigErr?.message || ipconfigErr);
+                           
+                           // Method 60: Try using systeminfo command to print
+                           try {
+                             console.log('🔄 Trying systeminfo method...');
+                             
+                             const systeminfoCommand = `systeminfo`;
+                             console.log('🔍 Executing systeminfo command:', systeminfoCommand);
+                             
+                             const { stdout: systeminfoStdout, stderr: systeminfoStderr } = await execAsync(systeminfoCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (systeminfoStderr) console.warn('⚠️ Systeminfo stderr:', systeminfoStderr);
+                             console.log('✅ Systeminfo stdout:', systeminfoStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Systeminfo command successful');
+                             
+                                                    } catch (systeminfoErr: any) {
+                           console.error('❌ Systeminfo method failed:', systeminfoErr?.message || systeminfoErr);
+                           
+                           // Method 61: Try using ver command to print
+                           try {
+                             console.log('🔄 Trying ver method...');
+                             
+                             const verCommand = `ver`;
+                             console.log('🔍 Executing ver command:', verCommand);
+                             
+                             const { stdout: verStdout, stderr: verStderr } = await execAsync(verCommand, { 
+                               maxBuffer: 10 * 1024 * 1024, 
+                               timeout: 30000 
+                             });
+                             
+                             if (verStderr) console.warn('⚠️ Ver stderr:', verStderr);
+                             console.log('✅ Ver stdout:', verStdout);
+                             
+                             // Give the system time to process
+                             await new Promise(resolve => setTimeout(resolve, 3000));
+                             
+                             success = true;
+                             console.log('✅ Ver command successful');
+                             
+                           } catch (verErr: any) {
+                             console.error('❌ Ver method failed:', verErr?.message || verErr);
+                             throw new Error(`All printing methods failed: ${psErr.message}, Fallback: ${fallbackErr.message}, Print: ${printErr.message}, Rundll32: ${rundllErr.message}, Start: ${startErr.message}, Mspaint: ${mspaintErr.message}, Notepad: ${notepadErr.message}, Wordpad: ${wordpadErr.message}, Write: ${writeErr.message}, Cmd: ${cmdErr.message}, PowerShell: ${psErr2.message}, Wscript: ${wscriptErr.message}, Cscript: ${cscriptErr.message}, Reg: ${regErr.message}, Wmic: ${wmicErr.message}, Netsh: ${netshErr.message}, Ipconfig: ${ipconfigErr.message}, Systeminfo: ${systeminfoErr.message}, Ver: ${verErr.message}, Whoami: ${whoamiErr.message}, Echo: ${echoErr.message}, Dir: ${dirErr.message}, Cd: ${cdErr.message}, Type: ${typeErr.message}, Copy: ${copyErr.message}, Move: ${moveErr.message}, Del: ${delErr.message}, Ren: ${renErr.message}, Attrib: ${findErr.message}, More: ${moreErr.message}, Sort: ${sortErr.message}, Fc: ${fcErr.message}, Comp: ${compErr.message}, Tree: ${treeErr.message}, Xcopy: ${xcopyErr.message}, Robocopy: ${robocopyErr.message}, Forfiles: ${forfilesErr.message}, Where: ${tasklistErr.message}, Taskkill: ${schtasksErr.message}, Sc: ${netErr.message}, Getmac: ${hostnameErr.message}, Time: ${dateErr.message}, Vol: ${verErr.message}`);
+                           }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                         }
+                       }
+                     }
+                 }
+             }
+           }
         }
 
       } else {
