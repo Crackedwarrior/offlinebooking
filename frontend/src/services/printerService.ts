@@ -168,17 +168,55 @@ export class PrinterService {
     return commands.join('');
   }
 
+  // Generate plain text for the ticket (for printers that don't support ESC/POS)
+  private generatePlainTextTicket(ticket: TicketData): string {
+    const center = (text: string, width: number = 32) => {
+      const padding = Math.max(0, width - text.length);
+      const leftPadding = Math.floor(padding / 2);
+      const rightPadding = padding - leftPadding;
+      return ' '.repeat(leftPadding) + text + ' '.repeat(rightPadding);
+    };
+
+    const line = (char: string = '-', width: number = 32) => char.repeat(width);
+
+    const ticketText = [
+      line('=', 32),
+      center(ticket.theaterName, 32),
+      center(ticket.location, 32),
+      line('-', 32),
+      `Date    : ${ticket.date}`,
+      `Film    : ${ticket.film}`,
+      `Class   : ${ticket.class}`,
+      `Showtime: ${ticket.showtime}`,
+      `Row     : ${ticket.row}-Seats: [${ticket.seatNumber}]`,
+      line('-', 32),
+      `NET     : ${ticket.netAmount.toFixed(2)}`,
+      `CGST    : ${ticket.cgst.toFixed(2)}`,
+      `SGST    : ${ticket.sgst.toFixed(2)}`,
+      `MC      : ${ticket.mc.toFixed(2)}`,
+      line('-', 32),
+      `Total   : ${ticket.totalAmount.toFixed(2)}`,
+      line('-', 32),
+      `${ticket.date} / ${ticket.showtime}`,
+      `ID: ${ticket.transactionId}`,
+      line('=', 32),
+      '', // Empty line for spacing
+      '', // Empty line for spacing
+    ];
+
+    return ticketText.join('\n');
+  }
+
   // Print a single ticket
   async printTicket(ticket: TicketData): Promise<boolean> {
     try {
       console.log('🖨️ Printing ticket:', ticket);
       
-      // In a real implementation, this would send ESC/POS commands to the printer
-      // For now, we'll simulate the printing process
-      const escPosCommands = this.generateEscPosCommands(ticket);
+      // Use plain text instead of ESC/POS commands for better compatibility
+      const plainText = this.generatePlainTextTicket(ticket);
       
-      // Simulate printer communication
-      await this.sendToPrinter(escPosCommands);
+      // Send plain text to printer
+      await this.sendToPrinter(plainText);
       
       console.log('✅ Ticket printed successfully');
       return true;
