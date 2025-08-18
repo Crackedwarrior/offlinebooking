@@ -1,0 +1,2 @@
+2025-08-18 21:51:56 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2025-08-18 21:51:57 - Started 27468

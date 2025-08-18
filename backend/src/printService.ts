@@ -1,180 +1,270 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { Service } from 'node-windows';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
 interface PrintJob {
   id: string;
+  ticketData: string;
   printerName: string;
-  filePath: string;
   timestamp: Date;
-  status: 'pending' | 'printing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   error?: string;
 }
 
-class SilentPrintService {
+class WindowsPrintService {
   private printQueue: PrintJob[] = [];
   private isProcessing = false;
+  private service: Service | null = null;
+  private isServiceRunning = false;
 
   constructor() {
-    console.log('🖨️ Silent Print Service initialized');
+    console.log('🖨️ Windows Print Service initialized');
+    this.initializeService();
+  }
+
+  private initializeService() {
+    try {
+      // Create a Windows service for background printing
+      this.service = new Service({
+        name: 'OfflineBookingPrintService',
+        description: 'Background printing service for offline booking system',
+        script: path.join(__dirname, 'printWorker.js'),
+        nodeOptions: [
+          '--harmony',
+          '--max_old_space_size=4096'
+        ]
+      });
+
+      // Handle service events
+      this.service.on('install', () => {
+        console.log('✅ Print service installed successfully');
+        this.service?.start();
+      });
+
+      this.service.on('alreadyinstalled', () => {
+        console.log('ℹ️ Print service already installed');
+        this.service?.start();
+      });
+
+      this.service.on('start', () => {
+        console.log('🚀 Print service started');
+        this.isServiceRunning = true;
+      });
+
+      this.service.on('stop', () => {
+        console.log('⏹️ Print service stopped');
+        this.isServiceRunning = false;
+      });
+
+      this.service.on('error', (err: any) => {
+        console.error('❌ Print service error:', err);
+        this.isServiceRunning = false;
+      });
+
+      // Install the service if not already installed
+      this.service.install();
+    } catch (error) {
+      console.error('❌ Failed to initialize print service:', error);
+      this.isServiceRunning = false;
+    }
   }
 
   async addToPrintQueue(ticketData: string, printerName: string): Promise<string> {
     const jobId = `print_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Create temp file for printing
-    const tempDir = path.join(process.cwd(), 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    
-    const filePath = path.join(tempDir, `ticket_${jobId}.txt`);
-    
-    // Write ticket data to file
-    fs.writeFileSync(filePath, ticketData, 'binary');
-    
     const printJob: PrintJob = {
       id: jobId,
+      ticketData,
       printerName,
-      filePath,
       timestamp: new Date(),
       status: 'pending'
     };
     
     this.printQueue.push(printJob);
     
-    // Process queue if not already processing
-    if (!this.isProcessing) {
-      this.processQueue();
+    // If service is running, use it; otherwise use direct method
+    if (this.isServiceRunning) {
+      await this.processViaService(printJob);
+    } else {
+      await this.processDirectly(printJob);
     }
     
     return jobId;
   }
 
-  private async processQueue() {
-    if (this.isProcessing || this.printQueue.length === 0) {
-      return;
+  private async processViaService(printJob: PrintJob): Promise<void> {
+    try {
+      printJob.status = 'processing';
+      
+      // Write job to a file that the service can read
+      const jobFile = path.join(process.cwd(), 'temp', `job_${printJob.id}.json`);
+      const jobData = {
+        id: printJob.id,
+        ticketData: printJob.ticketData,
+        printerName: printJob.printerName,
+        timestamp: printJob.timestamp.toISOString()
+      };
+      
+      fs.writeFileSync(jobFile, JSON.stringify(jobData, null, 2));
+      
+      // Wait for service to process (with timeout)
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check if job was completed
+        if (fs.existsSync(jobFile + '.completed')) {
+          printJob.status = 'completed';
+          fs.unlinkSync(jobFile + '.completed');
+          fs.unlinkSync(jobFile);
+          console.log(`✅ Print job ${printJob.id} completed via service`);
+          return;
+        }
+        
+        // Check if job failed
+        if (fs.existsSync(jobFile + '.failed')) {
+          const errorData = JSON.parse(fs.readFileSync(jobFile + '.failed', 'utf8'));
+          printJob.status = 'failed';
+          printJob.error = errorData.error;
+          fs.unlinkSync(jobFile + '.failed');
+          fs.unlinkSync(jobFile);
+          throw new Error(`Print job failed: ${errorData.error}`);
+        }
+        
+        attempts++;
+      }
+      
+      // Timeout - fallback to direct method
+      console.log('⚠️ Service timeout, falling back to direct method');
+      await this.processDirectly(printJob);
+      
+    } catch (error) {
+      console.error('❌ Service processing failed:', error);
+      await this.processDirectly(printJob);
+    }
+  }
+
+  private async processDirectly(printJob: PrintJob): Promise<void> {
+    try {
+      printJob.status = 'processing';
+      
+      // Use the most aggressive silent printing method
+      await this.printUsingWindowsAPI(printJob.ticketData, printJob.printerName);
+      
+      printJob.status = 'completed';
+      console.log(`✅ Print job ${printJob.id} completed directly`);
+      
+    } catch (error) {
+      printJob.status = 'failed';
+      printJob.error = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ Print job ${printJob.id} failed:`, error);
+      throw error;
+    }
+  }
+
+  private async printUsingWindowsAPI(ticketData: string, printerName: string): Promise<void> {
+    // Create temp file
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
     
-    this.isProcessing = true;
+    const filePath = path.join(tempDir, `ticket_${Date.now()}.txt`);
+    fs.writeFileSync(filePath, ticketData, 'binary');
     
-    while (this.printQueue.length > 0) {
-      const job = this.printQueue.shift();
-      if (!job) continue;
+    try {
+      // Method 1: Use Windows Print Spooler API directly
+      const spoolerCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.Printing; $printServer = New-Object System.Printing.PrintServer; $printQueue = $printServer.GetPrintQueue('${printerName}'); $printJob = $printQueue.AddJob('Ticket_${Date.now()}'); $printJob.AddFile('${filePath}'); $printJob.Commit(); $printJob.Dispose(); $printQueue.Dispose(); $printServer.Dispose();"`;
+      
+      const { stdout, stderr } = await execAsync(spoolerCommand, { 
+        maxBuffer: 10 * 1024 * 1024, 
+        timeout: 30000,
+        windowsHide: true
+      });
+      
+      if (stderr) {
+        throw new Error(`Spooler API error: ${stderr}`);
+      }
+      
+      console.log('✅ Windows API printing completed');
+      
+    } catch (error) {
+      console.log('⚠️ Windows API failed, trying alternative...');
+      
+      // Method 2: Use Windows Print Spooler via VBScript (completely silent)
+      const vbsContent = `
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objFile = objFSO.OpenTextFile("${filePath.replace(/\\/g, '\\\\')}", 1)
+strContent = objFile.ReadAll
+objFile.Close
+
+Set objWord = CreateObject("Word.Application")
+objWord.Visible = False
+Set objDoc = objWord.Documents.Add
+objDoc.Content.Text = strContent
+
+objDoc.PrintOut False, , , , "${printerName}"
+objWord.Quit
+Set objWord = Nothing
+Set objFSO = Nothing
+      `.trim();
+
+      const vbsPath = path.join(tempDir, `print_${Date.now()}.vbs`);
+      fs.writeFileSync(vbsPath, vbsContent, 'utf8');
       
       try {
-        job.status = 'printing';
-        await this.printSilently(job);
-        job.status = 'completed';
-        console.log(`✅ Print job ${job.id} completed successfully`);
-      } catch (error) {
-        job.status = 'failed';
-        job.error = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`❌ Print job ${job.id} failed:`, error);
-      } finally {
-        // Clean up temp file
-        try {
-          if (fs.existsSync(job.filePath)) {
-            fs.unlinkSync(job.filePath);
-          }
-        } catch (cleanupError) {
-          console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        const vbsCommand = `cscript //nologo "${vbsPath}"`;
+        const { stdout, stderr } = await execAsync(vbsCommand, { 
+          maxBuffer: 10 * 1024 * 1024, 
+          timeout: 30000,
+          windowsHide: true
+        });
+        
+        if (stderr) {
+          throw new Error(`VBScript error: ${stderr}`);
         }
+        
+        console.log('✅ VBScript printing completed');
+        
+        // Clean up VBS file
+        if (fs.existsSync(vbsPath)) {
+          fs.unlinkSync(vbsPath);
+        }
+        
+      } catch (vbsError) {
+        console.log('⚠️ VBScript failed, using minimal PowerShell...');
+        
+        // Method 3: Minimal PowerShell with extreme hiding
+        const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
+        
+        const { stdout, stderr } = await execAsync(psCommand, { 
+          maxBuffer: 10 * 1024 * 1024, 
+          timeout: 30000,
+          windowsHide: true
+        });
+        
+        if (stderr && !stderr.includes('Exception')) {
+          throw new Error(`PowerShell error: ${stderr}`);
+        }
+        
+        console.log('✅ Minimal PowerShell printing completed');
       }
-    }
-    
-    this.isProcessing = false;
-  }
-
-  private async printSilently(job: PrintJob): Promise<void> {
-    // Method 1: Try using Windows Print Spooler API directly with hidden window
-    try {
-      await this.printUsingSpoolerHidden(job);
-      return;
-    } catch (error) {
-      console.log('⚠️ Spooler hidden method failed, trying alternative...');
-    }
-
-    // Method 2: Try using Windows Print Spooler API with minimized window
-    try {
-      await this.printUsingSpoolerMinimized(job);
-      return;
-    } catch (error) {
-      console.log('⚠️ Spooler minimized method failed, trying alternative...');
-    }
-
-    // Method 3: Try using PowerShell with completely hidden window and no console
-    try {
-      await this.printUsingPowerShellHidden(job);
-      return;
-    } catch (error) {
-      console.log('⚠️ PowerShell hidden method failed, trying direct command...');
-    }
-
-    // Method 4: Fallback to direct command with hidden window
-    await this.printUsingDirectCommandHidden(job);
-  }
-
-  private async printUsingSpoolerHidden(job: PrintJob): Promise<void> {
-    // Use Windows Print Spooler API directly with hidden window
-    const command = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.Printing; $printServer = New-Object System.Printing.PrintServer; $printQueue = $printServer.GetPrintQueue('${job.printerName}'); $printJob = $printQueue.AddJob('Ticket_${job.id}'); $printJob.AddFile('${job.filePath}'); $printJob.Commit(); $printJob.Dispose(); $printQueue.Dispose(); $printServer.Dispose();"`;
-    
-    const { stdout, stderr } = await execAsync(command, { 
-      maxBuffer: 10 * 1024 * 1024, 
-      timeout: 30000,
-      windowsHide: true
-    });
-    
-    if (stderr) {
-      throw new Error(`Spooler error: ${stderr}`);
-    }
-  }
-
-  private async printUsingSpoolerMinimized(job: PrintJob): Promise<void> {
-    // Use Windows Print Spooler API with minimized window
-    const command = `powershell -WindowStyle Minimized -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.Printing; $printServer = New-Object System.Printing.PrintServer; $printQueue = $printServer.GetPrintQueue('${job.printerName}'); $printJob = $printQueue.AddJob('Ticket_${job.id}'); $printJob.AddFile('${job.filePath}'); $printJob.Commit(); $printJob.Dispose(); $printQueue.Dispose(); $printServer.Dispose();"`;
-    
-    const { stdout, stderr } = await execAsync(command, { 
-      maxBuffer: 10 * 1024 * 1024, 
-      timeout: 30000,
-      windowsHide: true
-    });
-    
-    if (stderr) {
-      throw new Error(`Spooler error: ${stderr}`);
-    }
-  }
-
-  private async printUsingPowerShellHidden(job: PrintJob): Promise<void> {
-    // Use PowerShell with completely hidden window and no console output
-    const command = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${job.filePath.replace(/\\/g, '\\\\')}' | Out-Printer -Name '${job.printerName.replace(/'/g, "''")}'"`;
-    
-    const { stdout, stderr } = await execAsync(command, { 
-      maxBuffer: 10 * 1024 * 1024, 
-      timeout: 30000,
-      windowsHide: true
-    });
-    
-    if (stderr && !stderr.includes('Exception')) {
-      throw new Error(`PowerShell error: ${stderr}`);
-    }
-  }
-
-  private async printUsingDirectCommandHidden(job: PrintJob): Promise<void> {
-    // Direct print command with hidden window as last resort
-    const command = `cmd /c start /min print /d:"${job.printerName}" "${job.filePath}"`;
-    
-    const { stdout, stderr } = await execAsync(command, { 
-      maxBuffer: 10 * 1024 * 1024, 
-      timeout: 30000,
-      windowsHide: true
-    });
-    
-    if (stderr) {
-      throw new Error(`Direct print error: ${stderr}`);
+      
+    } finally {
+      // Clean up temp file
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+      }
     }
   }
 
@@ -186,6 +276,7 @@ class SilentPrintService {
     return {
       totalJobs: this.printQueue.length,
       isProcessing: this.isProcessing,
+      isServiceRunning: this.isServiceRunning,
       jobs: this.printQueue.map(job => ({
         id: job.id,
         status: job.status,
@@ -194,6 +285,13 @@ class SilentPrintService {
       }))
     };
   }
+
+  stopService() {
+    if (this.service) {
+      this.service.stop();
+      this.service.uninstall();
+    }
+  }
 }
 
-export const silentPrintService = new SilentPrintService();
+export const windowsPrintService = new WindowsPrintService();
