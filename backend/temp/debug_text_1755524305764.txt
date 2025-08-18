@@ -1,0 +1,28 @@
+Text Debug File
+Generated: 2025-08-18T13:38:25.764Z
+Printer: EPSON TM-T81 ReceiptE4
+Ticket Count: 1
+
+Text Content:
+================================
+       SREELEKHA THEATER        
+          Chickmagalur          
+--------------------------------
+Date    : 18/08/2025
+Film    : KALANK
+Class   : STAR CLASS
+Showtime: 6:00 PM
+Row     : SC-A-Seats: [18]
+--------------------------------
+NET     : 127.00
+CGST    : 12.00
+SGST    : 11.00
+MC      : 2.00
+--------------------------------
+Total   : 150.00
+--------------------------------
+18/08/2025 / 6:00 PM
+ID: 2508181908CSH 10440001/001
+================================
+
+

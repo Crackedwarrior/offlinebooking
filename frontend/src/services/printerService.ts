@@ -31,13 +31,43 @@ export class PrinterService {
   private location: string = 'Chickmagalur';
   private gstin: string = '29AAVFS7423E120';
 
-  private constructor() {}
+  private constructor() {
+    // Load saved printer configuration on initialization
+    this.loadSavedConfiguration();
+  }
 
   static getInstance(): PrinterService {
     if (!PrinterService.instance) {
       PrinterService.instance = new PrinterService();
     }
     return PrinterService.instance;
+  }
+
+  // Load saved printer configuration from localStorage
+  private loadSavedConfiguration() {
+    try {
+      const savedConfig = localStorage.getItem('selectedPrinter');
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        console.log('🔧 Loading saved printer configuration:', config);
+        
+        if (config.name) this.printerName = config.name;
+        if (config.port) this.printerPort = config.port;
+        if (config.theaterName) this.theaterName = config.theaterName;
+        if (config.location) this.location = config.location;
+        if (config.gstin) this.gstin = config.gstin;
+        
+        console.log('🔧 Printer configuration loaded:', {
+          name: this.printerName,
+          port: this.printerPort,
+          theaterName: this.theaterName,
+          location: this.location,
+          gstin: this.gstin
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load saved printer configuration:', error);
+    }
   }
 
   // Configure printer settings
@@ -168,6 +198,42 @@ export class PrinterService {
     return commands.join('');
   }
 
+  // Generate ESC/POS commands for thermal printer
+  private generateEscPosTicket(ticket: TicketData): string {
+    // ESC/POS commands for Epson TM-T81 thermal printer
+    const commands = [
+      '\x1B\x40',        // Initialize printer
+      '\x1B\x61\x01',    // Center alignment
+      '\x1B\x21\x10',    // Double height and width
+      `${ticket.theaterName}\n`,
+      '\x1B\x21\x00',    // Normal size
+      `${ticket.location}\n`,
+      '\x1B\x61\x00',    // Left alignment
+      '\x1B\x2D\x01',    // Underline on
+      `Date    : ${ticket.date}\n`,
+      `Film    : ${ticket.film}\n`,
+      `Class   : ${ticket.class}\n`,
+      `Showtime: ${ticket.showtime}\n`,
+      `Row     : ${ticket.row}-Seats: [${ticket.seatNumber}]\n`,
+      '\x1B\x2D\x00',    // Underline off
+      '--------------------------------\n',
+      `NET     : ${ticket.netAmount.toFixed(2)}\n`,
+      `CGST    : ${ticket.cgst.toFixed(2)}\n`,
+      `SGST    : ${ticket.sgst.toFixed(2)}\n`,
+      `MC      : ${ticket.mc.toFixed(2)}\n`,
+      '--------------------------------\n',
+      `Total   : ${ticket.totalAmount.toFixed(2)}\n`,
+      '--------------------------------\n',
+      `${ticket.date} / ${ticket.showtime}\n`,
+      `ID: ${ticket.transactionId}\n`,
+      '================================\n',
+      '\n\n\n',          // Feed paper
+      '\x1B\x69'         // Cut paper
+    ];
+
+    return commands.join('');
+  }
+
   // Generate plain text for the ticket (for printers that don't support ESC/POS)
   private generatePlainTextTicket(ticket: TicketData): string {
     const center = (text: string, width: number = 32) => {
@@ -212,11 +278,11 @@ export class PrinterService {
     try {
       console.log('🖨️ Printing ticket:', ticket);
       
-      // Use plain text instead of ESC/POS commands for better compatibility
-      const plainText = this.generatePlainTextTicket(ticket);
+      // Use ESC/POS commands for thermal printers (Epson TM-T81)
+      const escPosCommands = this.generateEscPosTicket(ticket);
       
-      // Send plain text to printer
-      await this.sendToPrinter(plainText);
+      // Send ESC/POS commands to printer
+      await this.sendToPrinter(escPosCommands);
       
       console.log('✅ Ticket printed successfully');
       return true;
