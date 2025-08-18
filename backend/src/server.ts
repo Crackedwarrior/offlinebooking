@@ -30,6 +30,10 @@ import {
   type ApiResponse,
   BookingSource
 } from './types/api';
+import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
+import { silentPrintService } from './printService';
+import { NativePrintService } from './nativePrint';
+import { EscposPrintService } from './escposPrintService';
 
 // Validate configuration on startup
 if (!validateConfig()) {
@@ -319,6 +323,35 @@ app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) =
   }
 }));
 
+// Print job status endpoint
+app.get('/api/printer/status/:jobId', asyncHandler(async (req: Request, res: Response) => {
+  const { jobId } = req.params;
+  const jobStatus = silentPrintService.getPrintJobStatus(jobId);
+  
+  if (!jobStatus) {
+    res.status(404).json({
+      success: false,
+      message: 'Print job not found',
+      jobId
+    });
+    return;
+  }
+  
+  res.json({
+    success: true,
+    jobStatus,
+    queueStatus: silentPrintService.getQueueStatus()
+  });
+}));
+
+// Print queue status endpoint
+app.get('/api/printer/queue', asyncHandler(async (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    queueStatus: silentPrintService.getQueueStatus()
+  });
+}));
+
 // Printer print endpoint
 app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) => {
   try {
@@ -333,163 +366,117 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
     const printerName = printerConfig?.name || 'EPSON TM-T81 ReceiptE4';
     console.log(`🔌 Printing to Windows printer: ${printerName}...`);
     
-    // Attempt to print using Windows printing
+    // Attempt to print using professional thermal printer library
     let success = false;
     let errorMessage = '';
     
     try {
       // Check if we're on Windows
       if (process.platform === 'win32') {
-        const { exec } = require('child_process');
-        const util = require('util');
-        const execAsync = util.promisify(exec);
-        const fs = require('fs');
-        const path = require('path');
+        console.log('🔍 Using node-thermal-printer library for direct printer communication...');
         
-        // Create temp directory
-        const tempDir = path.join(process.cwd(), 'temp');
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
-        }
+        // Try multiple interface formats for the thermal printer
+        let printer: any = null;
+        let isConnected = false;
         
-        // Debug: Log what we're receiving
-        console.log('🖨️ Received tickets:', JSON.stringify(tickets, null, 2));
+        // Interface options to try
+        const interfaceOptions = [
+          `printer:${printerName}`,
+          `usb://${printerName}`,
+          `usb://EPSON TM-T81 ReceiptE4`,
+          `usb://EPSON TM-T81`,
+          `usb://TM-T81 ReceiptE4`
+        ];
         
-        // Concatenate all ticket plain text into a single text buffer
-        const textData = tickets.map((t: any) => t.commands).join('\n\n---\n\n');
-        console.log('🖨️ Text to send:', textData.length, 'characters');
-        console.log('🖨️ Text content preview:', textData.substring(0, 200));
-        console.log('🖨️ Text data type:', typeof textData);
-        console.log('🖨️ Text data is empty?', textData.length === 0);
-        console.log('🖨️ Text data first 10 chars:', JSON.stringify(textData.substring(0, 10)));
-        
-        // Create the text file for printing
-        const tempFileText = path.join(tempDir, `ticket_text_${Date.now()}.txt`);
-        console.log('📁 About to write file:', tempFileText);
-        console.log('📁 Writing data length:', textData.length);
-        
-        // Try different encoding approaches for ESC/POS commands
-        try {
-          // For ESC/POS commands, we need to write as binary data
-          const buffer = Buffer.from(textData, 'binary');
-          fs.writeFileSync(tempFileText, buffer);
-          console.log('📁 File written with binary encoding for ESC/POS');
-        } catch (writeError) {
-          console.error('📁 Binary write failed:', writeError);
+        for (const interfaceOption of interfaceOptions) {
           try {
-            fs.writeFileSync(tempFileText, textData, 'utf8');
-            console.log('📁 File written with utf8 encoding as fallback');
-          } catch (utf8Error) {
-            console.error('📁 UTF8 write failed:', utf8Error);
-            throw utf8Error;
+            console.log(`🔍 Trying interface: ${interfaceOption}`);
+            printer = new ThermalPrinter({
+              type: PrinterTypes.EPSON,
+              interface: interfaceOption,
+              options: {
+                timeout: 5000, // Shorter timeout for testing
+              }
+            });
+            
+            isConnected = await printer.isPrinterConnected();
+            if (isConnected) {
+              console.log(`✅ Printer connected via interface: ${interfaceOption}`);
+              break;
+            }
+          } catch (error) {
+            console.log(`❌ Interface ${interfaceOption} failed:`, error instanceof Error ? error.message : 'Unknown error');
+            continue;
           }
         }
         
-        // Verify the file was written
-        const fileStats = fs.statSync(tempFileText);
-        console.log('📁 File size after write:', fileStats.size, 'bytes');
-        console.log('📁 Created text file:', tempFileText);
-        
-        // Create debug file to verify the text content
-        const debugFile = path.join(tempDir, `debug_text_${Date.now()}.txt`);
-        fs.writeFileSync(debugFile, `Text Debug File\nGenerated: ${new Date().toISOString()}\nPrinter: ${printerName}\nTicket Count: ${tickets.length}\n\nText Content:\n${textData}\n`);
-        console.log('📁 Created debug file:', debugFile);
-        
-        // Method 1: Try using PowerShell Out-Printer with proper encoding for thermal printers
-        try {
-          console.log('🔍 Testing printer with thermal printer commands...');
+        if (!isConnected) {
+          console.log('⚠️ Thermal printer library failed, using ESCPOS print service...');
           
-          // For thermal printers, we need to send the data as-is without additional processing
-          const psPrintCommand = `[System.IO.File]::ReadAllText("${tempFileText}", [System.Text.Encoding]::UTF8) | Out-Printer -Name "${String(printerName).replace(/"/g, '\\"')}"`;
-          console.log('🔍 Executing PowerShell print command...');
+          // Use the ESCPOS print service for Windows (completely silent)
+          const printJobs: string[] = [];
           
-          const printResult = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psPrintCommand}"`, { 
-            maxBuffer: 10 * 1024 * 1024,
-            timeout: 30000
+          // Process each ticket through the ESCPOS print service
+          for (const ticket of tickets) {
+            console.log('🖨️ Processing ticket with ESCPOS print service:', ticket);
+            
+            // Extract the ESC/POS commands from the ticket
+            const ticketCommands = ticket.commands;
+            console.log('🖨️ Text to send:', ticketCommands.length, 'characters');
+            
+            // Use ESCPOS print service (completely silent, no popups)
+            await EscposPrintService.printSilently(ticketCommands, printerName);
+            
+            const jobId = `escpos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            printJobs.push(jobId);
+            
+            console.log(`✅ ESCPOS print job completed: ${jobId}`);
+          }
+          
+          // Return success immediately
+          res.json({
+            success: true,
+            message: `${tickets?.length || 0} tickets printed successfully (ESCPOS method)`,
+            timestamp: new Date().toISOString(),
+            printerInfo: {
+              name: printerName,
+              status: 'completed',
+              jobIds: printJobs
+            }
           });
           
-            console.log('✅ Test print command executed successfully');
-          console.log('✅ PowerShell stdout:', printResult.stdout);
-          if (printResult.stderr) console.log('⚠️ PowerShell stderr:', printResult.stderr);
-          
-          success = true;
-        } catch (psError) {
-          console.error('❌ PowerShell Out-Printer failed:', psError);
-          
-          // Method 2: Try PDF printing as fallback
-          try {
-          console.log('🔍 Testing PDF printing...');
-            
-            // Create a simple PDF for testing
-            const pdfPrintCommand = `Start-Process -FilePath "${tempFileText}" -Verb Print`;
-            const pdfResult = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${pdfPrintCommand}"`, { 
-            maxBuffer: 10 * 1024 * 1024, 
-              timeout: 30000
-            });
-            
-            console.log('✅ PDF test print command executed successfully');
-            success = true;
-          } catch (pdfError) {
-            console.error('❌ PDF printing failed:', pdfError);
-            
-            // Method 3: Try direct file copy to printer port
-            try {
-              console.log('🔍 Verifying printer availability...');
-              
-              // Check if printer is ready
-              const verifyCommand = `Get-Printer -Name "${String(printerName).replace(/"/g, '\\"')}" | Select-Object Name, PrinterStatus, PortName`;
-              const verifyResult = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${verifyCommand}"`, { 
-            maxBuffer: 10 * 1024 * 1024, 
-            timeout: 30000 
-          });
-          
-              console.log('✅ Printer verification output:', verifyResult.stdout);
-              
-              if (verifyResult.stdout.includes('PrinterStatus') && !verifyResult.stdout.includes('PrinterStatus : 0')) {
-                console.log('❌ PowerShell Copy-Item failed: Printer not ready:');
-                throw new Error('Printer not ready');
-              }
-              
-              // Try direct copy to printer port
-            console.log('🔄 Trying fallback method: direct file copy to printer...');
-              const copyCommand = `Copy-Item "${tempFileText}" "${printerConfig?.port || 'ESDPRT001'}"`;
-              const copyResult = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${copyCommand}"`, { 
-              maxBuffer: 10 * 1024 * 1024, 
-              timeout: 30000 
-            });
-            
-              console.log('✅ Fallback PowerShell stdout:', copyResult.stdout);
-              success = true;
-            } catch (copyError) {
-              console.log('❌ Fallback method failed: Fallback method also failed');
-              
-              // Method 4: Final fallback - Windows print command
-             try {
-               console.log('🔄 Trying final fallback: Windows print command...');
-                const printCommand = `print /d:"${String(printerName).replace(/"/g, '\\"')}" "${tempFileText}"`;
-               console.log('🔍 Executing print command:', printCommand);
-               
-                const finalResult = await execAsync(printCommand, { 
-                 maxBuffer: 10 * 1024 * 1024, 
-                 timeout: 30000 
-               });
-               
-                console.log('✅ Print command stdout:', finalResult.stdout);
-                if (finalResult.stderr) console.log('⚠️ Print command stderr:', finalResult.stderr);
-               
-                // Even if there's an error message, the print job might still be sent
-               console.log('✅ Print job sent successfully via Windows print command');
-                 success = true;
-                              } catch (finalError) {
-                  console.error('❌ Final fallback failed:', finalError);
-                  errorMessage = finalError instanceof Error ? finalError.message : 'Unknown error';
-                 }
-             }
-           }
+          return; // Exit early since we've already sent the response
         }
-
+        
+        console.log('✅ Printer connected successfully');
+        
+        // Process each ticket
+        for (const ticket of tickets) {
+          console.log('🖨️ Processing ticket:', ticket);
+          
+          // Clear any previous content
+          printer.clear();
+          
+          // Send raw ESC/POS commands directly
+          const rawCommands = ticket.commands;
+          console.log('🖨️ Sending raw ESC/POS commands:', rawCommands.length, 'characters');
+          
+          // Convert string commands to buffer and send
+          const commandBuffer = Buffer.from(rawCommands, 'binary');
+          await printer.raw(commandBuffer);
+          
+          console.log('✅ Raw commands sent successfully');
+        }
+        
+        // Execute the print job
+        console.log('🖨️ Executing print job...');
+        await printer.execute();
+        
+        console.log('✅ Print job completed successfully');
+        success = true;
+        
       } else {
-        // Non-Windows: fallback to serialport for serial printers
+        // Non-Windows path (serialport) - unchanged
         const { SerialPort } = require('serialport');
         const printerPort = printerConfig?.port || 'COM1';
         
@@ -518,7 +505,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       }
     } catch (printError: any) {
       console.error('❌ Error printing:', printError);
-      errorMessage = printError.message;
+      errorMessage = printError instanceof Error ? printError.message : 'Unknown error';
       success = false;
     }
     
