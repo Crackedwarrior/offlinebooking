@@ -31,7 +31,7 @@ import {
   BookingSource
 } from './types/api';
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
-import { silentPrintService } from './printService';
+import { windowsPrintService } from './printService';
 import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
 
@@ -326,7 +326,7 @@ app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) =
 // Print job status endpoint
 app.get('/api/printer/status/:jobId', asyncHandler(async (req: Request, res: Response) => {
   const { jobId } = req.params;
-  const jobStatus = silentPrintService.getPrintJobStatus(jobId);
+          const jobStatus = windowsPrintService.getPrintJobStatus(jobId);
   
   if (!jobStatus) {
     res.status(404).json({
@@ -340,7 +340,7 @@ app.get('/api/printer/status/:jobId', asyncHandler(async (req: Request, res: Res
   res.json({
     success: true,
     jobStatus,
-    queueStatus: silentPrintService.getQueueStatus()
+    queueStatus: windowsPrintService.getQueueStatus()
   });
 }));
 
@@ -348,7 +348,7 @@ app.get('/api/printer/status/:jobId', asyncHandler(async (req: Request, res: Res
 app.get('/api/printer/queue', asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
-    queueStatus: silentPrintService.getQueueStatus()
+    queueStatus: windowsPrintService.getQueueStatus()
   });
 }));
 
@@ -411,37 +411,36 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         }
         
         if (!isConnected) {
-          console.log('⚠️ Thermal printer library failed, using ESCPOS print service...');
+          console.log('⚠️ Thermal printer library failed, using Windows Print Service...');
           
-          // Use the ESCPOS print service for Windows (completely silent)
+          // Use the Windows Print Service for completely silent printing
           const printJobs: string[] = [];
           
-          // Process each ticket through the ESCPOS print service
+          // Process each ticket through the Windows Print Service
           for (const ticket of tickets) {
-            console.log('🖨️ Processing ticket with ESCPOS print service:', ticket);
+            console.log('🖨️ Processing ticket with Windows Print Service:', ticket);
             
             // Extract the ESC/POS commands from the ticket
             const ticketCommands = ticket.commands;
             console.log('🖨️ Text to send:', ticketCommands.length, 'characters');
             
-            // Use ESCPOS print service (completely silent, no popups)
-            await EscposPrintService.printSilently(ticketCommands, printerName);
-            
-            const jobId = `escpos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            // Use Windows Print Service (completely silent, no popups)
+            const jobId = await windowsPrintService.addToPrintQueue(ticketCommands, printerName);
             printJobs.push(jobId);
             
-            console.log(`✅ ESCPOS print job completed: ${jobId}`);
+            console.log(`✅ Windows Print Service job queued: ${jobId}`);
           }
           
           // Return success immediately
           res.json({
             success: true,
-            message: `${tickets?.length || 0} tickets printed successfully (ESCPOS method)`,
+            message: `${tickets?.length || 0} tickets queued for printing (Windows Service method)`,
             timestamp: new Date().toISOString(),
             printerInfo: {
               name: printerName,
-              status: 'completed',
-              jobIds: printJobs
+              status: 'queued',
+              jobIds: printJobs,
+              queueStatus: windowsPrintService.getQueueStatus()
             }
           });
           
