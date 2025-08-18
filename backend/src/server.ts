@@ -472,8 +472,8 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
         await printer.execute();
         
         console.log('✅ Print job completed successfully');
-        success = true;
-        
+              success = true;
+
       } else {
         // Non-Windows path (serialport) - unchanged
         const { SerialPort } = require('serialport');

@@ -1,0 +1,13 @@
+🖨️ Print Worker Service started
+🖨️ Processing job: job_print_1755534156015_nj07j85n0.json
+⚠️ Windows API failed, trying VBScript...
+✅ VBScript printing completed
+✅ Job print_1755534156015_nj07j85n0 completed successfully
+🖨️ Processing job: job_print_1755534157897_nnpbil6la.json
+⚠️ Windows API failed, trying VBScript...
+✅ VBScript printing completed
+✅ Job print_1755534157897_nnpbil6la completed successfully
+🖨️ Processing job: job_print_1755534177129_8sr3may6q.json
+⚠️ Windows API failed, trying VBScript...
+✅ VBScript printing completed
+✅ Job print_1755534177129_8sr3may6q completed successfully
