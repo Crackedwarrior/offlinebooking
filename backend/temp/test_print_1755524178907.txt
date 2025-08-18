@@ -1,0 +1,7 @@
+TEST PRINT - AUDITORIUMX TICKET SYSTEM
+
+This is a test print to verify printer connectivity.
+
+Timestamp: 2025-08-18T13:36:18.907Z
+
+---
