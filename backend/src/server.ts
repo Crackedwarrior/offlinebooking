@@ -34,6 +34,13 @@ import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
 import { windowsPrintService } from './printService';
 import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
+import fs from 'fs';
+import path from 'path';
+
+// Add ESC/POS imports at the top
+import escpos from 'escpos';
+escpos.USB = require('escpos-usb');
+escpos.Network = require('escpos-network');
 
 // Validate configuration on startup
 if (!validateConfig()) {
@@ -65,224 +72,38 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// Helper function to map Windows printer status to our format
-const getPrinterStatus = (windowsStatus: number): string => {
-  // Windows printer status codes
-  switch (windowsStatus) {
-    case 0: return 'ready'; // Ready
-    case 1: return 'paused'; // Paused
-    case 2: return 'error'; // Error
-    case 4: return 'pending'; // Pending deletion
-    case 8: return 'paper_jam'; // Paper jam
-    case 16: return 'offline'; // Offline
-    case 32: return 'manual_feed'; // Manual feed
-    case 64: return 'paper_problem'; // Paper problem
-    case 128: return 'waiting'; // Waiting
-    case 256: return 'processing'; // Processing
-    case 512: return 'initializing'; // Initializing
-    case 1024: return 'warming_up'; // Warming up
-    case 2048: return 'toner_low'; // Toner low
-    case 4096: return 'no_toner'; // No toner
-    case 8192: return 'page_punt'; // Page punt
-    case 16384: return 'user_intervention'; // User intervention required
-    case 32768: return 'out_of_memory'; // Out of memory
-    case 65536: return 'door_open'; // Door open
-    case 131072: return 'server_unknown'; // Server unknown
-    case 262144: return 'power_save'; // Power save
-    default: return 'unknown';
-  }
-};
-
-// Helper function to get mock printers for fallback
-const getMockPrinters = () => [
-  {
-    name: 'EPSON TM-T81 ReceiptE4',
-    driver: 'EPSON TM-T81 ReceiptE4',
-    port: 'USB001',
-    status: 'ready',
-    type: 'Thermal',
-    isDefault: true
-  },
-  {
-    name: 'Microsoft Print to PDF',
-    driver: 'Microsoft Print to PDF',
-    port: 'PORTPROMPT:',
-    status: 'ready',
-    type: 'PDF',
-    isDefault: false
-  },
-  {
-    name: 'HP LaserJet Pro',
-    driver: 'HP LaserJet Pro',
-    port: 'USB002',
-    status: 'ready',
-    type: 'Laser',
-    isDefault: false
-  }
-];
-
-// Get available printers endpoint
-app.get('/api/printer/list', asyncHandler(async (req: Request, res: Response) => {
+// Add printer list endpoint
+app.get('/api/printer/list', async (req, res) => {
   try {
-    console.log('🔍 Getting available printers...');
+    console.log('🔍 Getting list of available printers...');
     
-    let printers: any[] = [];
-    
-    // Check if we're on Windows
     if (process.platform === 'win32') {
       const { exec } = require('child_process');
-      const util = require('util');
-      const execAsync = util.promisify(exec);
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
       
-      // Try multiple PowerShell approaches for better reliability
-      let stdout = '';
-      let stderr = '';
+      const { stdout } = await execAsync('powershell -Command "Get-Printer | Select-Object Name | ConvertTo-Json"', { windowsHide: true });
       
-      // Method 1: Full printer details
       try {
-        console.log('🔍 Method 1: Getting full printer details...');
-        const psCommand1 = `Get-Printer | Select-Object Name, DriverName, PortName, PrinterStatus, Type | ConvertTo-Json`;
-        const result1 = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand1}"`, { 
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 30000
-        });
-        stdout = result1.stdout;
-        stderr = result1.stderr;
-        console.log('✅ Method 1 successful');
-      } catch (error1) {
-        console.warn('⚠️ Method 1 failed, trying Method 2...');
+        const printers = JSON.parse(stdout);
+        const printerNames = Array.isArray(printers) 
+          ? printers.map((p: any) => p.Name).filter(Boolean)
+          : [];
         
-        // Method 2: Simple printer names only
-        try {
-          const psCommand2 = `Get-Printer | Select-Object Name | ConvertTo-Json`;
-          const result2 = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand2}"`, { 
-            maxBuffer: 10 * 1024 * 1024,
-            timeout: 30000
-          });
-          stdout = result2.stdout;
-          stderr = result2.stderr;
-          console.log('✅ Method 2 successful');
-        } catch (error2) {
-          console.warn('⚠️ Method 2 failed, trying Method 3...');
-          
-          // Method 3: Using wmic as fallback
-          try {
-            const wmicCommand = `wmic printer get name,drivername,portname /format:csv`;
-            const result3 = await execAsync(wmicCommand, { 
-              maxBuffer: 10 * 1024 * 1024,
-              timeout: 30000
-            });
-            stdout = result3.stdout;
-            stderr = result3.stderr;
-            console.log('✅ Method 3 (wmic) successful');
-          } catch (error3) {
-            console.error('❌ All methods failed:', { error1, error2, error3 });
-            throw error3;
-          }
-        }
-      }
-      
-      if (stderr) console.warn('⚠️ PowerShell stderr:', stderr);
-      console.log('🔍 PowerShell stdout length:', stdout.length);
-      console.log('🔍 PowerShell stdout preview:', stdout.substring(0, 200));
-      
-      if (stdout && stdout.trim()) {
-        try {
-          // Check if it's JSON (PowerShell) or CSV (wmic)
-          if (stdout.includes('[') || stdout.includes('{')) {
-            // JSON format from PowerShell
-            const printerList = JSON.parse(stdout.trim());
-            console.log('🔍 Parsed JSON printer list:', printerList);
-            
-            printers = Array.isArray(printerList) ? printerList : [printerList];
-            
-            // Map printer status to our format
-            printers = printers.map(printer => ({
-              name: printer.Name || 'Unknown',
-              driver: printer.DriverName || 'Unknown',
-              port: printer.PortName || 'Unknown',
-              status: getPrinterStatus(printer.PrinterStatus || 0),
-              type: printer.Type || 'Unknown',
-              isDefault: false
-            }));
-          } else {
-            // CSV format from wmic
-            console.log('🔍 Parsing CSV format from wmic...');
-            const lines = stdout.trim().split('\n');
-            printers = [];
-            
-            for (let i = 1; i < lines.length; i++) { // Skip header
-              const line = lines[i].trim();
-              if (line && !line.startsWith('Node,')) {
-                const parts = line.split(',');
-                if (parts.length >= 3) {
-                  printers.push({
-                    name: parts[1]?.trim() || 'Unknown',
-                    driver: parts[2]?.trim() || 'Unknown',
-                    port: parts[3]?.trim() || 'Unknown',
-                    status: 'ready', // Default status for wmic
-                    type: 'Unknown',
-                    isDefault: false
-                  });
-                }
-              }
-            }
-          }
-          
-          console.log('🔍 Mapped printers:', printers);
-          
-          // Get default printer if we have printers
-          if (printers.length > 0) {
-            try {
-              const { stdout: defaultStdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Printer | Where-Object {$_.Default -eq $true} | Select-Object Name | ConvertTo-Json"`);
-              if (defaultStdout && defaultStdout.trim()) {
-                const defaultPrinter = JSON.parse(defaultStdout.trim());
-                const defaultName = Array.isArray(defaultPrinter) ? defaultPrinter[0]?.Name : defaultPrinter?.Name;
-                
-                if (defaultName) {
-                  printers = printers.map(printer => ({
-                    ...printer,
-                    isDefault: printer.name === defaultName
-                  }));
-                }
-              }
-            } catch (defaultError) {
-              console.warn('⚠️ Could not get default printer:', defaultError);
-            }
-          }
+        console.log('✅ Found printers:', printerNames);
+        res.json({ success: true, printers: printerNames });
         } catch (parseError) {
-          console.error('❌ Parse error:', parseError);
-          console.error('❌ Raw stdout:', stdout);
-          // Fallback to mock printers if parsing fails
-          printers = getMockPrinters();
+        console.error('❌ Failed to parse printer list:', parseError);
+        res.json({ success: true, printers: [] });
         }
       } else {
-        console.warn('⚠️ Command returned empty stdout');
-        printers = getMockPrinters();
-      }
-    } else {
-      // Non-Windows: return mock printers
-      printers = getMockPrinters();
+      res.json({ success: true, printers: [] });
     }
-    
-    console.log(`✅ Found ${printers.length} printers:`, printers.map(p => p.name));
-    
-    res.json({
-      success: true,
-      printers,
-      count: printers.length,
-      platform: process.platform
-    });
-    
   } catch (error) {
-    console.error('❌ Error getting printers:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get printers',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('❌ Failed to get printer list:', error);
+    res.status(500).json({ success: false, error: 'Failed to get printer list' });
   }
-}));
+});
 
 // Printer test endpoint
 app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) => {
@@ -326,21 +147,22 @@ app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) =
 // Print job status endpoint
 app.get('/api/printer/status/:jobId', asyncHandler(async (req: Request, res: Response) => {
   const { jobId } = req.params;
-          const jobStatus = windowsPrintService.getPrintJobStatus(jobId);
+
+  // Get queue status which includes job information
+  const queueStatus = windowsPrintService.getQueueStatus();
+  const jobStatus = queueStatus.jobs.find(job => job.id === jobId);
   
   if (!jobStatus) {
-    res.status(404).json({
+    return res.status(404).json({
       success: false,
-      message: 'Print job not found',
-      jobId
+      error: 'Print job not found'
     });
-    return;
   }
   
   res.json({
     success: true,
     jobStatus,
-    queueStatus: windowsPrintService.getQueueStatus()
+    queueStatus
   });
 }));
 
@@ -352,181 +174,66 @@ app.get('/api/printer/queue', asyncHandler(async (req: Request, res: Response) =
   });
 }));
 
+// Global flag to prevent multiple simultaneous print operations
+let isPrinting = false;
+
 // Printer print endpoint
 app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) => {
-  try {
     const { tickets, printerConfig } = req.body;
     
     console.log('🖨️ Printing tickets:', {
       ticketCount: tickets?.length || 0,
-      printerConfig
+      printerConfig,
+      rawBody: req.body
     });
     
-    // Get the printer name from the configuration
-    const printerName = printerConfig?.name || 'EPSON TM-T81 ReceiptE4';
-    console.log(`🔌 Printing to Windows printer: ${printerName}...`);
+    if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+      throw new Error('No tickets provided or invalid tickets format');
+    }
+
+  try {
+    console.log('🖨️ Using ESC/POS service for thermal printing...');
     
-    // Attempt to print using professional thermal printer library
-    let success = false;
-    let errorMessage = '';
-    
-    try {
-      // Check if we're on Windows
-      if (process.platform === 'win32') {
-        console.log('🔍 Using node-thermal-printer library for direct printer communication...');
-        
-        // Try multiple interface formats for the thermal printer
-        let printer: any = null;
-        let isConnected = false;
-        
-        // Interface options to try
-        const interfaceOptions = [
-          `printer:${printerName}`,
-          `usb://${printerName}`,
-          `usb://EPSON TM-T81 ReceiptE4`,
-          `usb://EPSON TM-T81`,
-          `usb://TM-T81 ReceiptE4`
-        ];
-        
-        for (const interfaceOption of interfaceOptions) {
-          try {
-            console.log(`🔍 Trying interface: ${interfaceOption}`);
-            printer = new ThermalPrinter({
-              type: PrinterTypes.EPSON,
-              interface: interfaceOption,
-              options: {
-                timeout: 5000, // Shorter timeout for testing
-              }
-            });
-            
-            isConnected = await printer.isPrinterConnected();
-            if (isConnected) {
-              console.log(`✅ Printer connected via interface: ${interfaceOption}`);
-              break;
-            }
-          } catch (error) {
-            console.log(`❌ Interface ${interfaceOption} failed:`, error instanceof Error ? error.message : 'Unknown error');
-            continue;
-          }
-        }
-        
-        if (!isConnected) {
-          console.log('⚠️ Thermal printer library failed, using Windows Print Service...');
-          
-          // Use the Windows Print Service for completely silent printing
-          const printJobs: string[] = [];
-          
-          // Process each ticket through the Windows Print Service
-          for (const ticket of tickets) {
-            console.log('🖨️ Processing ticket with Windows Print Service:', ticket);
-            
-            // Extract the ESC/POS commands from the ticket
-            const ticketCommands = ticket.commands;
-            console.log('🖨️ Text to send:', ticketCommands.length, 'characters');
-            
-            // Use Windows Print Service (completely silent, no popups)
-            const jobId = await windowsPrintService.addToPrintQueue(ticketCommands, printerName);
-            printJobs.push(jobId);
-            
-            console.log(`✅ Windows Print Service job queued: ${jobId}`);
-          }
-          
-          // Return success immediately
+    // Process each ticket
+    for (const ticket of tickets) {
+      // Create raw ticket data for the service to format
+      const ticketData = {
+        theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
+        location: printerConfig.location || 'Chickmagalur',
+        date: ticket.date || new Date().toLocaleDateString(),
+        showTime: ticket.showTime || '2:00 PM',
+        movieName: ticket.movieName || 'MOVIE',
+        class: ticket.class || 'CLASS',
+        seatId: ticket.seatId || 'A1',
+        netAmount: ticket.netAmount || 0,
+        cgst: ticket.cgst || 0,
+        sgst: ticket.sgst || 0,
+        mc: ticket.mc || 0,
+        price: ticket.price || 0,
+        transactionId: ticket.transactionId || 'TXN' + Date.now()
+      };
+      
+      console.log('🖨️ Printing ticket data:', ticketData);
+      await EscposPrintService.printSilently(ticketData, printerConfig.name || 'EPSON TM-T81 Receipt');
+    }
+
+    console.log('✅ All tickets printed successfully via ESC/POS');
           res.json({
             success: true,
-            message: `${tickets?.length || 0} tickets queued for printing (Windows Service method)`,
+      message: `${tickets.length} tickets printed successfully`,
             timestamp: new Date().toISOString(),
             printerInfo: {
-              name: printerName,
-              status: 'queued',
-              jobIds: printJobs,
-              queueStatus: windowsPrintService.getQueueStatus()
-            }
-          });
-          
-          return; // Exit early since we've already sent the response
-        }
-        
-        console.log('✅ Printer connected successfully');
-        
-        // Process each ticket
-        for (const ticket of tickets) {
-          console.log('🖨️ Processing ticket:', ticket);
-          
-          // Clear any previous content
-          printer.clear();
-          
-          // Send raw ESC/POS commands directly
-          const rawCommands = ticket.commands;
-          console.log('🖨️ Sending raw ESC/POS commands:', rawCommands.length, 'characters');
-          
-          // Convert string commands to buffer and send
-          const commandBuffer = Buffer.from(rawCommands, 'binary');
-          await printer.raw(commandBuffer);
-          
-          console.log('✅ Raw commands sent successfully');
-        }
-        
-        // Execute the print job
-        console.log('🖨️ Executing print job...');
-        await printer.execute();
-        
-        console.log('✅ Print job completed successfully');
-              success = true;
-
-      } else {
-        // Non-Windows path (serialport) - unchanged
-        const { SerialPort } = require('serialport');
-        const printerPort = printerConfig?.port || 'COM1';
-        
-        console.log(`🔌 Falling back to serial port: ${printerPort}`);
-        
-        const port = new SerialPort({
-          path: printerPort,
-          baudRate: 9600,
-          dataBits: 8,
-          parity: 'none',
-          stopBits: 1,
-          flowControl: false
-        });
-        
-        // Send raw bytes directly
-        const rawData: Buffer = Buffer.concat(
-          tickets.map((t: any) => Buffer.from(t.commands, 'binary'))
-        );
-        await new Promise((resolve, reject) => {
-          port.write(rawData, (err: Error | null | undefined) => {
-            if (err) reject(err); else port.drain(resolve);
-          });
-        });
-        await new Promise(resolve => port.close(resolve));
-        success = true;
+        name: 'EPSON TM-T81 ReceiptE4',
+        status: 'printed',
+        method: 'Direct ESC/POS'
       }
-    } catch (printError: any) {
-      console.error('❌ Error printing:', printError);
-      errorMessage = printError instanceof Error ? printError.message : 'Unknown error';
-      success = false;
-    }
-    
-    if (success) {
-      res.json({
-        success: true,
-        message: `${tickets?.length || 0} tickets printed successfully`,
-        timestamp: new Date().toISOString(),
-        printerInfo: {
-          name: printerName,
-          status: 'ready',
-          jobId: Date.now().toString()
-        }
-      });
-    } else {
-      throw new Error(`Failed to print tickets: ${errorMessage}`);
-    }
+    });
+
   } catch (error) {
-    console.error('❌ Printing failed:', error);
+    console.error('❌ ESC/POS printing failed:', error);
     res.status(500).json({
       success: false,
-      message: 'Printing failed',
+      message: 'ESC/POS printing failed',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

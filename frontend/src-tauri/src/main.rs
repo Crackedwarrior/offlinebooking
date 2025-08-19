@@ -58,11 +58,14 @@ fn list_printers() -> Vec<String> {
 
 #[tauri::command]
 fn list_usb_printers() -> Vec<String> {
+    println!("🔍 list_usb_printers command called");
+    
     // For Windows, we'll use PowerShell to get actual printer names
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
         
+        println!("🔍 Running PowerShell command to get USB printers...");
         // Use PowerShell instead of wmic - more reliable in Tauri
         let output = Command::new("powershell")
             .args(&["-Command", "Get-Printer | Where-Object {$_.PortName -like '*USB*' -or $_.Name -like '*USB*' -or $_.Name -like '*EPSON*' -or $_.Name -like '*Receipt*'} | Select-Object Name,PortName | ConvertTo-Csv -NoTypeInformation"])
@@ -70,6 +73,11 @@ fn list_usb_printers() -> Vec<String> {
         
         match output {
             Ok(output) => {
+                println!("🔍 PowerShell command executed successfully");
+                println!("🔍 Exit code: {}", output.status);
+                println!("🔍 Stdout: {}", String::from_utf8_lossy(&output.stdout));
+                println!("🔍 Stderr: {}", String::from_utf8_lossy(&output.stderr));
+                
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 let lines: Vec<&str> = output_str.lines().collect();
                 
@@ -88,14 +96,227 @@ fn list_usb_printers() -> Vec<String> {
                     }
                 }
                 
-                println!("Detected Windows USB printers via PowerShell: {:?}", printers);
+                println!("✅ Detected Windows USB printers via PowerShell: {:?}", printers);
                 printers
             },
             Err(e) => {
-                eprintln!("Error getting Windows USB printers via PowerShell: {}", e);
+                eprintln!("❌ Error getting Windows USB printers via PowerShell: {}", e);
                 vec![]
             }
         }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        vec![]
+    }
+}
+
+#[tauri::command]
+fn list_all_printers() -> Vec<String> {
+    println!("🔍 list_all_printers command called");
+    
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        println!("🔍 Running PowerShell command to get all printers...");
+        let output = Command::new("powershell")
+            .args(&["-Command", "Get-Printer | Select-Object Name | ConvertTo-Csv -NoTypeInformation"])
+            .output();
+        
+        match output {
+            Ok(output) => {
+                println!("🔍 PowerShell command executed successfully");
+                println!("🔍 Exit code: {}", output.status);
+                println!("🔍 Stdout: {}", String::from_utf8_lossy(&output.stdout));
+                println!("🔍 Stderr: {}", String::from_utf8_lossy(&output.stderr));
+                
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let lines: Vec<&str> = output_str.lines().collect();
+                
+                let mut printers = Vec::new();
+                for line in lines.iter().skip(1) { // Skip header
+                    if !line.trim().is_empty() {
+                        let printer_name = line.trim_matches('"');
+                        if !printer_name.trim().is_empty() {
+                            printers.push(printer_name.to_string());
+                        }
+                    }
+                }
+                
+                println!("✅ Detected all Windows printers: {:?}", printers);
+                printers
+            },
+            Err(e) => {
+                eprintln!("❌ Error getting Windows printers: {}", e);
+                vec![]
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        println!("🔍 Not on Windows, returning empty list");
+        vec![]
+    }
+}
+
+#[tauri::command]
+fn print_ticket(ticket_data: String, printer_name: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::ptr;
+        use winapi::um::winspool::{OpenPrinterW, ClosePrinter, StartDocPrinterW, EndDocPrinter, StartPagePrinter, EndPagePrinter, WritePrinter, DOC_INFO_1W};
+        use winapi::um::handleapi::INVALID_HANDLE_VALUE;
+        use winapi::um::errhandlingapi::GetLastError as WinGetLastError;
+        
+        unsafe {
+            // Convert printer name to wide string
+            let mut printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
+            
+            let mut printer_handle = INVALID_HANDLE_VALUE;
+            
+            // Open printer
+            let result = OpenPrinterW(
+                printer_name_wide.as_mut_ptr(),
+                &mut printer_handle,
+                ptr::null_mut()
+            );
+            
+            if result == 0 {
+                let error = WinGetLastError();
+                return Err(format!("Failed to open printer '{}'. Error code: {}", printer_name, error));
+            }
+            
+            // Prepare document info
+            let mut doc_name: Vec<u16> = "Ticket".encode_utf16().chain(std::iter::once(0)).collect();
+            let mut datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
+            let doc_info = DOC_INFO_1W {
+                pDocName: doc_name.as_mut_ptr(),
+                pOutputFile: ptr::null_mut(),
+                pDatatype: datatype.as_mut_ptr(),
+            };
+            
+            // Start document
+            if StartDocPrinterW(printer_handle, 1, &doc_info as *const _ as *mut _) == 0 {
+                let error = WinGetLastError();
+                ClosePrinter(printer_handle);
+                return Err(format!("Failed to start document. Error code: {}", error));
+            }
+            
+            // Start page
+            if StartPagePrinter(printer_handle) == 0 {
+                let error = WinGetLastError();
+                EndDocPrinter(printer_handle);
+                ClosePrinter(printer_handle);
+                return Err(format!("Failed to start page. Error code: {}", error));
+            }
+            
+            // Write ticket data
+            let ticket_bytes = ticket_data.as_bytes();
+            let mut bytes_written: u32 = 0;
+            
+            let write_result = WritePrinter(
+                printer_handle,
+                ticket_bytes.as_ptr() as *mut _,
+                ticket_bytes.len() as u32,
+                &mut bytes_written
+            );
+            
+            if write_result == 0 {
+                let error = WinGetLastError();
+                EndPagePrinter(printer_handle);
+                EndDocPrinter(printer_handle);
+                ClosePrinter(printer_handle);
+                return Err(format!("Failed to write to printer. Error code: {}", error));
+            }
+            
+            // End page and document
+            if EndPagePrinter(printer_handle) == 0 {
+                let error = WinGetLastError();
+                EndDocPrinter(printer_handle);
+                ClosePrinter(printer_handle);
+                return Err(format!("Failed to end page. Error code: {}", error));
+            }
+            
+            if EndDocPrinter(printer_handle) == 0 {
+                let error = WinGetLastError();
+                ClosePrinter(printer_handle);
+                return Err(format!("Failed to end document. Error code: {}", error));
+            }
+            
+            // Close printer
+            ClosePrinter(printer_handle);
+            
+            println!("Successfully printed ticket to '{}'", printer_name);
+            Ok(())
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Printing is only supported on Windows".to_string())
+    }
+}
+
+#[tauri::command]
+fn print_ticket_raw(ticket_data: String, printer_name: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        use std::fs;
+        use std::path::Path;
+        
+        // Create temp directory if it doesn't exist
+        let temp_dir = Path::new("temp");
+        if !temp_dir.exists() {
+            fs::create_dir(temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
+        }
+        
+        // Create temp file with ticket data
+        let temp_file = temp_dir.join(format!("ticket_{}.txt", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()));
+        
+        fs::write(&temp_file, ticket_data).map_err(|e| format!("Failed to write temp file: {}", e))?;
+        
+        // Use PowerShell to print the file
+        let output = Command::new("powershell")
+            .args(&[
+                "-WindowStyle", "Hidden",
+                "-NoProfile", 
+                "-ExecutionPolicy", "Bypass",
+                "-Command",
+                &format!("Get-Content '{}' -Encoding UTF8 | Out-Printer -Name '{}'", 
+                    temp_file.to_string_lossy().replace("\\", "\\\\"), 
+                    printer_name.replace("'", "''"))
+            ])
+            .output();
+        
+        // Clean up temp file
+        let _ = fs::remove_file(temp_file);
+        
+        match output {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("Successfully printed ticket to '{}'", printer_name);
+                    Ok(())
+                } else {
+                    let error = String::from_utf8_lossy(&output.stderr);
+                    Err(format!("Printing failed: {}", error))
+                }
+            },
+            Err(e) => {
+                Err(format!("Failed to execute print command: {}", e))
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Printing is only supported on Windows".to_string())
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -190,101 +411,7 @@ fn list_com_printers() -> Vec<String> {
     }
 }
 
-#[tauri::command]
-fn list_all_printers() -> Vec<String> {
-    // Get all printers regardless of type
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        
-        // Use PowerShell instead of wmic - more reliable in Tauri
-        let output = Command::new("powershell")
-            .args(&["-Command", "Get-Printer | Select-Object Name,PortName | ConvertTo-Csv -NoTypeInformation"])
-            .output();
-        
-        match output {
-            Ok(output) => {
-                let output_str = String::from_utf8_lossy(&output.stdout);
-                let lines: Vec<&str> = output_str.lines().collect();
-                
-                let mut printers = Vec::new();
-                for line in lines.iter().skip(1) { // Skip header
-                    if !line.trim().is_empty() {
-                        let parts: Vec<&str> = line.split(',').collect();
-                        if parts.len() >= 2 {
-                            let printer_name = parts[0].trim_matches('"');
-                            let port_name = parts[1].trim_matches('"');
-                            
-                            if !printer_name.trim().is_empty() {
-                                printers.push(format!("{} ({})", printer_name, port_name));
-                            }
-                        }
-                    }
-                }
-                
-                println!("Detected all Windows printers via PowerShell: {:?}", printers);
-                printers
-            },
-            Err(e) => {
-                eprintln!("Error getting Windows printers via PowerShell: {}", e);
-                
-                // Fallback: try wmic if PowerShell fails
-                let wmic_output = Command::new("wmic")
-                    .args(&["printer", "get", "name,portname", "/format:csv"])
-                    .output();
-                
-                match wmic_output {
-                    Ok(wmic_output) => {
-                        let wmic_str = String::from_utf8_lossy(&wmic_output.stdout);
-                        let wmic_lines: Vec<&str> = wmic_str.lines().collect();
-                        
-                        let mut wmic_printers = Vec::new();
-                        for line in wmic_lines.iter().skip(1) {
-                            if !line.trim().is_empty() {
-                                let parts: Vec<&str> = line.split(',').collect();
-                                if parts.len() >= 2 {
-                                    let printer_name = parts[1].trim_matches('"');
-                                    let port_name = parts[2].trim_matches('"');
-                                    
-                                    if !printer_name.trim().is_empty() {
-                                        wmic_printers.push(format!("{} ({})", printer_name, port_name));
-                                    }
-                                }
-                            }
-                        }
-                        
-                        println!("Detected Windows printers via wmic fallback: {:?}", wmic_printers);
-                        wmic_printers
-                    },
-                    Err(wmic_err) => {
-                        eprintln!("Both PowerShell and wmic failed: PowerShell: {}, wmic: {}", e, wmic_err);
-                        vec![]
-                    }
-                }
-            }
-        }
-    }
-    
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Fallback for non-Windows systems
-        match serialport::available_ports() {
-            Ok(ports) => {
-                let port_names: Vec<String> = ports
-                    .iter()
-                    .map(|p| p.port_name.clone())
-                    .collect();
-                
-                println!("Detected all ports (non-Windows): {:?}", port_names);
-                port_names
-            },
-            Err(e) => {
-                eprintln!("Error listing all ports: {}", e);
-                vec![]
-            }
-        }
-    }
-}
+
 
 #[tauri::command]
 async fn test_printer_connection(port: String) -> Result<bool, String> {
@@ -314,49 +441,7 @@ async fn test_printer_connection(port: String) -> Result<bool, String> {
     }
 }
 
-#[tauri::command]
-async fn print_ticket(port: String, commands: String) -> Result<bool, String> {
-    println!("Printing ticket on port: {} with {} bytes of commands", port, commands.len());
-    
-    // Attempt to open the serial port with standard settings for Epson TM-T20 printer
-    let port_result = serialport::new(&port, 9600)
-        .data_bits(serialport::DataBits::Eight)
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
-        .timeout(std::time::Duration::from_millis(3000))
-        .open();
-    
-    match port_result {
-        Ok(mut port) => {
-            // Convert the commands string to bytes
-            let command_bytes = commands.as_bytes();
-            
-            // Send the commands to the printer
-            match port.write(command_bytes) {
-                Ok(bytes_written) => {
-                    let port_name = port.name().unwrap_or_else(|| String::from("unknown"));
-                    println!("Successfully sent {} bytes to printer on port: {}", bytes_written, port_name);
-                    if bytes_written == command_bytes.len() {
-                        Ok(true)
-                    } else {
-                        Err(format!("Only wrote {} of {} bytes to printer", bytes_written, command_bytes.len()))
-                    }
-                },
-                Err(e) => {
-                    let port_name = port.name().unwrap_or_else(|| String::from("unknown"));
-                    eprintln!("Failed to write to printer on port {}: {:?}", port_name, e);
-                    Err(format!("Failed to write to printer on port {}: {:?}", port_name, e))
-                }
-            }
-        },
-        Err(e) => {
-            // Failed to open the port
-            eprintln!("Failed to connect to printer on port {}: {:?}", port, e);
-            Err(format!("Failed to connect to printer on port {}: {:?}", port, e))
-        }
-    }
-}
+
 
 #[tauri::command]
 fn test_printers() -> Vec<String> {
@@ -371,7 +456,7 @@ fn test_printers() -> Vec<String> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![start_backend, list_printers, list_usb_printers, list_com_printers, list_all_printers, test_printer_connection, print_ticket, test_printers])
+        .invoke_handler(tauri::generate_handler![start_backend, list_printers, list_usb_printers, list_com_printers, list_all_printers, test_printer_connection, print_ticket, print_ticket_raw, test_printers])
         .setup(|app| {
             // Get the app data directory for database persistence
             let app_data_dir = app.path().app_data_dir().unwrap();

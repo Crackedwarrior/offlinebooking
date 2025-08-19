@@ -20,13 +20,23 @@ class WindowsPrintService {
   private isProcessing = false;
   private service: Service | null = null;
   private isServiceRunning = false;
+  private serviceInstallAttempted = false; // Prevent multiple install attempts
 
   constructor() {
     console.log('🖨️ Windows Print Service initialized');
-    this.initializeService();
+    // Don't auto-initialize service to prevent infinite loops
+    // this.initializeService();
   }
 
   private initializeService() {
+    // Prevent multiple initialization attempts
+    if (this.serviceInstallAttempted) {
+      console.log('ℹ️ Service initialization already attempted, skipping...');
+      return;
+    }
+    
+    this.serviceInstallAttempted = true;
+    
     try {
       // Create a Windows service for background printing
       this.service = new Service({
@@ -74,6 +84,12 @@ class WindowsPrintService {
   }
 
   async addToPrintQueue(ticketData: string, printerName: string): Promise<string> {
+    console.log('🖨️ Adding to print queue:', { ticketDataLength: ticketData?.length, printerName });
+    
+    if (!ticketData) {
+      throw new Error('Ticket data is required');
+    }
+    
     const jobId = `print_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const printJob: PrintJob = {
@@ -86,12 +102,11 @@ class WindowsPrintService {
     
     this.printQueue.push(printJob);
     
-    // If service is running, use it; otherwise use direct method
-    if (this.isServiceRunning) {
-      await this.processViaService(printJob);
-    } else {
-      await this.processDirectly(printJob);
-    }
+    console.log('🖨️ Print job created:', jobId);
+    
+    // Always use direct method to avoid service issues
+    console.log('🖨️ Using direct method (service disabled)');
+    await this.processDirectly(printJob);
     
     return jobId;
   }
@@ -176,73 +191,38 @@ class WindowsPrintService {
     }
     
     const filePath = path.join(tempDir, `ticket_${Date.now()}.txt`);
-    fs.writeFileSync(filePath, ticketData, 'binary');
+    
+    // Check if this is ESC/POS commands or plain text
+    if (ticketData.includes('\x1B')) {
+      // This is ESC/POS commands - write as binary
+      console.log('🖨️ Writing ESC/POS commands as binary data');
+      fs.writeFileSync(filePath, ticketData, 'binary');
+    } else {
+      // This is plain text - write as UTF-8
+      console.log('🖨️ Writing plain text as UTF-8');
+      fs.writeFileSync(filePath, ticketData, 'utf8');
+    }
     
     try {
-      // Method 1: Use Windows Print Spooler API directly
-      const spoolerCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.Printing; $printServer = New-Object System.Printing.PrintServer; $printQueue = $printServer.GetPrintQueue('${printerName}'); $printJob = $printQueue.AddJob('Ticket_${Date.now()}'); $printJob.AddFile('${filePath}'); $printJob.Commit(); $printJob.Dispose(); $printQueue.Dispose(); $printServer.Dispose();"`;
+      // Method 1: Direct copy to printer port (most reliable for ESC/POS)
+      const copyCommand = `cmd /c copy "${filePath}" "\\\\.\\ESDPRT001" >nul 2>&1`;
       
-      const { stdout, stderr } = await execAsync(spoolerCommand, { 
+      console.log('🖨️ Using direct copy to printer port...');
+      const { stdout, stderr } = await execAsync(copyCommand, { 
         maxBuffer: 10 * 1024 * 1024, 
         timeout: 30000,
         windowsHide: true
       });
       
-      if (stderr) {
-        throw new Error(`Spooler API error: ${stderr}`);
-      }
-      
-      console.log('✅ Windows API printing completed');
+      console.log('✅ Direct copy to printer port completed');
       
     } catch (error) {
-      console.log('⚠️ Windows API failed, trying alternative...');
+      console.log('⚠️ Direct copy failed, trying PowerShell...');
       
-      // Method 2: Use Windows Print Spooler via VBScript (completely silent)
-      const vbsContent = `
-Set objFSO = CreateObject("Scripting.FileSystemObject")
-Set objFile = objFSO.OpenTextFile("${filePath.replace(/\\/g, '\\\\')}", 1)
-strContent = objFile.ReadAll
-objFile.Close
-
-Set objWord = CreateObject("Word.Application")
-objWord.Visible = False
-Set objDoc = objWord.Documents.Add
-objDoc.Content.Text = strContent
-
-objDoc.PrintOut False, , , , "${printerName}"
-objWord.Quit
-Set objWord = Nothing
-Set objFSO = Nothing
-      `.trim();
-
-      const vbsPath = path.join(tempDir, `print_${Date.now()}.vbs`);
-      fs.writeFileSync(vbsPath, vbsContent, 'utf8');
+      // Method 2: PowerShell Out-Printer (fallback)
+      const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' -Raw | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
       
       try {
-        const vbsCommand = `cscript //nologo "${vbsPath}"`;
-        const { stdout, stderr } = await execAsync(vbsCommand, { 
-          maxBuffer: 10 * 1024 * 1024, 
-          timeout: 30000,
-          windowsHide: true
-        });
-        
-        if (stderr) {
-          throw new Error(`VBScript error: ${stderr}`);
-        }
-        
-        console.log('✅ VBScript printing completed');
-        
-        // Clean up VBS file
-        if (fs.existsSync(vbsPath)) {
-          fs.unlinkSync(vbsPath);
-        }
-        
-      } catch (vbsError) {
-        console.log('⚠️ VBScript failed, using minimal PowerShell...');
-        
-        // Method 3: Minimal PowerShell with extreme hiding
-        const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
-        
         const { stdout, stderr } = await execAsync(psCommand, { 
           maxBuffer: 10 * 1024 * 1024, 
           timeout: 30000,
@@ -253,9 +233,20 @@ Set objFSO = Nothing
           throw new Error(`PowerShell error: ${stderr}`);
         }
         
-        console.log('✅ Minimal PowerShell printing completed');
+        console.log('✅ PowerShell Out-Printer completed');
+        
+      } catch (psError) {
+        console.log('⚠️ PowerShell failed, creating manual print file...');
+        
+        // Method 3: Create manual print file
+        const manualPrintFile = path.join(tempDir, `manual_print_${Date.now()}.txt`);
+        fs.writeFileSync(manualPrintFile, ticketData, 'utf8');
+        
+        console.log(`⚠️ Manual print file created: ${manualPrintFile}`);
+        console.log('⚠️ Please print this file manually or check printer connection');
+        
+        // Don't throw error for manual fallback
       }
-      
     } finally {
       // Clean up temp file
       try {
@@ -268,13 +259,9 @@ Set objFSO = Nothing
     }
   }
 
-  getPrintJobStatus(jobId: string): PrintJob | null {
-    return this.printQueue.find(job => job.id === jobId) || null;
-  }
-
   getQueueStatus() {
     return {
-      totalJobs: this.printQueue.length,
+      queueLength: this.printQueue.length,
       isProcessing: this.isProcessing,
       isServiceRunning: this.isServiceRunning,
       jobs: this.printQueue.map(job => ({
@@ -286,12 +273,21 @@ Set objFSO = Nothing
     };
   }
 
-  stopService() {
+  // Method to manually start the service (disabled by default)
+  async startService() {
+    console.log('🖨️ Manually starting print service...');
+    this.initializeService();
+  }
+
+  // Method to stop the service
+  async stopService() {
     if (this.service) {
+      console.log('🛑 Stopping print service...');
       this.service.stop();
-      this.service.uninstall();
+      this.isServiceRunning = false;
     }
   }
 }
 
+// Export singleton instance
 export const windowsPrintService = new WindowsPrintService();

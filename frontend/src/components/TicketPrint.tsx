@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import printerService, { TicketData } from '@/services/printerService';
+import { TauriPrinterService } from '@/services/tauriPrinterService';
 // import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
@@ -99,42 +100,65 @@ const classColorMap: Record<string, string> = {
 // Save booking to backend
 async function saveBookingToBackend(bookingData: any) {
   try {
-    console.log('💾 Attempting to save booking to backend...');
-    
-    // Check if we're running in Tauri (desktop app)
-    const isTauri = window.__TAURI__ !== undefined;
-    console.log('🖥️ Running in Tauri:', isTauri);
-    
-    let response;
-    
-    if (isTauri) {
-      // Use desktop API service for Tauri app
-      const { DesktopApiService } = await import('@/services/desktopApi');
-      const desktopApi = DesktopApiService.getInstance();
-      response = await desktopApi.createBooking(bookingData);
-    } else {
-      // Use regular API service for web app
-      const { createBooking } = await import('@/services/api');
-      response = await createBooking(bookingData);
-    }
-    
-    console.log('💾 Backend response received:', response);
-    
-    if (response && response.success) {
-      console.log('✅ Booking saved successfully:', response);
-      return response;
-    } else {
-      throw new Error(response?.error?.message || 'Booking save failed');
-    }
-  } catch (err) {
-    console.error('❌ Error saving booking:', err);
-    console.error('❌ Error details:', {
-      message: err.message,
-      stack: err.stack,
-      name: err.name
+    const response = await fetch('http://localhost:3001/api/bookings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bookingData),
     });
-    throw err; // Re-throw to handle in the calling function
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Error saving booking:', error);
+    return null;
   }
+}
+
+// Temporary workaround function for formatting ticket data
+function formatTicketDataWorkaround(
+  seatId: string,
+  row: string,
+  seatNumber: string,
+  classLabel: string,
+  price: number,
+  date: string,
+  showtime: string,
+  movieName: string
+): TicketData {
+  const theaterName = 'SREELEKHA THEATER';
+  const location = 'Chickmagalur';
+  
+  // Calculate GST components (assuming 18% total GST: 9% CGST + 9% SGST)
+  const gstRate = 0.18;
+  const cgstRate = 0.09;
+  const sgstRate = 0.09;
+  
+  // Calculate net amount (price before GST)
+  const netAmount = price / (1 + gstRate);
+  const cgst = netAmount * cgstRate;
+  const sgst = netAmount * sgstRate;
+  const mc = 0; // Municipal Corporation tax (if any)
+  const totalAmount = price;
+  
+  // Generate transaction ID
+  const transactionId = `TXN${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  
+  return {
+    theaterName,
+    location,
+    date,
+    film: movieName,
+    class: classLabel,
+    row,
+    seatNumber,
+    showtime,
+    netAmount,
+    cgst,
+    sgst,
+    mc,
+    totalAmount,
+    transactionId
+  };
 }
 
 const TicketPrint: React.FC<TicketPrintProps> = ({ 
@@ -244,29 +268,55 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       const showtime = convertTo12Hour(currentShowTime.startTime);
       console.log('🕐 Formatted showtime:', showtime);
 
-      // Prepare ticket data for printing
-      const ticketData: TicketData[] = selectedSeats.map(seat => 
-        printerService.formatTicketData(
-          seat.id,
-          seat.row,
-          seat.number,
-          seat.classLabel,
-          seat.price,
-          selectedDate,
-          showtime,
-          currentMovie.name
-        )
-      );
-
-      console.log('🖨️ Preparing to print tickets:', ticketData);
-
-      // First, try to print tickets
-      console.log('🖨️ Attempting to print tickets...');
-      const printSuccess = await printerService.printTickets(ticketData);
-      console.log('🖨️ Print result:', printSuccess);
+      // Get printer configuration
+      const printerInstance = printerService.getInstance();
+      const printerConfig = printerInstance.getPrinterConfig();
       
-      if (!printSuccess) {
-        console.error('❌ Failed to print tickets');
+      if (!printerConfig || !printerConfig.name) {
+        console.error('❌ No printer configured');
+        return;
+      }
+
+      // Use Tauri printer service for native printing
+      const tauriPrinterService = TauriPrinterService.getInstance();
+      
+      // Prepare ticket data for each seat
+      const ticketDataArray = selectedSeats.map(seat => ({
+        theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
+        location: printerConfig.location || 'Chickmagalur',
+        date: selectedDate,
+        showTime: showtime,
+        movieName: currentMovie.name,
+        class: seat.classLabel,
+        seatId: seat.id,
+        netAmount: 0, // Will be calculated
+        cgst: 0,
+        sgst: 0,
+        mc: 0,
+        price: seat.price,
+        transactionId: 'TXN' + Date.now()
+      }));
+
+      console.log('🖨️ Preparing to print tickets via Tauri:', ticketDataArray);
+
+      // Print each ticket using Tauri
+      let allPrinted = true;
+      for (const ticketData of ticketDataArray) {
+        // Format ticket for thermal printer
+        const formattedTicket = tauriPrinterService.formatTicketForThermal(ticketData);
+        
+        // Print using Tauri
+        const printSuccess = await tauriPrinterService.printTicket(formattedTicket, printerConfig.name);
+        
+        if (!printSuccess) {
+          console.error('❌ Failed to print ticket for seat:', ticketData.seatId);
+          allPrinted = false;
+          break;
+        }
+      }
+      
+      if (!allPrinted) {
+        console.error('❌ Failed to print all tickets');
         return;
       }
 
@@ -304,7 +354,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       
       if (response && response.success) {
         // Mark all selected seats as booked in the store
-        selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'booked'));
+        selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
         
         console.log('✅ Tickets printed and booking saved successfully');
         setSelectedGroupIdxs([]);

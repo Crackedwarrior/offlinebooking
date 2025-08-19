@@ -1,513 +1,253 @@
-// Printer service for Epson TM-T20 M249A POS printer
-// We'll use dynamic imports for Tauri to handle environments where it might not be available
+import { TicketPdfGenerator } from '../utils/ticketPdfGenerator';
+
 export interface TicketData {
   theaterName: string;
   location: string;
   date: string;
   film: string;
   class: string;
-  showtime: string;
   row: string;
   seatNumber: string;
+  showtime: string;
   netAmount: number;
   cgst: number;
   sgst: number;
   mc: number;
   totalAmount: number;
   transactionId: string;
-  gstin: string;
 }
 
-export interface PrintJob {
-  tickets: TicketData[];
-  timestamp: string;
+export interface PrinterConfig {
+  name: string;
+  port: string;
+  theaterName: string;
+  location: string;
+  gstin: string;
+  printerType: 'thermal' | 'pdf' | 'backend';
 }
 
 export class PrinterService {
   private static instance: PrinterService;
-  private printerName: string = 'EPSON TM-T81 ReceiptE4'; // Default printer name for Windows
-  private printerPort: string = 'COM1'; // Fallback port for serial printers
-  private theaterName: string = 'SREELEKHA THEATER';
-  private location: string = 'Chickmagalur';
-  private gstin: string = '29AAVFS7423E120';
+  private printerConfig: PrinterConfig | null = null;
 
   private constructor() {
-    // Load saved printer configuration on initialization
-    this.loadSavedConfiguration();
+    this.loadPrinterConfig();
   }
 
-  static getInstance(): PrinterService {
+  public static getInstance(): PrinterService {
     if (!PrinterService.instance) {
       PrinterService.instance = new PrinterService();
     }
     return PrinterService.instance;
   }
 
-  // Load saved printer configuration from localStorage
-  private loadSavedConfiguration() {
+  private loadPrinterConfig(): void {
     try {
-      const savedConfig = localStorage.getItem('selectedPrinter');
+      const savedConfig = localStorage.getItem('printerConfig');
       if (savedConfig) {
-        const config = JSON.parse(savedConfig);
-        console.log('🔧 Loading saved printer configuration:', config);
-        
-        if (config.name) this.printerName = config.name;
-        if (config.port) this.printerPort = config.port;
-        if (config.theaterName) this.theaterName = config.theaterName;
-        if (config.location) this.location = config.location;
-        if (config.gstin) this.gstin = config.gstin;
-        
-        console.log('🔧 Printer configuration loaded:', {
-          name: this.printerName,
-          port: this.printerPort,
-          theaterName: this.theaterName,
-          location: this.location,
-          gstin: this.gstin
-        });
+        this.printerConfig = JSON.parse(savedConfig);
+        console.log('🔧 Printer configuration loaded:', this.printerConfig);
       }
     } catch (error) {
-      console.warn('⚠️ Failed to load saved printer configuration:', error);
+      console.error('❌ Failed to load printer configuration:', error);
     }
   }
 
-  // Configure printer settings
-  configurePrinter(printerName?: string, port?: string, theaterName?: string, location?: string, gstin?: string) {
-    if (printerName) this.printerName = printerName;
-    if (port) this.printerPort = port;
-    if (theaterName) this.theaterName = theaterName;
-    if (location) this.location = location;
-    if (gstin) this.gstin = gstin;
+  public getPrinterConfig(): PrinterConfig | null {
+    return this.printerConfig;
   }
 
-  // Calculate GST and other charges
-  private calculateCharges(amount: number) {
-    const netAmount = Math.round(amount / 1.18); // Assuming 18% GST
-    const gstAmount = amount - netAmount;
-    const cgst = Math.round(gstAmount / 2);
-    const sgst = gstAmount - cgst;
-    const mc = 2; // Municipal Corporation charge
-    
-    return {
-      netAmount,
-      cgst,
-      sgst,
-      mc,
-      totalAmount: amount
-    };
+  public setPrinterConfig(config: PrinterConfig): void {
+    this.printerConfig = config;
+    localStorage.setItem('printerConfig', JSON.stringify(config));
+    console.log('🔧 Printer configuration saved:', config);
   }
 
-  // Generate transaction ID
-  private generateTransactionId(): string {
-    const now = new Date();
-    const dateStr = now.getFullYear().toString().slice(-2) + 
-                   (now.getMonth() + 1).toString().padStart(2, '0') + 
-                   now.getDate().toString().padStart(2, '0');
-    const timeStr = now.getHours().toString().padStart(2, '0') + 
-                   now.getMinutes().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    
-    return `${dateStr}${timeStr}CSH ${random}0001/001`;
-  }
-
-  // Format ticket data for printing
-  formatTicketData(
+  // Format seat data into TicketData format for printing
+  public formatTicketData(
     seatId: string,
     row: string,
-    seatNumber: number,
+    seatNumber: string,
     classLabel: string,
     price: number,
     date: string,
     showtime: string,
     movieName: string
   ): TicketData {
-    const charges = this.calculateCharges(price);
-    const transactionId = this.generateTransactionId();
+    const config = this.getPrinterConfig();
+    const theaterName = config?.theaterName || 'SREELEKHA THEATER';
+    const location = config?.location || 'Chickmagalur';
+    
+    // Calculate GST components (assuming 18% total GST: 9% CGST + 9% SGST)
+    const gstRate = 0.18;
+    const cgstRate = 0.09;
+    const sgstRate = 0.09;
+    
+    // Calculate net amount (price before GST)
+    const netAmount = price / (1 + gstRate);
+    const cgst = netAmount * cgstRate;
+    const sgst = netAmount * sgstRate;
+    const mc = 0; // Municipal Corporation tax (if any)
+    const totalAmount = price;
+    
+    // Generate transaction ID
+    const transactionId = `TXN${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
     
     return {
-      theaterName: this.theaterName,
-      location: this.location,
-      date: new Date(date).toLocaleDateString('en-GB'), // DD/MM/YYYY format
+      theaterName,
+      location,
+      date,
       film: movieName,
       class: classLabel,
-      showtime: showtime,
-      row: row,
-      seatNumber: seatNumber.toString(),
-      netAmount: charges.netAmount,
-      cgst: charges.cgst,
-      sgst: charges.sgst,
-      mc: charges.mc,
-      totalAmount: charges.totalAmount,
-      transactionId,
-      gstin: this.gstin
+      row,
+      seatNumber,
+      showtime,
+      netAmount,
+      cgst,
+      sgst,
+      mc,
+      totalAmount,
+      transactionId
     };
   }
 
-  // Generate ESC/POS commands for the ticket
-  private generateEscPosCommands(ticket: TicketData): string {
-    // Epson TM-T81 on 80mm typically supports ~42 columns with Font A
-    const maxCols = 42;
-    const wrap = (text: string): string => {
-      const lines: string[] = [];
-      let i = 0;
-      while (i < text.length) {
-        lines.push(text.slice(i, i + maxCols));
-        i += maxCols;
-      }
-      return lines.join('\n');
-    };
-
-    const center = (text: string): string => {
-      if (text.length >= maxCols) return text;
-      const pad = Math.floor((maxCols - text.length) / 2);
-      return ' '.repeat(pad) + text;
-    };
-
-    const commands = [
-      '\x1B\x40', // Initialize printer
-      '\x1B\x74\x00', // Set code page (PC437) for stable ASCII
-      '\x1B\x52\x00', // Select USA character set
-
-      // Header
-      '\x1B\x61\x01', // Center alignment
-      '\x1D\x21\x01', // Double height (not width) for title
-      `${center(ticket.theaterName)}` + '\n',
-      '\x1D\x21\x00', // Normal size
-      `${center(ticket.location)}` + '\n',
-
-      // Body
-      '\x1B\x61\x00', // Left alignment
-      `${wrap(`Date : ${ticket.date}`)}\n`,
-      `${wrap(`Film : ${ticket.film}`)}\n`,
-      `${wrap(`Class : ${ticket.class}`)}\n`,
-      `${wrap(`SHOWTIME: ${ticket.showtime}`)}\n`,
-      `${wrap(`Row: ${ticket.row}-Seats: [${ticket.seatNumber}]`)}\n`,
-      `${wrap(`[NET:${ticket.netAmount.toFixed(2)}] [CGST:${ticket.cgst.toFixed(2)}] [SGST:${ticket.sgst.toFixed(2)}] [MC:${ticket.mc.toFixed(2)}]`)}\n`,
-      `${wrap(`${ticket.date} / ${ticket.showtime} ${ticket.transactionId}`)}\n`,
-
-      // Price emphasized but still safe width
-      '\x1B\x61\x01',
-      '\x1D\x21\x01', // Double height
-      `${center(`Ticket Cost: ${ticket.totalAmount.toFixed(2)}`)}\n`,
-      '\x1D\x21\x00',
-      '\x1B\x61\x00',
-
-      '\n\n', // Feed a bit
-      '\x1D\x56\x00' // Full cut
-    ];
-
-    return commands.join('');
-  }
-
-  // Generate ESC/POS commands for thermal printer
-  private generateEscPosTicket(ticket: TicketData): string {
-    // ESC/POS commands for Epson TM-T81 thermal printer
+  // Generate optimized movie ticket with proper alignment
+  private generateCleanTicket(ticket: TicketData): string {
+    // Ultra-compact ticket using full 42-character width of TM-T81
     const commands = [
       '\x1B\x40',        // Initialize printer
+      '\x1B\x74\x00',    // Set code page to PC437 (Windows-1252)
+      '\x1B\x52\x00',    // Select USA character set
       '\x1B\x61\x01',    // Center alignment
-      '\x1B\x21\x10',    // Double height and width
-      `${ticket.theaterName}\n`,
+      '\x1B\x21\x30',    // Double height and width for header
+      'SREELEKHA THEATER\n',
       '\x1B\x21\x00',    // Normal size
-      `${ticket.location}\n`,
+      'Chickmagalur\n',
       '\x1B\x61\x00',    // Left alignment
-      '\x1B\x2D\x01',    // Underline on
-      `Date    : ${ticket.date}\n`,
-      `Film    : ${ticket.film}\n`,
-      `Class   : ${ticket.class}\n`,
-      `Showtime: ${ticket.showtime}\n`,
-      `Row     : ${ticket.row}-Seats: [${ticket.seatNumber}]\n`,
-      '\x1B\x2D\x00',    // Underline off
-      '--------------------------------\n',
-      `NET     : ${ticket.netAmount.toFixed(2)}\n`,
-      `CGST    : ${ticket.cgst.toFixed(2)}\n`,
-      `SGST    : ${ticket.sgst.toFixed(2)}\n`,
-      `MC      : ${ticket.mc.toFixed(2)}\n`,
-      '--------------------------------\n',
-      `Total   : ${ticket.totalAmount.toFixed(2)}\n`,
-      '--------------------------------\n',
-      `${ticket.date} / ${ticket.showtime}\n`,
+      '==========================================\n', // 42 characters
+      '\x1B\x21\x10',    // Double height for important info
+      `Date: ${ticket.date}  Time: ${ticket.showtime}\n`,
+      `Film: ${ticket.film}\n`,
+      `Class: ${ticket.class}\n`,
+      `Seat: ${ticket.row}-${ticket.seatNumber}\n`,
+      '\x1B\x21\x00',    // Normal size
+      '==========================================\n', // 42 characters
+      '\x1B\x45\x01',    // Bold on for pricing
+      `Net: Rs.${ticket.netAmount.toFixed(2)}  CGST: Rs.${ticket.cgst.toFixed(2)}\n`,
+      `SGST: Rs.${ticket.sgst.toFixed(2)}  MC: Rs.${ticket.mc.toFixed(2)}\n`,
+      '\x1B\x45\x00',    // Bold off
+      '==========================================\n', // 42 characters
+      '\x1B\x21\x30',    // Double height and width for total
+      `TOTAL: Rs.${ticket.totalAmount.toFixed(2)}\n`,
+      '\x1B\x21\x00',    // Normal size
+      '==========================================\n', // 42 characters
       `ID: ${ticket.transactionId}\n`,
-      '================================\n',
-      '\n\n\n',          // Feed paper
+      '\x1B\x61\x01',    // Center alignment
+      '\x1B\x21\x10',    // Double height
+      'THANK YOU!\n',
+      '\x1B\x21\x00',    // Normal size
+      'SREELEKHA THEATER\n',
+      '\x1B\x61\x00',    // Left alignment
       '\x1B\x69'         // Cut paper
     ];
-
     return commands.join('');
-  }
-
-  // Generate plain text for the ticket (for printers that don't support ESC/POS)
-  private generatePlainTextTicket(ticket: TicketData): string {
-    const center = (text: string, width: number = 32) => {
-      const padding = Math.max(0, width - text.length);
-      const leftPadding = Math.floor(padding / 2);
-      const rightPadding = padding - leftPadding;
-      return ' '.repeat(leftPadding) + text + ' '.repeat(rightPadding);
-    };
-
-    const line = (char: string = '-', width: number = 32) => char.repeat(width);
-
-    const ticketText = [
-      line('=', 32),
-      center(ticket.theaterName, 32),
-      center(ticket.location, 32),
-      line('-', 32),
-      `Date    : ${ticket.date}`,
-      `Film    : ${ticket.film}`,
-      `Class   : ${ticket.class}`,
-      `Showtime: ${ticket.showtime}`,
-      `Row     : ${ticket.row}-Seats: [${ticket.seatNumber}]`,
-      line('-', 32),
-      `NET     : ${ticket.netAmount.toFixed(2)}`,
-      `CGST    : ${ticket.cgst.toFixed(2)}`,
-      `SGST    : ${ticket.sgst.toFixed(2)}`,
-      `MC      : ${ticket.mc.toFixed(2)}`,
-      line('-', 32),
-      `Total   : ${ticket.totalAmount.toFixed(2)}`,
-      line('-', 32),
-      `${ticket.date} / ${ticket.showtime}`,
-      `ID: ${ticket.transactionId}`,
-      line('=', 32),
-      '', // Empty line for spacing
-      '', // Empty line for spacing
-    ];
-
-    return ticketText.join('\n');
-  }
-
-  // Print a single ticket
-  async printTicket(ticket: TicketData): Promise<boolean> {
-    try {
-      console.log('🖨️ Printing ticket:', ticket);
-      
-      // Use ESC/POS commands for thermal printers (Epson TM-T81)
-      const escPosCommands = this.generateEscPosTicket(ticket);
-      
-      // Send ESC/POS commands to printer
-      await this.sendToPrinter(escPosCommands);
-      
-      console.log('✅ Ticket printed successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to print ticket:', error);
-      return false;
-    }
   }
 
   // Print multiple tickets
   async printTickets(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log(`🖨️ Printing ${tickets.length} tickets`);
-      console.log('🖨️ Ticket data:', tickets);
+      console.log('🖨️ Printing tickets:', tickets.length);
       
-      for (const ticket of tickets) {
-        console.log('🖨️ Printing individual ticket:', ticket);
-        const success = await this.printTicket(ticket);
-        if (!success) {
-          console.error('❌ Failed to print ticket:', ticket);
-          return false;
-        }
-        
-        // Small delay between tickets
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      // Always use native desktop printing for desktop app
+      return await this.printTicketsNative(tickets);
       
-      console.log('✅ All tickets printed successfully');
-      return true;
     } catch (error) {
       console.error('❌ Failed to print tickets:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
       return false;
     }
   }
 
-  // Send data to printer via backend API or Tauri commands
-  private async sendToPrinter(commands: string): Promise<void> {
+  // Print tickets using native desktop printing
+  private async printTicketsNative(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log('📤 Sending to printer');
-      console.log('📤 Commands length:', commands.length);
+      console.log('🖨️ Using backend printing service for', tickets.length, 'tickets');
       
-      // Check if we're running in Tauri - FIX: More robust detection
-      const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+      // Always use backend printing service for desktop app
+      return await this.printToBackendPrinter(tickets);
       
-      if (isTauri) {
-        console.log('📤 Using Tauri API for printing');
-        try {
-          // Use Tauri command to print
-          // Access the Tauri API through the window object
-          if (window.__TAURI__ && window.__TAURI__.invoke) {
-            const result = await window.__TAURI__.invoke('print_ticket', { 
-              port: this.printerPort,
-              commands: commands
-            });
-            console.log('✅ Tauri printer response:', result);
-          } else {
-            throw new Error('Tauri API not available');
-          }
-        } catch (tauriError) {
-          console.error('❌ Tauri printing failed, falling back to backend API:', tauriError);
-          // Fall back to backend API
-          await this.sendToPrinterViaBackend(commands);
-        }
-      } else {
-        console.log('📤 Using backend API for printing');
-        // Use backend API
-        await this.sendToPrinterViaBackend(commands);
-      }
     } catch (error) {
-      console.error('❌ Printer communication failed:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      throw new Error(`Printer communication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-  
-  // Send data to printer via backend API
-  private async sendToPrinterViaBackend(commands: string): Promise<void> {
-    console.log('📤 Sending to printer via backend API');
-    console.log('📤 Backend URL: http://localhost:3001/api/printer/print');
-    
-    // Send print request to backend
-    const response = await fetch('http://localhost:3001/api/printer/print', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        tickets: [{
-          commands: commands,
-          timestamp: new Date().toISOString()
-        }],
-        printerConfig: {
-          name: this.printerName, // Send printer name for Windows printing
-          port: this.printerPort, // Keep port as fallback for serial printers
-          theaterName: this.theaterName,
-          location: this.location,
-          gstin: this.gstin
-        }
-      })
-    });
-
-    console.log('📤 Response status:', response.status);
-    console.log('📤 Response ok:', response.ok);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('📤 Error response text:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Printer response:', result);
-  }
-
-  // Test printer connection
-  async testConnection(): Promise<boolean> {
-    try {
-      console.log('🔍 Testing printer connection...');
-      
-      // Check if we're running in Tauri
-      const isTauri = window.__TAURI__ !== undefined;
-      
-      if (isTauri) {
-        console.log('🔍 Using Tauri API for printer connection test');
-        try {
-          // Use Tauri command to test printer connection
-          // Access the Tauri API through the window object
-          if (window.__TAURI__ && window.__TAURI__.invoke) {
-            const result = await window.__TAURI__.invoke('test_printer_connection', { port: this.printerPort });
-            console.log('✅ Tauri printer connection test result:', result);
-            return true;
-          } else {
-            throw new Error('Tauri API not available');
-          }
-        } catch (tauriError) {
-          console.error('❌ Tauri printer test failed, falling back to backend API:', tauriError);
-          // Fall back to backend API
-          return await this.testConnectionViaBackend();
-        }
-      } else {
-        console.log('🔍 Using backend API for printer connection test');
-        // Use backend API
-        return await this.testConnectionViaBackend();
-      }
-    } catch (error) {
-      console.error('❌ Printer connection test failed:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
+      console.error('❌ Failed to print tickets using backend service:', error);
       return false;
     }
   }
-  
-  // Test printer connection via backend API
-  private async testConnectionViaBackend(): Promise<boolean> {
-    console.log('🔍 Testing printer connection via backend API');
-    console.log('🔍 Backend URL: http://localhost:3001/api/printer/test');
-    
-    // Send test request to backend
-    const response = await fetch('http://localhost:3001/api/printer/test', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        printerConfig: {
-          port: this.printerPort,
-          theaterName: this.theaterName,
-          location: this.location,
-          gstin: this.gstin
-        }
-      })
-    });
 
-    console.log('🔍 Response status:', response.status);
-    console.log('🔍 Response ok:', response.ok);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('🔍 Error response text:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+  // Print to backend printer service (supports thermal and PDF)
+  private async printToBackendPrinter(tickets: TicketData[]): Promise<boolean> {
+    try {
+      console.log('🖨️ Printing via backend service:', tickets.length, 'tickets');
+      
+      const config = this.getPrinterConfig();
+      const printerName = config?.name || 'EPSON TM-T81 Receipt';
+      
+      // Convert tickets to the format expected by backend
+      const backendTickets = tickets.map(ticket => ({
+        commands: this.generateCleanTicket(ticket),
+        seatId: `${ticket.row}-${ticket.seatNumber}`,
+        movieName: ticket.film,
+        date: ticket.date,
+        showTime: ticket.showtime,
+        price: ticket.totalAmount,
+        customerName: 'Customer'
+      }));
+      
+      // Send to backend printing service
+      const response = await fetch('http://localhost:3001/api/printer/print', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tickets: backendTickets,
+          printerConfig: {
+            name: printerName,
+            port: config?.port || '',
+            theaterName: config?.theaterName || 'SREELEKHA THEATER',
+            location: config?.location || 'Chickmagalur',
+            gstin: config?.gstin || ''
+          }
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Backend printing failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Printed tickets via backend:', result);
+      
+      console.log('✅ All tickets printed successfully via backend service');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Failed to print via backend:', error);
+      return false;
     }
-
-    const result = await response.json();
-    console.log('✅ Printer connection test successful:', result);
-    return true;
   }
 
-  // Get printer status
-  async getPrinterStatus(): Promise<{
-    connected: boolean;
-    ready: boolean;
-    paperStatus: string;
-    errorStatus: string;
-  }> {
+  // Send to printer (main method)
+  async sendToPrinter(tickets: TicketData[]): Promise<boolean> {
     try {
-      // In a real implementation, this would query the printer status
-      // For now, return simulated status
-      return {
-        connected: true,
-        ready: true,
-        paperStatus: 'OK',
-        errorStatus: 'No Error'
-      };
+      console.log('🖨️ Printing tickets:', tickets.length);
+      console.log('🖨️ Ticket data:', tickets);
+      
+      // Use the backend printing service
+      return await this.printTickets(tickets);
+      
     } catch (error) {
-      console.error('❌ Failed to get printer status:', error);
-      return {
-        connected: false,
-        ready: false,
-        paperStatus: 'Unknown',
-        errorStatus: 'Connection Failed'
-      };
+      console.error('❌ Failed to send to printer:', error);
+      return false;
     }
   }
 }
 
-export default PrinterService.getInstance();
+export default PrinterService;

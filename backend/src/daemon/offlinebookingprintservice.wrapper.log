@@ -1,2 +1,34 @@
 2025-08-18 21:51:56 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
 2025-08-18 21:51:57 - Started 27468
+2025-08-19 12:37:41 - Stopping offlinebookingprintservice.exe
+2025-08-19 12:37:42 - ProcessKill 27468
+2025-08-19 12:37:42 - Shutdown exception
+Message:A system shutdown is in progress.
+
+Stacktrace:   at System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   at System.Management.ManagementScope.InitializeGuts(Object o)
+   at System.Management.ManagementScope.Initialize()
+   at System.Management.ManagementObjectSearcher.Initialize()
+   at System.Management.ManagementObjectSearcher.Get()
+   at winsw.WrapperService.GetChildPids(Int32 pid)
+   at winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   at winsw.WrapperService.StopIt()
+   at winsw.WrapperService.OnShutdown()
+2025-08-19 12:38:21 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2025-08-19 12:38:21 - Started 7040
+2025-08-19 12:52:35 - Stopping offlinebookingprintservice.exe
+2025-08-19 12:52:35 - ProcessKill 7040
+2025-08-19 12:52:35 - Found child process: 5916 Name: conhost.exe
+2025-08-19 12:52:35 - Found child process: 4348 Name: node.exe
+2025-08-19 12:52:36 - Stopping process 5916
+2025-08-19 12:52:36 - Send SIGINT 5916
+2025-08-19 12:52:36 - SIGINT to 5916 failed - Killing as fallback
+2025-08-19 12:52:36 - Stopping process 4348
+2025-08-19 12:52:36 - Send SIGINT 4348
+2025-08-19 12:52:36 - SIGINT to 4348 failed - Killing as fallback
+2025-08-19 12:52:36 - Stopping process 7040
+2025-08-19 12:52:36 - Send SIGINT 7040
+2025-08-19 12:52:36 - SIGINT to 7040 failed - Killing as fallback
+2025-08-19 12:52:36 - Finished offlinebookingprintservice.exe
+2025-08-19 13:07:15 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2025-08-19 13:07:15 - Started 7216
