@@ -30,12 +30,15 @@ export default defineConfig(({ mode }) => {
     define: {
       __APP_VERSION__: JSON.stringify(env.VITE_APP_VERSION || '1.0.0'),
       __APP_NAME__: JSON.stringify(env.VITE_APP_NAME || 'Offline Booking System'),
+      // Add Tauri global
+      __TAURI__: JSON.stringify({}),
     },
     // Build configuration
     build: {
       outDir: 'dist',
       sourcemap: mode === 'development',
       rollupOptions: {
+        external: ['@tauri-apps/api/tauri'],
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
@@ -43,6 +46,10 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
+    },
+    // Development configuration
+    optimizeDeps: {
+      exclude: ['@tauri-apps/api/tauri']
     },
   };
 });

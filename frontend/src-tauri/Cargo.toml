@@ -25,3 +25,7 @@ tauri = { version = "2.7.0", features = [] }
 tauri-plugin-log = "2"
 # For future implementation of actual printer hardware integration
 serialport = "4.2.0"
+
+# Windows API for printer access
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winspool", "winbase", "winerror", "handleapi", "processthreadsapi", "synchapi", "memoryapi", "errhandlingapi", "fileapi"] }

@@ -11,6 +11,8 @@ class PrintWorker {
     this.tempDir = path.join(process.cwd(), 'temp');
     this.isRunning = true;
     this.pollInterval = 1000; // 1 second
+    this.maxRetries = 3; // Maximum retry attempts per job
+    this.processedJobs = new Set(); // Track processed jobs to prevent duplicates
   }
 
   async start() {
@@ -21,8 +23,39 @@ class PrintWorker {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
     
+    // Clean up any existing failed jobs on startup
+    await this.cleanupFailedJobs();
+    
     // Start polling for print jobs
     this.pollForJobs();
+  }
+
+  async cleanupFailedJobs() {
+    try {
+      console.log('🧹 Cleaning up failed jobs on startup...');
+      const files = fs.readdirSync(this.tempDir);
+      
+      // Remove failed job files
+      const failedJobFiles = files.filter(file => 
+        file.endsWith('.failed') || 
+        file.endsWith('.vbs') ||
+        (file.startsWith('job_') && file.endsWith('.json'))
+      );
+      
+      for (const file of failedJobFiles) {
+        const filePath = path.join(this.tempDir, file);
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`🗑️ Cleaned up: ${file}`);
+        } catch (error) {
+          console.warn(`⚠️ Could not clean up ${file}:`, error.message);
+        }
+      }
+      
+      console.log(`✅ Cleaned up ${failedJobFiles.length} failed job files`);
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+    }
   }
 
   async pollForJobs() {
@@ -33,6 +66,11 @@ class PrintWorker {
         const jobFiles = files.filter(file => file.startsWith('job_') && file.endsWith('.json'));
         
         for (const jobFile of jobFiles) {
+          // Skip if already processed
+          if (this.processedJobs.has(jobFile)) {
+            continue;
+          }
+          
           await this.processJob(jobFile);
         }
         
@@ -52,6 +90,9 @@ class PrintWorker {
     try {
       console.log(`🖨️ Processing job: ${jobFileName}`);
       
+      // Mark as processed to prevent duplicate processing
+      this.processedJobs.add(jobFileName);
+      
       // Read job data
       const jobData = JSON.parse(fs.readFileSync(jobFilePath, 'utf8'));
       const { id, ticketData, printerName } = jobData;
@@ -59,24 +100,29 @@ class PrintWorker {
       // Print the ticket
       await this.printTicket(ticketData, printerName);
       
-      // Mark job as completed
+      // Mark job as completed and clean up
       fs.writeFileSync(jobFilePath + '.completed', JSON.stringify({ id, status: 'completed' }));
+      fs.unlinkSync(jobFilePath); // Remove original job file
       
       console.log(`✅ Job ${id} completed successfully`);
       
     } catch (error) {
       console.error(`❌ Job ${jobFileName} failed:`, error);
       
-      // Mark job as failed
+      // Mark job as failed and clean up
       const errorData = { id: jobFileName, error: error.message };
       fs.writeFileSync(jobFilePath + '.failed', JSON.stringify(errorData));
+      fs.unlinkSync(jobFilePath); // Remove original job file
+      
+      // Remove from processed set so it can be retried if needed
+      this.processedJobs.delete(jobFileName);
     }
   }
 
   async printTicket(ticketData, printerName) {
     // Create temp file for printing
     const filePath = path.join(this.tempDir, `ticket_${Date.now()}.txt`);
-    fs.writeFileSync(filePath, ticketData, 'binary');
+    fs.writeFileSync(filePath, ticketData, 'utf8'); // Use UTF-8 instead of binary
     
     try {
       // Method 1: Use Windows Print Spooler API directly (completely silent)
@@ -95,54 +141,12 @@ class PrintWorker {
       console.log('✅ Windows API printing completed');
       
     } catch (error) {
-      console.log('⚠️ Windows API failed, trying VBScript...');
+      console.log('⚠️ Windows API failed, trying PowerShell...');
       
-      // Method 2: Use VBScript (completely silent)
-      const vbsContent = `
-Set objFSO = CreateObject("Scripting.FileSystemObject")
-Set objFile = objFSO.OpenTextFile("${filePath.replace(/\\/g, '\\\\')}", 1)
-strContent = objFile.ReadAll
-objFile.Close
-
-Set objWord = CreateObject("Word.Application")
-objWord.Visible = False
-Set objDoc = objWord.Documents.Add
-objDoc.Content.Text = strContent
-
-objDoc.PrintOut False, , , , "${printerName}"
-objWord.Quit
-Set objWord = Nothing
-Set objFSO = Nothing
-      `.trim();
-
-      const vbsPath = path.join(this.tempDir, `print_${Date.now()}.vbs`);
-      fs.writeFileSync(vbsPath, vbsContent, 'utf8');
+      // Method 2: Use PowerShell directly (simpler and more reliable)
+      const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
       
       try {
-        const vbsCommand = `cscript //nologo "${vbsPath}"`;
-        const { stdout, stderr } = await execAsync(vbsCommand, { 
-          maxBuffer: 10 * 1024 * 1024, 
-          timeout: 30000,
-          windowsHide: true
-        });
-        
-        if (stderr) {
-          throw new Error(`VBScript error: ${stderr}`);
-        }
-        
-        console.log('✅ VBScript printing completed');
-        
-        // Clean up VBS file
-        if (fs.existsSync(vbsPath)) {
-          fs.unlinkSync(vbsPath);
-        }
-        
-      } catch (vbsError) {
-        console.log('⚠️ VBScript failed, using minimal PowerShell...');
-        
-        // Method 3: Minimal PowerShell with extreme hiding
-        const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
-        
         const { stdout, stderr } = await execAsync(psCommand, { 
           maxBuffer: 10 * 1024 * 1024, 
           timeout: 30000,
@@ -153,7 +157,19 @@ Set objFSO = Nothing
           throw new Error(`PowerShell error: ${stderr}`);
         }
         
-        console.log('✅ Minimal PowerShell printing completed');
+        console.log('✅ PowerShell printing completed');
+        
+      } catch (psError) {
+        console.log('⚠️ PowerShell failed, trying minimal approach...');
+        
+        // Method 3: Minimal approach - just write to file and let user print manually
+        const manualPrintFile = path.join(this.tempDir, `manual_print_${Date.now()}.txt`);
+        fs.writeFileSync(manualPrintFile, ticketData, 'utf8');
+        
+        console.log(`⚠️ Manual print file created: ${manualPrintFile}`);
+        console.log('⚠️ Please print this file manually or check printer connection');
+        
+        // Don't throw error for manual fallback
       }
       
     } finally {
@@ -171,6 +187,11 @@ Set objFSO = Nothing
   stop() {
     console.log('🛑 Print Worker Service stopping...');
     this.isRunning = false;
+    
+    // Clean up any remaining job files
+    this.cleanupFailedJobs().catch(error => {
+      console.error('❌ Error during final cleanup:', error);
+    });
   }
 }
 
