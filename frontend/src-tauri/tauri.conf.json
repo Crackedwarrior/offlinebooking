@@ -56,6 +56,11 @@
         "requireLiteralLeadingDot": false,
         "directories": ["$APPDATA/AuditoriumX"]
       }
+    },
+    "shell": {
+      "scope": {
+        "allow": ["npm", "node", "powershell", "cmd", "cargo"]
+      }
     }
   }
 }
