@@ -468,7 +468,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
     }
     
     // Always prefer store state when it has data
-    console.log('🔄 Using selectedSeats from store:', storeSelectedSeats.length);
+    // console.log('🔄 Using selectedSeats from store:', storeSelectedSeats.length);
     return storeSelectedSeats;
   }, [seats, checkoutData, selectedShow]);
 
@@ -500,25 +500,25 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
    
   const total = classCounts.reduce((sum, cls: any) => sum + cls.count * cls.price, 0);
   
-  // Debug: Log selected seats and total calculation
+  // Debug: Log selected seats and total calculation (commented out to reduce console noise)
   useEffect(() => {
-    console.log('🔍 Checkout - Selected Seats Debug:', {
-      selectedSeatsCount: selectedSeats.length,
-      selectedSeats: selectedSeats.map(seat => ({
-        id: seat.id,
-        row: seat.row,
-        number: seat.number,
-        status: seat.status,
-        class: createClassInfo.find(c => c.rows.includes(seat.row))?.label
-      })),
-      classCounts: classCounts.map(cls => ({
-        label: cls.label,
-        count: cls.count,
-        price: cls.price,
-        total: cls.count * cls.price
-      })),
-      total: total
-    });
+    // console.log('🔍 Checkout - Selected Seats Debug:', {
+    //   selectedSeatsCount: selectedSeats.length,
+    //   selectedSeats: selectedSeats.map(seat => ({
+    //     id: seat.id,
+    //     row: seat.row,
+    //     number: seat.number,
+    //     status: seat.status,
+    //     class: createClassInfo.find(c => c.rows.includes(seat.row))?.label
+    //   })),
+    //   classCounts: classCounts.map(cls => ({
+    //     label: cls.label,
+    //     count: cls.count,
+    //     price: cls.price,
+    //     total: cls.count * cls.price
+    //   })),
+    //   total: total
+    // });
   }, [selectedSeats, classCounts, total]);
 
   // Debug logging (only when there are selected seats)

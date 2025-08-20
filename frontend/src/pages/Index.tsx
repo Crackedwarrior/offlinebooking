@@ -222,16 +222,16 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
   // Dynamic show selection based on current time and settings store
   useEffect(() => {
-    console.log('🔄 Auto-update effect running:', {
-      userManuallySelectedShow,
-      selectedShow,
-      currentTime: currentTime.toLocaleTimeString(),
-      activeView
-    });
+    // console.log('🔄 Auto-update effect running:', {
+    //   userManuallySelectedShow,
+    //   selectedShow,
+    //   currentTime: currentTime.toLocaleTimeString(),
+    //   activeView
+    // });
     
     // Don't auto-update if user has manually selected a show
     if (userManuallySelectedShow) {
-      console.log('🚫 Auto-update blocked: User manually selected show');
+      // console.log('🚫 Auto-update blocked: User manually selected show');
       return;
     }
     
@@ -243,7 +243,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       console.log(`🔄 Auto-updating show: ${selectedShow} → ${currentShowKey}`);
       setSelectedShow(currentShowKey);
     } else {
-      console.log('✅ No auto-update needed: show already matches current time');
+      // console.log('✅ No auto-update needed: show already matches current time');
     }
   }, [currentTime]); // Only depend on currentTime to prevent unnecessary re-runs
 

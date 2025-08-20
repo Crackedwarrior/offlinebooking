@@ -34,6 +34,7 @@ import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
 import { windowsPrintService } from './printService';
 import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
+import ThermalPrintService from './thermalPrintService';
 import fs from 'fs';
 import path from 'path';
 
@@ -49,6 +50,7 @@ if (!validateConfig()) {
 
 const app = express();
 const prisma = new PrismaClient();
+const thermalPrintService = new ThermalPrintService();
 
 // Configure CORS
 app.use(cors({
@@ -237,6 +239,111 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+}));
+
+// ===== THERMAL PRINTER ENDPOINTS =====
+
+// Get all available printers (including thermal)
+app.get('/api/thermal-printer/list', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const allPrinters = await thermalPrintService.getAllPrinters();
+    const thermalPrinters = await thermalPrintService.getThermalPrinters();
+    
+    res.json({
+      success: true,
+      allPrinters,
+      thermalPrinters,
+      recommended: thermalPrinters.length > 0 ? thermalPrinters[0].name : null
+    });
+  } catch (error) {
+    console.error('❌ Error getting thermal printers:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+// Test thermal printer
+app.post('/api/thermal-printer/test', asyncHandler(async (req: Request, res: Response) => {
+  const { printerName } = req.body;
+  
+  if (!printerName) {
+    throw new Error('Printer name is required');
+  }
+
+  const result = await thermalPrintService.testPrinter(printerName);
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      message: `Printer test successful for ${printerName}`,
+      printer: printerName
+    });
+  } else {
+    res.status(500).json({
+      success: false,
+      error: result.error,
+      printer: printerName
+    });
+  }
+}));
+
+// Print ticket using thermal printer
+app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Response) => {
+  const { ticketData, printerName } = req.body;
+  
+  if (!ticketData) {
+    throw new Error('Ticket data is required');
+  }
+
+  const result = await thermalPrintService.printTicket(ticketData, printerName);
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      message: result.message,
+      printer: result.printer
+    });
+  } else {
+    res.status(500).json({
+      success: false,
+      error: result.error,
+      printer: result.printer
+    });
+  }
+}));
+
+// Get printer status
+app.get('/api/thermal-printer/status/:printerName', asyncHandler(async (req: Request, res: Response) => {
+  const { printerName } = req.params;
+  
+  const status = await thermalPrintService.getPrinterStatus(printerName);
+  
+  res.json({
+    success: true,
+    printer: printerName,
+    status
+  });
+}));
+
+// Preview ticket format
+app.post('/api/thermal-printer/preview', asyncHandler(async (req: Request, res: Response) => {
+  const { ticketData } = req.body;
+  
+  if (!ticketData) {
+    throw new Error('Ticket data is required');
+  }
+
+  const formattedTicket = thermalPrintService.formatTicket(ticketData);
+  const previewContent = thermalPrintService.createTicketContent(formattedTicket);
+  
+  res.json({
+    success: true,
+    preview: previewContent,
+    lines: previewContent.split('\n'),
+    characterCount: previewContent.length
+  });
 }));
 
 // Request logging middleware (if enabled)

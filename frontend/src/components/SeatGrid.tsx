@@ -391,7 +391,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       selectedShow
     };
     
-    console.log('🔍 SeatGrid - Seat Statistics Updated:', JSON.stringify(stats, null, 2));
+    // console.log('🔍 SeatGrid - Seat Statistics Updated:', JSON.stringify(stats, null, 2));
     
     // Also log the actual seat status breakdown
     const statusBreakdown = seats.reduce((acc, seat) => {
@@ -399,7 +399,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       return acc;
     }, {} as Record<string, number>);
     
-    console.log('🔍 Seat Status Breakdown:', JSON.stringify(statusBreakdown, null, 2));
+    // console.log('🔍 Seat Status Breakdown:', JSON.stringify(statusBreakdown, null, 2));
   }, [seats, availableCount, bookedCount, bmsBookedCount, blockedCount, selectedSeats.length, selectedDate, selectedShow]);
 
   // Get sidebar collapsed state

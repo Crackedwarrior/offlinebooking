@@ -1,67 +1,17 @@
-// Try to import Tauri API, use real commands in both dev and production
-let invoke: any;
-let isTauriAvailable = false;
+import { DEBUG_CONFIG } from '@/config/debug';
 
-try {
-  const tauriModule = require('@tauri-apps/api/tauri');
-  invoke = tauriModule.invoke;
-  isTauriAvailable = true;
-  console.log('✅ Using real Tauri commands (both dev and production)');
-} catch (error) {
-  console.warn('❌ Tauri API not available, using mock for development');
-  isTauriAvailable = false;
-  // Mock invoke function for development
-  invoke = async (command: string, args: any) => {
-    console.log(`[MOCK] Tauri command: ${command}`, args);
-    
-    // Mock responses for development - these simulate real printer detection
-    switch (command) {
-      case 'list_all_printers':
-        return [
-          'EPSON TM-T81 ReceiptE4',
-          'EPSON TM-T20',
-          'EPSON TM-T88VI',
-          'Star TSP100',
-          'Citizen CT-S310II',
-          'Microsoft Print to PDF',
-          'HP LaserJet Pro M404n',
-          'Canon PIXMA TS3320'
-        ];
-      case 'list_usb_printers':
-        return [
-          'EPSON TM-T81 ReceiptE4',
-          'EPSON TM-T20',
-          'EPSON TM-T88VI',
-          'Star TSP100',
-          'Citizen CT-S310II'
-        ];
-      case 'list_printers':
-        return [
-          'EPSON TM-T81 ReceiptE4 (COM1)',
-          'Star TSP100 (COM2)',
-          'Citizen CT-S310II (USB001)'
-        ];
-      case 'print_ticket':
-      case 'print_ticket_raw':
-        console.log('[MOCK] Printing ticket:', args);
-        return true;
-      case 'test_printers':
-        return [
-          'EPSON TM-T81 ReceiptE4',
-          'EPSON TM-T20',
-          'Star TSP100',
-          'Citizen CT-S310II'
-        ];
-      default:
-        console.log(`[MOCK] Unknown command: ${command}`);
-        return null;
-    }
-  };
+// Simple Tauri detection
+function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__TAURI__;
 }
+
+// Backend API base URL
+const BACKEND_URL = 'http://localhost:3001';
 
 export interface PrinterInfo {
   name: string;
   port?: string;
+  status?: string;
 }
 
 export class TauriPrinterService {
@@ -74,107 +24,172 @@ export class TauriPrinterService {
     return TauriPrinterService.instance;
   }
 
-  /**
-   * Get all available printers on the system
-   */
   async getAllPrinters(): Promise<string[]> {
     try {
-      console.log('🔍 Fetching all printers via Tauri...');
-      const printers = await invoke('list_all_printers');
-      console.log('✅ Found printers:', printers);
-      return printers;
+      DEBUG_CONFIG.log('PRINTER', '🔍 Fetching all printers via backend API...');
+      
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/list`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const printerNames = data.allPrinters.map((p: any) => p.name);
+        DEBUG_CONFIG.log('PRINTER', '✅ Found real printers via backend:', printerNames);
+        return printerNames;
+      } else {
+        throw new Error(data.error || 'Failed to get printers');
+      }
     } catch (error) {
-      console.error('❌ Error fetching all printers:', error);
-      return [];
+      DEBUG_CONFIG.error('PRINTER', '❌ Error fetching all printers:', error);
+      // Fallback to mock data if backend is not available
+      return [
+        'EPSON TM-T81 ReceiptE4',
+        'EPSON TM-T20',
+        'EPSON TM-T88VI',
+        'Star TSP100',
+        'Citizen CT-S310II',
+        'Microsoft Print to PDF',
+        'HP LaserJet Pro M404n',
+        'Canon PIXMA TS3320'
+      ];
     }
   }
 
-  /**
-   * Get USB printers specifically
-   */
   async getUsbPrinters(): Promise<string[]> {
     try {
-      console.log('🔍 Fetching USB printers via Tauri...');
-      const printers = await invoke('list_usb_printers');
-      console.log('✅ Found USB printers:', printers);
-      return printers;
+      DEBUG_CONFIG.log('PRINTER', '🔍 Fetching USB printers via backend API...');
+      
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/list`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const thermalPrinters = data.thermalPrinters.map((p: any) => p.name);
+        DEBUG_CONFIG.log('PRINTER', '✅ Found thermal printers via backend:', thermalPrinters);
+        return thermalPrinters;
+      } else {
+        throw new Error(data.error || 'Failed to get USB printers');
+      }
     } catch (error) {
-      console.error('❌ Error fetching USB printers:', error);
-      return [];
+      DEBUG_CONFIG.error('PRINTER', '❌ Error fetching USB printers:', error);
+      return [
+        'EPSON TM-T81 ReceiptE4',
+        'EPSON TM-T20',
+        'EPSON TM-T88VI',
+        'Star TSP100',
+        'Citizen CT-S310II'
+      ];
     }
   }
 
-  /**
-   * Get serial/COM port printers
-   */
   async getSerialPrinters(): Promise<string[]> {
     try {
-      console.log('🔍 Fetching serial printers via Tauri...');
-      const printers = await invoke('list_printers');
-      console.log('✅ Found serial printers:', printers);
-      return printers;
+      DEBUG_CONFIG.log('PRINTER', '🔍 Fetching serial printers via backend API...');
+      
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/list`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Filter for serial printers (COM ports)
+        const serialPrinters = data.allPrinters
+          .filter((p: any) => p.port && p.port.toLowerCase().includes('com'))
+          .map((p: any) => p.name);
+        
+        DEBUG_CONFIG.log('PRINTER', '✅ Found serial printers via backend:', serialPrinters);
+        return serialPrinters;
+      } else {
+        throw new Error(data.error || 'Failed to get serial printers');
+      }
     } catch (error) {
-      console.error('❌ Error fetching serial printers:', error);
-      return [];
+      DEBUG_CONFIG.error('PRINTER', '❌ Error fetching serial printers:', error);
+      return [
+        'EPSON TM-T81 ReceiptE4 (COM1)',
+        'EPSON TM-T20 (COM2)',
+        'Star TSP100 (COM3)'
+      ];
     }
   }
 
-  /**
-   * Print ticket using native Windows API
-   */
-  async printTicket(ticketData: string, printerName: string): Promise<boolean> {
+  async printTicket(ticketData: any, printerName?: string): Promise<boolean> {
     try {
-      console.log('🖨️ Printing ticket via Tauri native API...');
-      console.log('📄 Printer:', printerName);
-      console.log('📄 Data length:', ticketData.length);
+      DEBUG_CONFIG.log('PRINTER', '🖨️ Printing ticket via backend API...');
+      DEBUG_CONFIG.log('PRINTER', '📄 Printer:', printerName || 'Auto-detect');
+      DEBUG_CONFIG.log('PRINTER', '📄 Data length:', JSON.stringify(ticketData).length);
+
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/print`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticketData,
+          printerName
+        })
+      });
+
+      const result = await response.json();
       
-      await invoke('print_ticket', { ticketData, printerName });
-      
-      console.log('✅ Ticket printed successfully via Tauri');
-      return true;
-    } catch (error) {
-      console.error('❌ Error printing via Tauri native API:', error);
-      
-      // Fallback to raw printing
-      try {
-        console.log('🔄 Trying fallback raw printing...');
-        await invoke('print_ticket_raw', { ticketData, printerName });
-        console.log('✅ Ticket printed successfully via fallback');
+      if (result.success) {
+        DEBUG_CONFIG.log('PRINTER', '✅ Ticket printed successfully via backend:', result);
         return true;
-      } catch (fallbackError) {
-        console.error('❌ Fallback printing also failed:', fallbackError);
+      } else {
+        DEBUG_CONFIG.error('PRINTER', '❌ Backend printing failed:', result.error);
         return false;
       }
-    }
-  }
-
-  /**
-   * Test printer connection
-   */
-  async testPrinterConnection(port: string): Promise<boolean> {
-    try {
-      console.log('🧪 Testing printer connection on port:', port);
-      const result = await invoke('test_printer_connection', { port });
-      console.log('✅ Printer connection test result:', result);
-      return result;
     } catch (error) {
-      console.error('❌ Error testing printer connection:', error);
+      DEBUG_CONFIG.error('PRINTER', '❌ Error printing ticket:', error);
       return false;
     }
   }
 
-  /**
-   * Get test printers (for development)
-   */
-  async getTestPrinters(): Promise<string[]> {
+  async testPrinterConnection(printerName: string): Promise<boolean> {
     try {
-      console.log('🧪 Getting test printers...');
-      const printers = await invoke('test_printers');
-      console.log('✅ Test printers:', printers);
-      return printers;
+      DEBUG_CONFIG.log('PRINTER', '🧪 Testing printer connection via backend API...');
+      DEBUG_CONFIG.log('PRINTER', '📄 Printer:', printerName);
+
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ printerName })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        DEBUG_CONFIG.log('PRINTER', '✅ Printer test successful via backend:', result);
+        return true;
+      } else {
+        DEBUG_CONFIG.error('PRINTER', '❌ Backend printer test failed:', result.error);
+        return false;
+      }
     } catch (error) {
-      console.error('❌ Error getting test printers:', error);
-      return [];
+      DEBUG_CONFIG.error('PRINTER', '❌ Error testing printer connection:', error);
+      return false;
+    }
+  }
+
+  async testPrinters(): Promise<string[]> {
+    try {
+      DEBUG_CONFIG.log('PRINTER', '🧪 Testing all printers via backend API...');
+      
+      const response = await fetch(`${BACKEND_URL}/api/thermal-printer/list`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const testResults = [];
+        for (const printer of data.thermalPrinters) {
+          const isWorking = await this.testPrinterConnection(printer.name);
+          testResults.push(`${printer.name}: ${isWorking ? '✅ Working' : '❌ Failed'}`);
+        }
+        
+        DEBUG_CONFIG.log('PRINTER', '✅ Printer tests completed:', testResults);
+        return testResults;
+      } else {
+        throw new Error(data.error || 'Failed to get printers for testing');
+      }
+    } catch (error) {
+      DEBUG_CONFIG.error('PRINTER', '❌ Error testing printers:', error);
+      return ['❌ Backend not available for printer testing'];
     }
   }
 
