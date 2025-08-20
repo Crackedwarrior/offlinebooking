@@ -127,7 +127,7 @@ Test Time: ${new Date().toLocaleString()}
     }
   }
 
-  // Print ticket using Windows print command
+  // Print ticket using Windows print dialog (rundll32)
   async printTicket(ticketData: TicketData, printerName: string | null = null): Promise<PrintResult> {
     try {
       // Auto-detect printer if not specified
@@ -151,20 +151,56 @@ Test Time: ${new Date().toLocaleString()}
       const ticketFile = path.join(this.tempDir, `ticket_${Date.now()}.txt`);
       fs.writeFileSync(ticketFile, ticketContent);
       
-      // Print using Windows print command
-      const printCommand = `powershell -Command "Get-Content '${ticketFile}' | Out-Printer -Name '${printerName}'"`;
-      await execAsync(printCommand, { windowsHide: true });
-      
-      // Clean up ticket file
-      fs.unlinkSync(ticketFile);
-      
-      console.log(`✅ Ticket printed successfully on ${printerName}`);
-      
-      return {
-        success: true,
-        printer: printerName,
-        message: 'Ticket printed successfully'
-      };
+      // Method 1: Try rundll32 to trigger Windows print dialog (full width support)
+      try {
+        console.log(`🖨️ Triggering print dialog for: ${printerName}`);
+        // Use the correct rundll32 command to print the file
+        const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${ticketFile}"`;
+        await execAsync(rundllCommand, { windowsHide: true });
+        
+        console.log(`✅ Print dialog triggered for ${printerName}`);
+        
+        // Clean up ticket file after a delay (to allow printing to complete)
+        setTimeout(() => {
+          if (fs.existsSync(ticketFile)) {
+            fs.unlinkSync(ticketFile);
+            console.log('🧹 Ticket file cleaned up');
+          }
+        }, 30000); // 30 second delay
+        
+        return {
+          success: true,
+          printer: printerName,
+          message: 'Print dialog opened successfully - please click Print'
+        };
+      } catch (rundllError) {
+        console.log('❌ Rundll32 failed, trying PowerShell fallback...');
+        
+        // Method 2: Fallback to PowerShell (narrow width, but functional)
+        try {
+          console.log(`🖨️ Trying PowerShell fallback for: ${printerName}`);
+          const printCommand = `powershell -Command "Get-Content '${ticketFile}' | Out-Printer -Name '${printerName}'"`;
+          await execAsync(printCommand, { windowsHide: true });
+          
+          // Clean up ticket file
+          fs.unlinkSync(ticketFile);
+          
+          console.log(`✅ Ticket printed successfully on ${printerName} (narrow width)`);
+          
+          return {
+            success: true,
+            printer: printerName,
+            message: 'Ticket printed successfully (narrow width)'
+          };
+        } catch (psError) {
+          // Clean up ticket file
+          if (fs.existsSync(ticketFile)) {
+            fs.unlinkSync(ticketFile);
+          }
+          
+          throw new Error(`Both rundll32 and PowerShell methods failed: ${psError}`);
+        }
+      }
     } catch (error) {
       console.error('❌ Print error:', error);
       return {
@@ -177,7 +213,7 @@ Test Time: ${new Date().toLocaleString()}
 
   // Create formatted ticket content
   createTicketContent(ticketData: TicketData): string {
-    const PAPER_WIDTH = 48; // Standard thermal printer width (80mm paper)
+    const PAPER_WIDTH = 48; // Optimized for 80mm thermal paper (48 characters - standard thermal width)
     
     // Helper function to center text
     const centerText = (text: string): string => {
@@ -200,6 +236,27 @@ Test Time: ${new Date().toLocaleString()}
       return ' '.repeat(padding) + text;
     };
     
+    // Helper function to create justified text (fills the full width)
+    const justifyText = (text: string): string => {
+      if (text.length >= PAPER_WIDTH) return text.substring(0, PAPER_WIDTH);
+      
+      const words = text.split(' ');
+      if (words.length <= 1) return text;
+      
+      const totalSpaces = PAPER_WIDTH - text.length;
+      const gaps = words.length - 1;
+      const spacesPerGap = Math.floor(totalSpaces / gaps);
+      const extraSpaces = totalSpaces % gaps;
+      
+      let result = words[0];
+      for (let i = 1; i < words.length; i++) {
+        const spaces = spacesPerGap + (i <= extraSpaces ? 1 : 0);
+        result += ' '.repeat(spaces) + words[i];
+      }
+      
+      return result;
+    };
+    
     const lines = [
       '',
       centerText('SREELEKHA THEATER'),
@@ -207,13 +264,13 @@ Test Time: ${new Date().toLocaleString()}
       centerText('GSTIN: 29AAVFS7423E120'),
       '',
       fullWidthLine('='),
-      leftAlign(`Movie: ${ticketData.movieName}`),
-      leftAlign(`Date: ${ticketData.date}`),
-      leftAlign(`Time: ${ticketData.showTime}`),
-      leftAlign(`Screen: ${ticketData.screen}`),
+      justifyText(`Movie: ${ticketData.movieName}`),
+      justifyText(`Date: ${ticketData.date}`),
+      justifyText(`Time: ${ticketData.showTime}`),
+      justifyText(`Screen: ${ticketData.screen}`),
       '',
-      leftAlign('Seats:'),
-      ...(ticketData.seats || []).map(seat => leftAlign(`${seat.row}-${seat.number} (₹${seat.price})`, 2)),
+      justifyText('Seats:'),
+      ...(ticketData.seats || []).map(seat => justifyText(`  ${seat.row}-${seat.number} (₹${seat.price})`)),
       '',
       fullWidthLine('='),
       rightAlign(`Total: ₹${ticketData.totalAmount}`),

@@ -35,6 +35,8 @@
     "node-thermal-printer": "^4.5.0",
     "node-windows": "^1.0.0-beta.8",
     "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.1",
+    "puppeteer": "^24.16.2",
     "serialport": "^13.0.0",
     "sqlite3": "^5.1.7",
     "zod": "^3.25.76"
