@@ -123,7 +123,7 @@ Test Time: ${new Date().toLocaleString()}
     }
     // Create formatted ticket content
     createTicketContent(ticketData) {
-        const PAPER_WIDTH = 48; // Standard thermal printer width (80mm paper)
+        const PAPER_WIDTH = 48; // Optimized for 80mm thermal paper (48 characters - standard thermal width)
         // Helper function to center text
         const centerText = (text) => {
             const padding = Math.max(0, Math.floor((PAPER_WIDTH - text.length) / 2));
@@ -141,6 +141,24 @@ Test Time: ${new Date().toLocaleString()}
             const padding = Math.max(0, PAPER_WIDTH - text.length);
             return ' '.repeat(padding) + text;
         };
+        // Helper function to create justified text (fills the full width)
+        const justifyText = (text) => {
+            if (text.length >= PAPER_WIDTH)
+                return text.substring(0, PAPER_WIDTH);
+            const words = text.split(' ');
+            if (words.length <= 1)
+                return text;
+            const totalSpaces = PAPER_WIDTH - text.length;
+            const gaps = words.length - 1;
+            const spacesPerGap = Math.floor(totalSpaces / gaps);
+            const extraSpaces = totalSpaces % gaps;
+            let result = words[0];
+            for (let i = 1; i < words.length; i++) {
+                const spaces = spacesPerGap + (i <= extraSpaces ? 1 : 0);
+                result += ' '.repeat(spaces) + words[i];
+            }
+            return result;
+        };
         const lines = [
             '',
             centerText('SREELEKHA THEATER'),
@@ -148,13 +166,13 @@ Test Time: ${new Date().toLocaleString()}
             centerText('GSTIN: 29AAVFS7423E120'),
             '',
             fullWidthLine('='),
-            leftAlign(`Movie: ${ticketData.movieName}`),
-            leftAlign(`Date: ${ticketData.date}`),
-            leftAlign(`Time: ${ticketData.showTime}`),
-            leftAlign(`Screen: ${ticketData.screen}`),
+            justifyText(`Movie: ${ticketData.movieName}`),
+            justifyText(`Date: ${ticketData.date}`),
+            justifyText(`Time: ${ticketData.showTime}`),
+            justifyText(`Screen: ${ticketData.screen}`),
             '',
-            leftAlign('Seats:'),
-            ...(ticketData.seats || []).map(seat => leftAlign(`${seat.row}-${seat.number} (₹${seat.price})`, 2)),
+            justifyText('Seats:'),
+            ...(ticketData.seats || []).map(seat => justifyText(`  ${seat.row}-${seat.number} (₹${seat.price})`)),
             '',
             fullWidthLine('='),
             rightAlign(`Total: ₹${ticketData.totalAmount}`),

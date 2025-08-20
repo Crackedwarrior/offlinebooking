@@ -1225,3 +1225,6 @@
 ⚠️ VBScript failed, using minimal PowerShell...
 🖨️ Processing job: job_print_1755586486798_cvtfhh46r.json
 🖨️ Print Worker Service started
+🖨️ Print Worker Service started
+🧹 Cleaning up failed jobs on startup...
+✅ Cleaned up 0 failed job files

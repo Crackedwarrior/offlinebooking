@@ -70,6 +70,7 @@ export default function PrinterConfig() {
       
       setAvailablePrinters(printers);
       console.log('✅ Loaded printers:', printers);
+      console.log('🔍 Current config name:', config.name);
       
     } catch (error) {
       console.error('❌ Error loading printers:', error);
@@ -161,7 +162,13 @@ export default function PrinterConfig() {
           <div className="space-y-4">
             <div>
               <Label htmlFor="printerName">Printer Name</Label>
-              <Select value={config.name} onValueChange={(value) => setConfig({ ...config, name: value })}>
+              <Select 
+                value={config.name} 
+                onValueChange={(value) => {
+                  console.log('🖨️ Selected printer:', value);
+                  setConfig({ ...config, name: value });
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a printer" />
                 </SelectTrigger>
@@ -173,7 +180,6 @@ export default function PrinterConfig() {
                   ))}
                 </SelectContent>
               </Select>
-
             </div>
 
             <div>
