@@ -1,107 +1,82 @@
-// Test Windows Print Spooler API (like browser Ctrl+P)
+// Test Windows Print Command
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-function createFormattedContent() {
-  // Create content with proper formatting that Windows print spooler can handle
-  const content = [
-    '',
-    '                    SREELEKHA THEATER',
-    '                       Chickmagalur',
-    '                  GSTIN: 29AAVFS7423E120',
-    '',
-    '================================================',
-    'Movie:                                    KALANK',
-    'Date:                                  20/8/2025',
-    'Time:                               6:00 PM',
-    'Screen:                             Screen 1',
-    '',
-    'Seats:',
-    '  A-1 (₹100)',
-    '  A-2 (₹100)',
-    '  B-5 (₹120)',
-    '  B-6 (₹120)',
-    '',
-    '================================================',
-    '                                        Total: ₹440',
-    '',
-    '         Thank you for visiting!',
-    '            Enjoy your movie!',
-    '',
-    '================================================',
-    ''
-  ].join('\n');
+function createTicketContent() {
+  // Create formatted ticket content optimized for 80mm thermal paper
+  const content = `
+                    SREELEKHA THEATER
+                       Chickmagalur
+                  GSTIN: 29AAVFS7423E120
+
+================================================
+Movie:                                    KALANK
+Date:                                  20/8/2025
+Time:                               6:00 PM
+Screen:                             Screen 1
+
+Seats:
+  A-1 (₹100)
+  A-2 (₹100)
+  B-5 (₹120)
+  B-6 (₹120)
+
+================================================
+                                        Total: ₹440
+
+         Thank you for visiting!
+            Enjoy your movie!
+
+================================================
+      `;
   
   return content;
 }
 
 function testWindowsPrint() {
-  console.log('🖨️ Testing Windows Print Spooler API (Browser-style)...\n');
+  console.log('🖨️ Testing Windows Print Command...\n');
   
   try {
-    // Create formatted content
-    const content = createFormattedContent();
+    // Create ticket content
+    const ticketContent = createTicketContent();
     
-    console.log('📄 Formatted Content Preview:');
-    console.log('='.repeat(60));
-    console.log(content);
-    console.log('='.repeat(60));
+    // Save to file
+    const ticketFile = path.join(__dirname, 'temp', `windows_print_${Date.now()}.txt`);
+    fs.writeFileSync(ticketFile, ticketContent);
+    console.log(`💾 Ticket file created: ${ticketFile}`);
     
-    // Create test file
-    const testFile = path.join(__dirname, 'temp', `windows_print_${Date.now()}.txt`);
-    fs.writeFileSync(testFile, content);
-    console.log(`\n💾 Test file created: ${testFile}`);
-    
-    // Method 1: Use Windows Print Spooler directly (like browser)
-    console.log('\n🔄 Printing via Windows Print Spooler...');
-    
-    // Use rundll32 to print (this is what Windows uses internally)
-    const command = `rundll32 printui.dll,PrintUIEntry /k /n "EPSON TM-T81" "${testFile}"`;
-    
-    console.log(`Command: ${command}`);
-    execSync(command, { stdio: 'inherit' });
-    
-    console.log('\n✅ Windows Print Spooler command executed!');
-    console.log('📄 Check your printer - this should use FULL WIDTH like browser printing!');
-    console.log('\n🔍 What to look for:');
-    console.log('   • Full paper width utilization (like browser Ctrl+P)');
-    console.log('   • Proper formatting and alignment');
-    console.log('   • Professional appearance');
-    console.log('   • Text spanning the entire width');
-    
-    // Clean up after a delay
-    setTimeout(() => {
-      if (fs.existsSync(testFile)) {
-        fs.unlinkSync(testFile);
-        console.log('\n🧹 Test file cleaned up');
+    // Method 1: Try Windows print command
+    console.log('\n🔄 Testing Windows print command...');
+    try {
+      // Use the Windows print command which should print the actual file
+      const printCommand = `print "${ticketFile}"`;
+      console.log(`Command: ${printCommand}`);
+      execSync(printCommand, { stdio: 'inherit' });
+      console.log('✅ Windows print command executed!');
+      console.log('📄 This should print the actual ticket content');
+    } catch (printError) {
+      console.log('❌ Windows print failed, trying PowerShell...');
+      
+      // Method 2: Try PowerShell with different approach
+      try {
+        const psCommand = `powershell -Command "Get-Content '${ticketFile}' | Out-Printer -Name 'EPSON TM-T81'"`;
+        console.log(`Command: ${psCommand}`);
+        execSync(psCommand, { stdio: 'inherit' });
+        console.log('✅ PowerShell print executed!');
+        console.log('📄 This should print the actual ticket content (narrow width)');
+      } catch (psError) {
+        console.log('❌ Both methods failed');
+        console.log(`\n📄 Ticket file created: ${ticketFile}`);
+        console.log('🖨️ Please open the file and try Ctrl+P manually');
       }
-    }, 5000);
+    }
+    
+    // Keep file for manual testing
+    console.log(`\n📄 Ticket file preserved: ${ticketFile}`);
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
-    
-    // Fallback: Try the working method but with better formatting
-    console.log('\n🔄 Trying fallback with better formatting...');
-    try {
-      const content = createFormattedContent();
-      const testFile = path.join(__dirname, 'temp', `fallback_${Date.now()}.txt`);
-      fs.writeFileSync(testFile, content);
-      
-      const fallbackCommand = `powershell -Command "Get-Content '${testFile}' | Out-Printer -Name 'EPSON TM-T81'"`;
-      execSync(fallbackCommand, { stdio: 'inherit' });
-      
-      console.log('✅ Fallback print executed!');
-      
-      setTimeout(() => {
-        if (fs.existsSync(testFile)) {
-          fs.unlinkSync(testFile);
-        }
-      }, 5000);
-      
-    } catch (fallbackError) {
-      console.error('❌ Fallback also failed:', fallbackError.message);
-    }
   }
 }
 
