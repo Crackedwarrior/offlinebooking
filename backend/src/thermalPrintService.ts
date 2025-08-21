@@ -217,7 +217,7 @@ Test Time: ${new Date().toLocaleString()}
 
   // Create formatted ticket content
   createTicketContent(ticketData: TicketData): string {
-    const PAPER_WIDTH = 48; // Optimized for 80mm thermal paper (48 characters - standard thermal width)
+    const PAPER_WIDTH = 56; // Increased width for better alignment (56 characters for 80mm thermal paper)
     
     // Helper function to center text
     const centerText = (text: string): string => {
@@ -240,26 +240,32 @@ Test Time: ${new Date().toLocaleString()}
       return ' '.repeat(padding) + text;
     };
     
-    // Helper function to create justified text (fills the full width)
-    const justifyText = (text: string): string => {
-      if (text.length >= PAPER_WIDTH) return text.substring(0, PAPER_WIDTH);
-      
-      const words = text.split(' ');
-      if (words.length <= 1) return text;
-      
-      const totalSpaces = PAPER_WIDTH - text.length;
-      const gaps = words.length - 1;
-      const spacesPerGap = Math.floor(totalSpaces / gaps);
-      const extraSpaces = totalSpaces % gaps;
-      
-      let result = words[0];
-      for (let i = 1; i < words.length; i++) {
-        const spaces = spacesPerGap + (i <= extraSpaces ? 1 : 0);
-        result += ' '.repeat(spaces) + words[i];
-      }
-      
-      return result;
+    // Helper function to create label-value pairs (label left, value right)
+    const labelValue = (label: string, value: string): string => {
+      const padding = Math.max(0, PAPER_WIDTH - label.length - value.length);
+      return label + ' '.repeat(padding) + value;
     };
+    
+    // Generate ticket ID
+    const ticketId = `TKT${Date.now().toString().slice(-6)}`;
+    
+    // Calculate tax breakdown (assuming 18% GST)
+    const baseAmount = ticketData.totalAmount / 1.18;
+    const cgst = (baseAmount * 0.09).toFixed(2);
+    const sgst = (baseAmount * 0.09).toFixed(2);
+    const mc = 2.00; // Merchant commission
+    const net = (baseAmount - mc).toFixed(2);
+    
+    // Format date and time - use the ticket date, not current date
+    const ticketDate = ticketData.date || new Date().toLocaleDateString('en-GB');
+    const currentTime = new Date().toLocaleTimeString('en-US', { 
+      hour12: true, 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    // Generate ticket ID in correct format (TKT + 6 digits)
+    const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
     
     const lines = [
       '',
@@ -267,22 +273,21 @@ Test Time: ${new Date().toLocaleString()}
       centerText('Chickmagalur'),
       centerText('GSTIN: 29AAVFS7423E120'),
       '',
-      fullWidthLine('='),
-      justifyText(`Movie: ${ticketData.movieName}`),
-      justifyText(`Date: ${ticketData.date}`),
-      justifyText(`Time: ${ticketData.showTime}`),
-      justifyText(`Screen: ${ticketData.screen}`),
+      labelValue('Date :', ticketDate),
+      labelValue('SHOWTIME:', ticketData.showTime),
+      labelValue('Film :', ticketData.movieName),
+      labelValue('Class :', 'STAR'), // Default class
+      labelValue('Row :', ticketData.seats?.[0]?.row || 'A'),
+      labelValue('SeatNo:', ticketData.seats?.[0]?.number || '1'),
       '',
-      justifyText('Seats:'),
-      ...(ticketData.seats || []).map(seat => justifyText(`  ${seat.row}-${seat.number} (₹${seat.price})`)),
-      '',
-      fullWidthLine('='),
-      rightAlign(`Total: ₹${ticketData.totalAmount}`),
-      '',
-      centerText('Thank you for visiting!'),
-      centerText('Enjoy your movie!'),
-      '',
-      fullWidthLine('='),
+      `[NET:${net}]`,
+      `[CGST:${cgst}]`,
+      `[SGST:${sgst}]`,
+      `[MC:${mc.toFixed(2)}]`,
+      `Ticket Cost:`,
+      `₹${ticketData.totalAmount.toFixed(2)}`,
+      `${ticketDate} / ${currentTime}`,
+      ticketId,
       ''
     ];
     
