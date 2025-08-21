@@ -151,14 +151,13 @@ Test Time: ${new Date().toLocaleString()}
       const ticketFile = path.join(this.tempDir, `ticket_${Date.now()}.txt`);
       fs.writeFileSync(ticketFile, ticketContent);
       
-      // Method 1: Try rundll32 to trigger Windows print dialog (full width support)
+      // Method 1: Try PowerShell Start-Process (prints actual ticket content)
       try {
-        console.log(`🖨️ Triggering print dialog for: ${printerName}`);
-        // Use the correct rundll32 command to print the file
-        const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${ticketFile}"`;
-        await execAsync(rundllCommand, { windowsHide: true });
+        console.log(`🖨️ Printing ticket content to: ${printerName}`);
+        const printCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
+        await execAsync(printCommand, { windowsHide: true });
         
-        console.log(`✅ Print dialog triggered for ${printerName}`);
+        console.log(`✅ PowerShell Start-Process executed for ${printerName}`);
         
         // Clean up ticket file after a delay (to allow printing to complete)
         setTimeout(() => {
@@ -171,34 +170,39 @@ Test Time: ${new Date().toLocaleString()}
         return {
           success: true,
           printer: printerName,
-          message: 'Print dialog opened successfully - please click Print'
+          message: 'Ticket printed successfully (actual content)'
         };
-      } catch (rundllError) {
-        console.log('❌ Rundll32 failed, trying PowerShell fallback...');
+      } catch (psError) {
+        console.log('❌ PowerShell Start-Process failed, trying rundll32 fallback...');
         
-        // Method 2: Fallback to PowerShell (narrow width, but functional)
+        // Method 2: Fallback to rundll32 (opens print dialog)
         try {
-          console.log(`🖨️ Trying PowerShell fallback for: ${printerName}`);
-          const printCommand = `powershell -Command "Get-Content '${ticketFile}' | Out-Printer -Name '${printerName}'"`;
-          await execAsync(printCommand, { windowsHide: true });
+          console.log(`🖨️ Trying rundll32 fallback for: ${printerName}`);
+          const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${ticketFile}"`;
+          await execAsync(rundllCommand, { windowsHide: true });
           
-          // Clean up ticket file
-          fs.unlinkSync(ticketFile);
+          console.log(`✅ Rundll32 print dialog triggered for ${printerName}`);
           
-          console.log(`✅ Ticket printed successfully on ${printerName} (narrow width)`);
+          // Clean up ticket file after a delay
+          setTimeout(() => {
+            if (fs.existsSync(ticketFile)) {
+              fs.unlinkSync(ticketFile);
+              console.log('🧹 Ticket file cleaned up');
+            }
+          }, 30000); // 30 second delay
           
           return {
             success: true,
             printer: printerName,
-            message: 'Ticket printed successfully (narrow width)'
+            message: 'Print dialog opened successfully - please click Print'
           };
-        } catch (psError) {
+        } catch (rundllError) {
           // Clean up ticket file
           if (fs.existsSync(ticketFile)) {
             fs.unlinkSync(ticketFile);
           }
           
-          throw new Error(`Both rundll32 and PowerShell methods failed: ${psError}`);
+          throw new Error(`Both PowerShell Start-Process and rundll32 methods failed: ${psError}`);
         }
       }
     } catch (error) {
