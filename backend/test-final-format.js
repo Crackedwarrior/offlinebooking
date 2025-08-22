@@ -1,12 +1,9 @@
-// Test PowerShell Start-Process printing method
+// Test Final Format
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-function createExactTicketContent() {
-  // Helper function to create exact width line (25 dashes as per specification)
-  const fullWidthLine = (char = '-') => char.repeat(25);
-  
+function createFinalTicketContent() {
   // Generate ticket ID
   const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
   
@@ -25,43 +22,44 @@ function createExactTicketContent() {
     minute: '2-digit' 
   });
   
-  // Exact format matching user specification
+  // Final format matching the exact user specification
   const lines = [
-    'SREELEKHA THEATER',
-    '     Chickmagalur',
-    '  GSTIN:29AAVFS7423E120',
-    fullWidthLine('-'),
-    '    Date:06/08/2025',
-    ' SHOWTIME:02:45PM',
-    'Film:Mahavatar Narsimha',
-    '     Class:STAR',
-    '     Seat:A-18',
-    fullWidthLine('-'),
-    'Ticket Cost:₹150.0',
-    fullWidthLine('-'),
-    `[NET: ${net}]`,
-    `[CGST: ${cgst}]`,
-    `[SGST: ${sgst}]`,
-    `[MC: ${mc.toFixed(2)}]`,
-    fullWidthLine('-'),
-    `${ticketDate} / ${currentTime}`,
-    ticketId,
+    '╔═════════════════════╗',
+    '║  SREELEKHA THEATER  ║',
+    '║     Chikmagalur     ║',
+    '║GSTIN:29AAVFS7423E120║',
+    '╚═════════════════════╝',
+    '    DATE:06/08/2025',
+    '   SHOWTIME:02:45PM',
+    ' FILM:Mahavatar Narsimha',
+    '┌─────────────────────┐',
+    '│      CLASS:STAR     │',
+    '│      SEAT:A-18      │',
+    '└─────────────────────┘',
+    ' [NET: 125.12]',
+    ' [CGST: 11.44]',
+    ' [SGST: 11.44]',
+    ' [MC: 2.00]',
+    '┌─────────────────────┐',
+    '│  TICKET COST:₹150.00│',
+    '└─────────────────────┘',
+    '',
+    ` ${ticketId}     ${currentTime.replace(' ', '')}`,
     ''
   ];
   
   return lines.join('\n');
 }
 
-function testPowerShellPrint() {
-  console.log('🎯 Test PowerShell Start-Process Printing\n');
-  console.log('This should print the actual ticket content, not a test page\n');
+function testFinalFormat() {
+  console.log('🎯 Test Final Format\n');
   
   try {
-    // Create ticket content with exact format
-    const ticketContent = createExactTicketContent();
+    // Create ticket content with final format
+    const ticketContent = createFinalTicketContent();
     
     // Save to file
-    const ticketFile = path.join(__dirname, 'temp', `powershell_test_${Date.now()}.txt`);
+    const ticketFile = path.join(__dirname, 'temp', `final_format_${Date.now()}.txt`);
     fs.writeFileSync(ticketFile, ticketContent);
     console.log(`💾 Ticket file created: ${ticketFile}`);
     
@@ -83,13 +81,13 @@ function testPowerShellPrint() {
     } catch (error) {
       console.log('❌ PowerShell Start-Process failed:', error.message);
     }
-    
+
     console.log(`\n📄 Ticket file preserved: ${ticketFile}`);
-    console.log('🎉 PowerShell printing test completed!');
+    console.log('🎉 Final format test completed!');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
   }
 }
 
-testPowerShellPrint();
+testFinalFormat();

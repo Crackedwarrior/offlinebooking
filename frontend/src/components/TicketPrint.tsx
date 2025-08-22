@@ -302,11 +302,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       // Print each ticket using Tauri
       let allPrinted = true;
       for (const ticketData of ticketDataArray) {
-        // Format ticket for thermal printer
-        const formattedTicket = tauriPrinterService.formatTicketForThermal(ticketData);
-        
-        // Print using Tauri
-        const printSuccess = await tauriPrinterService.printTicket(formattedTicket, printerConfig.name);
+        // Send raw ticket data to backend for proper formatting
+        const printSuccess = await tauriPrinterService.printTicket(ticketData, printerConfig.name);
         
         if (!printSuccess) {
           console.error('❌ Failed to print ticket for seat:', ticketData.seatId);

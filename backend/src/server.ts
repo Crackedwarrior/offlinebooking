@@ -35,6 +35,7 @@ import { windowsPrintService } from './printService';
 import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
 import ThermalPrintService from './thermalPrintService';
+import PrinterSetup from './printerSetup';
 import fs from 'fs';
 import path from 'path';
 
@@ -344,6 +345,46 @@ app.post('/api/thermal-printer/preview', asyncHandler(async (req: Request, res: 
     lines: previewContent.split('\n'),
     characterCount: previewContent.length
   });
+}));
+
+// Printer setup endpoints
+app.get('/api/printer-setup/list', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const printers = await PrinterSetup.listPrinters();
+    res.json({ success: true, printers });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+}));
+
+app.post('/api/printer-setup/properties', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { printerName } = req.body;
+    const result = await PrinterSetup.openPrinterProperties(printerName);
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+}));
+
+app.post('/api/printer-setup/setup', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { printerName } = req.body;
+    const result = await PrinterSetup.setupPrinter(printerName);
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+}));
+
+app.get('/api/printer-setup/info/:printerName', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { printerName } = req.params;
+    const info = await PrinterSetup.getPrinterInfo(printerName);
+    res.json({ success: true, info });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
 }));
 
 // Request logging middleware (if enabled)

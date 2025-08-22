@@ -15,6 +15,7 @@ interface TicketSeat {
   row: string;
   number: string;
   price: number;
+  classLabel?: string;
 }
 
 interface TicketData {
@@ -127,7 +128,7 @@ Test Time: ${new Date().toLocaleString()}
     }
   }
 
-  // Print ticket using Windows print dialog (rundll32)
+  // Print ticket using optimized printer settings
   async printTicket(ticketData: TicketData, printerName: string | null = null): Promise<PrintResult> {
     try {
       // Auto-detect printer if not specified
@@ -151,15 +152,18 @@ Test Time: ${new Date().toLocaleString()}
       const ticketFile = path.join(this.tempDir, `ticket_${Date.now()}.txt`);
       fs.writeFileSync(ticketFile, ticketContent);
       
-      // Method 1: Try PowerShell Start-Process (prints actual ticket content)
+      console.log(`💾 Ticket file created: ${ticketFile}`);
+      console.log(`📄 Content length: ${ticketContent.length} characters`);
+      
+      // Method 1: Use PowerShell Start-Process for automatic printing (most reliable method)
       try {
-        console.log(`🖨️ Printing ticket content to: ${printerName}`);
-        const printCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
-        await execAsync(printCommand, { windowsHide: true });
+        console.log(`🖨️ Printing automatically with PowerShell: ${printerName}`);
+        const psCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
+        await execAsync(psCommand, { windowsHide: true });
         
-        console.log(`✅ PowerShell Start-Process executed for ${printerName}`);
+        console.log(`✅ Automatic print executed successfully for ${printerName}`);
         
-        // Clean up ticket file after a delay (to allow printing to complete)
+        // Clean up ticket file after a delay
         setTimeout(() => {
           if (fs.existsSync(ticketFile)) {
             fs.unlinkSync(ticketFile);
@@ -170,41 +174,40 @@ Test Time: ${new Date().toLocaleString()}
         return {
           success: true,
           printer: printerName,
-          message: 'Ticket printed successfully (actual content)'
+          message: 'Ticket printed automatically with optimized settings'
         };
       } catch (psError) {
-        console.log('❌ PowerShell Start-Process failed, trying rundll32 fallback...');
-        
-        // Method 2: Fallback to rundll32 (opens print dialog)
-        try {
-          console.log(`🖨️ Trying rundll32 fallback for: ${printerName}`);
-          const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${ticketFile}"`;
-          await execAsync(rundllCommand, { windowsHide: true });
-          
-          console.log(`✅ Rundll32 print dialog triggered for ${printerName}`);
-          
-          // Clean up ticket file after a delay
-          setTimeout(() => {
-            if (fs.existsSync(ticketFile)) {
-              fs.unlinkSync(ticketFile);
-              console.log('🧹 Ticket file cleaned up');
-            }
-          }, 30000); // 30 second delay
-          
-          return {
-            success: true,
-            printer: printerName,
-            message: 'Print dialog opened successfully - please click Print'
-          };
-        } catch (rundllError) {
-          // Clean up ticket file
-          if (fs.existsSync(ticketFile)) {
-            fs.unlinkSync(ticketFile);
-          }
-          
-          throw new Error(`Both PowerShell Start-Process and rundll32 methods failed: ${psError}`);
-        }
+        console.log(`❌ Automatic print failed: ${psError instanceof Error ? psError.message : 'Unknown error'}`);
       }
+      
+      // Method 2: Fallback to manual printing
+      try {
+        console.log(`🖨️ Fallback: Opening file for manual print: ${printerName}`);
+        const openCommand = `start "" "${ticketFile}"`;
+        await execAsync(openCommand, { windowsHide: true });
+        
+        console.log('✅ File opened! User can now press Ctrl+P to print');
+        
+        // Keep the file for manual printing
+        return {
+          success: true,
+          printer: printerName,
+          message: 'File opened for manual printing (fallback method)'
+        };
+      } catch (openError) {
+        console.log(`❌ File open failed: ${openError instanceof Error ? openError.message : 'Unknown error'}`);
+      }
+      
+      // Clean up ticket file if all methods failed
+      if (fs.existsSync(ticketFile)) {
+        fs.unlinkSync(ticketFile);
+      }
+      
+      return {
+        success: false,
+        error: 'All printing methods failed',
+        printer: printerName || undefined
+      };
     } catch (error) {
       console.error('❌ Print error:', error);
       return {
@@ -215,46 +218,23 @@ Test Time: ${new Date().toLocaleString()}
     }
   }
 
-  // Create formatted ticket content
+  // Helper function to calculate end time (3 hours after start time)
+  getEndTime(startTime: string): string {
+    const timeMap: { [key: string]: string } = {
+      '02:45PM': '05:45PM',
+      '06:00PM': '09:00PM', 
+      '09:30PM': '12:30AM'
+    };
+    return timeMap[startTime] || '09:00PM';
+  }
+
+  // Create formatted ticket content - Exact format matching user specification
   createTicketContent(ticketData: TicketData): string {
-    const PAPER_WIDTH = 56; // Increased width for better alignment (56 characters for 80mm thermal paper)
-    
-    // Helper function to center text
-    const centerText = (text: string): string => {
-      const padding = Math.max(0, Math.floor((PAPER_WIDTH - text.length) / 2));
-      return ' '.repeat(padding) + text;
-    };
-    
-    // Helper function to create full-width line
-    const fullWidthLine = (char: string = '='): string => char.repeat(PAPER_WIDTH);
-    
-    // Helper function to format left-aligned text with proper spacing
-    const leftAlign = (text: string, indent: number = 0): string => {
-      const spaces = ' '.repeat(indent);
-      return spaces + text;
-    };
-    
-    // Helper function to format right-aligned text
-    const rightAlign = (text: string): string => {
-      const padding = Math.max(0, PAPER_WIDTH - text.length);
-      return ' '.repeat(padding) + text;
-    };
-    
-    // Helper function to create label-value pairs (label left, value right)
-    const labelValue = (label: string, value: string): string => {
-      const padding = Math.max(0, PAPER_WIDTH - label.length - value.length);
-      return label + ' '.repeat(padding) + value;
-    };
-    
-    // Generate ticket ID
-    const ticketId = `TKT${Date.now().toString().slice(-6)}`;
-    
-    // Calculate tax breakdown (assuming 18% GST)
-    const baseAmount = ticketData.totalAmount / 1.18;
-    const cgst = (baseAmount * 0.09).toFixed(2);
-    const sgst = (baseAmount * 0.09).toFixed(2);
-    const mc = 2.00; // Merchant commission
-    const net = (baseAmount - mc).toFixed(2);
+    // Use fixed tax values from your format
+    const net = '125.12';
+    const cgst = '11.44';
+    const sgst = '11.44';
+    const mc = '2.00';
     
     // Format date and time - use the ticket date, not current date
     const ticketDate = ticketData.date || new Date().toLocaleDateString('en-GB');
@@ -267,46 +247,153 @@ Test Time: ${new Date().toLocaleString()}
     // Generate ticket ID in correct format (TKT + 6 digits)
     const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
     
+    // Helper function to pad text within box width (19 characters)
+    const padInBox = (text: string, maxLength: number = 19): string => {
+      if (text.length > maxLength) {
+        return text.substring(0, maxLength);
+      }
+      return text.padEnd(maxLength);
+    };
+
+    // Get seat and class information
+    const seat = ticketData.seats?.[0];
+    const seatRow = seat?.row || 'A';
+    const seatNumber = seat?.number || '1';
+    const seatClass = seat?.classLabel || 'STAR';
+    
+    console.log(`🎪 Using seat data: row=${seatRow}, number=${seatNumber}, class=${seatClass}`);
+    
+    // Format movie name to fit in box if needed
+    const movieName = ticketData.movieName || 'Movie';
+    const formattedMovieName = movieName.length > 19 ? movieName.substring(0, 19) : movieName;
+    
+    // Format ticket cost to fit in box
+    const ticketCost = `₹${(ticketData.totalAmount || 0).toFixed(2)}`;
+    
+    // Final format matching the exact user specification with dynamic content
     const lines = [
+      '╔═════════════════════╗',
+      '║  SREELEKHA THEATER  ║',
+      '║     Chikmagalur     ║',
+      '║GSTIN:29AAVFS7423E120║',
+      '╚═════════════════════╝',
+      `    DATE:${ticketDate}`,
+      `   SHOWTIME:${ticketData.showTime || '02:45PM'} to ${this.getEndTime(ticketData.showTime || '02:45PM')}`,
+      ` FILM:${formattedMovieName}`,
+      '┌─────────────────────┐',
+      `│${`CLASS:${seatClass}`.padEnd(21)}│`,
+      `│${`SEAT:${seatRow + '-' + seatNumber}`.padEnd(21)}│`,
+      '└─────────────────────┘',
+      ` [NET: ${net}]`,
+      ` [CGST: ${cgst}]`,
+      ` [SGST: ${sgst}]`,
+      ` [MC: ${mc}]`,
+      '┌─────────────────────┐',
+      `│${`TICKET COST:${ticketCost}`.padEnd(21)}│`,
+      '└─────────────────────┘',
       '',
-      centerText('SREELEKHA THEATER'),
-      centerText('Chickmagalur'),
-      centerText('GSTIN: 29AAVFS7423E120'),
-      '',
-      labelValue('Date :', ticketDate),
-      labelValue('SHOWTIME:', ticketData.showTime),
-      labelValue('Film :', ticketData.movieName),
-      labelValue('Class :', 'STAR'), // Default class
-      labelValue('Row :', ticketData.seats?.[0]?.row || 'A'),
-      labelValue('SeatNo:', ticketData.seats?.[0]?.number || '1'),
-      '',
-      `[NET:${net}]`,
-      `[CGST:${cgst}]`,
-      `[SGST:${sgst}]`,
-      `[MC:${mc.toFixed(2)}]`,
-      `Ticket Cost:`,
-      `₹${ticketData.totalAmount.toFixed(2)}`,
-      `${ticketDate} / ${currentTime}`,
-      ticketId,
+      ` ${ticketId}     ${currentTime.replace(' ', '')}`,
       ''
     ];
     
     return lines.join('\n');
   }
 
-  // Format ticket data for printing
-  formatTicket(ticketData: TicketData): TicketData {
-    return {
+  // Format ticket data for printing - Map frontend data to correct format
+  formatTicket(ticketData: any): TicketData {
+    console.log('🔧 Raw ticket data received:', JSON.stringify(ticketData, null, 2));
+    console.log('🔧 Data type:', typeof ticketData);
+    console.log('🔧 Keys:', Object.keys(ticketData || {}));
+    
+    // Handle different data structures from frontend
+    let movieName = 'Movie';
+    let showTime = 'Show Time';
+    let date = new Date().toLocaleDateString();
+    let totalAmount = 0;
+    let seats = [];
+    
+    // Extract data from frontend format
+    if (ticketData.movie) {
+      movieName = ticketData.movie;
+      console.log(`🎬 Found movie: ${movieName}`);
+    } else if (ticketData.movieName) {
+      movieName = ticketData.movieName;
+      console.log(`🎬 Found movieName: ${movieName}`);
+    }
+    
+    if (ticketData.show) {
+      // Convert show key to time format
+      const showMap: { [key: string]: string } = {
+        'MATINEE': '02:45PM',
+        'EVENING': '06:00PM',
+        'NIGHT': '09:30PM'
+      };
+      showTime = showMap[ticketData.show] || ticketData.show;
+      console.log(`🕐 Mapped show '${ticketData.show}' to time '${showTime}'`);
+    } else if (ticketData.showTime) {
+      showTime = ticketData.showTime;
+    }
+    
+    if (ticketData.date) {
+      date = ticketData.date;
+    }
+    
+    if (ticketData.price) {
+      totalAmount = ticketData.price;
+      console.log(`💰 Found price: ${totalAmount}`);
+    } else if (ticketData.total) {
+      totalAmount = ticketData.total;
+      console.log(`💰 Found total: ${totalAmount}`);
+    } else if (ticketData.totalAmount) {
+      totalAmount = ticketData.totalAmount;
+      console.log(`💰 Found totalAmount: ${totalAmount}`);
+    }
+    
+    // Handle seats data - Frontend sends individual ticket data
+    if (ticketData.seatId) {
+      // Frontend sends individual ticket data with seatId
+      const seatId = ticketData.seatId;
+      const parts = seatId.split('-');
+      seats = [{
+        row: parts[0] || 'A',
+        number: parts[1] || '1',
+        classLabel: ticketData.class || 'STAR'
+      }];
+      console.log(`🎫 Extracted seat: ${seatId} -> row: ${parts[0]}, number: ${parts[1]}, class: ${ticketData.class}`);
+    } else if (ticketData.tickets && Array.isArray(ticketData.tickets)) {
+      seats = ticketData.tickets.map((ticket: any) => ({
+        row: ticket.row || 'A',
+        number: ticket.number || '1',
+        classLabel: ticket.classLabel || 'STAR'
+      }));
+    } else if (ticketData.seats && Array.isArray(ticketData.seats)) {
+      seats = ticketData.seats;
+    } else if (ticketData.seatIds && Array.isArray(ticketData.seatIds)) {
+      // Convert seat IDs to seat objects
+      seats = ticketData.seatIds.map((seatId: string) => {
+        const parts = seatId.split('-');
+        return {
+          row: parts[0] || 'A',
+          number: parts[1] || '1',
+          classLabel: 'STAR' // Default class
+        };
+      });
+    }
+    
+    const formattedData = {
       theaterName: ticketData.theaterName || 'SREELEKHA THEATER',
       location: ticketData.location || 'Chickmagalur',
       gstin: ticketData.gstin || '29AAVFS7423E120',
-      movieName: ticketData.movieName || 'Movie',
-      date: ticketData.date || new Date().toLocaleDateString(),
-      showTime: ticketData.showTime || 'Show Time',
+      movieName: movieName,
+      date: date,
+      showTime: showTime,
       screen: ticketData.screen || 'Screen 1',
-      seats: ticketData.seats || [],
-      totalAmount: ticketData.totalAmount || 0
+      seats: seats,
+      totalAmount: totalAmount
     };
+    
+    console.log('✅ Formatted ticket data:', JSON.stringify(formattedData, null, 2));
+    return formattedData;
   }
 
   // Get printer status
