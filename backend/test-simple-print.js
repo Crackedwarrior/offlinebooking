@@ -1,11 +1,13 @@
-// Test PowerShell Start-Process printing method
+// Simple Print Test - Just open file for manual printing
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 function createExactTicketContent() {
-  // Helper function to create exact width line (25 dashes as per specification)
-  const fullWidthLine = (char = '-') => char.repeat(25);
+  const PAPER_WIDTH = 48; // Optimized width for thermal paper
+  
+  // Helper function to create full-width line
+  const fullWidthLine = (char = '-') => char.repeat(PAPER_WIDTH);
   
   // Generate ticket ID
   const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
@@ -25,7 +27,7 @@ function createExactTicketContent() {
     minute: '2-digit' 
   });
   
-  // Exact format matching user specification
+  // Exact format matching SREELEKHA THEATER.txt
   const lines = [
     'SREELEKHA THEATER',
     '     Chickmagalur',
@@ -37,12 +39,12 @@ function createExactTicketContent() {
     '     Class:STAR',
     '     Seat:A-18',
     fullWidthLine('-'),
-    'Ticket Cost:₹150.0',
-    fullWidthLine('-'),
     `[NET: ${net}]`,
     `[CGST: ${cgst}]`,
     `[SGST: ${sgst}]`,
     `[MC: ${mc.toFixed(2)}]`,
+    fullWidthLine('-'),
+    'Ticket Cost:₹150.00',
     fullWidthLine('-'),
     `${ticketDate} / ${currentTime}`,
     ticketId,
@@ -52,16 +54,21 @@ function createExactTicketContent() {
   return lines.join('\n');
 }
 
-function testPowerShellPrint() {
-  console.log('🎯 Test PowerShell Start-Process Printing\n');
-  console.log('This should print the actual ticket content, not a test page\n');
+function testSimplePrint() {
+  console.log('🎯 Simple Print Test - Exact Format\n');
+  console.log('Format matches SREELEKHA THEATER.txt exactly:\n');
+  console.log('✅ Left-aligned headers (no centering)');
+  console.log('✅ Compact format (no extra blank lines)');
+  console.log('✅ Exact spacing and indentation');
+  console.log('✅ Full-width separators');
+  console.log('✅ Just opening file for manual printing\n');
   
   try {
     // Create ticket content with exact format
     const ticketContent = createExactTicketContent();
     
     // Save to file
-    const ticketFile = path.join(__dirname, 'temp', `powershell_test_${Date.now()}.txt`);
+    const ticketFile = path.join(__dirname, 'temp', `simple_print_${Date.now()}.txt`);
     fs.writeFileSync(ticketFile, ticketContent);
     console.log(`💾 Ticket file created: ${ticketFile}`);
     
@@ -71,25 +78,25 @@ function testPowerShellPrint() {
     console.log(ticketContent);
     console.log('='.repeat(50));
     
-    // Use PowerShell Start-Process for automatic printing
-    console.log('\n🖨️ Printing with PowerShell Start-Process:');
+    // Just open file for manual printing (no direct print commands)
+    console.log('\n🖨️ Opening file for manual printing:');
     try {
-      const psCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
-      console.log(`Command: ${psCommand}`);
-      execSync(psCommand, { stdio: 'inherit' });
-      console.log('✅ PowerShell Start-Process executed successfully!');
-      console.log('🖨️ This should print the actual ticket content');
-      console.log('📝 Using your pre-configured printer settings');
+      const openCommand = `start "" "${ticketFile}"`;
+      console.log(`Command: ${openCommand}`);
+      execSync(openCommand, { stdio: 'inherit' });
+      console.log('✅ File opened successfully!');
+      console.log('📝 Now press Ctrl+P to print with your optimized settings');
+      console.log('🖨️ This should print with full width and no wasted space');
     } catch (error) {
-      console.log('❌ PowerShell Start-Process failed:', error.message);
+      console.log('❌ Failed to open file:', error.message);
     }
     
     console.log(`\n📄 Ticket file preserved: ${ticketFile}`);
-    console.log('🎉 PowerShell printing test completed!');
+    console.log('🎉 Format is now exactly as per your specification!');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
   }
 }
 
-testPowerShellPrint();
+testSimplePrint();

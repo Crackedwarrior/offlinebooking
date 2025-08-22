@@ -1,11 +1,14 @@
-// Test PowerShell Start-Process printing method
+// Test Box Format with straight lines
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-function createExactTicketContent() {
+function createBoxTicketContent() {
   // Helper function to create exact width line (25 dashes as per specification)
   const fullWidthLine = (char = '-') => char.repeat(25);
+  
+  // Helper function to create straight line (same length as dotted line)
+  const straightLine = (char = '_') => char.repeat(25);
   
   // Generate ticket ID
   const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
@@ -25,24 +28,28 @@ function createExactTicketContent() {
     minute: '2-digit' 
   });
   
-  // Exact format matching user specification
+  // Box format with straight lines
   const lines = [
-    'SREELEKHA THEATER',
-    '     Chickmagalur',
-    '  GSTIN:29AAVFS7423E120',
+    '┌─────────────────────────┐',
+    '│    SREELEKHA THEATER    │',
+    '│       Chickmagalur      │',
+    '│   GSTIN:29AAVFS7423E120 │',
+    '└─────────────────────────┘',
     fullWidthLine('-'),
     '    Date:06/08/2025',
     ' SHOWTIME:02:45PM',
     'Film:Mahavatar Narsimha',
+    straightLine('_'),
     '     Class:STAR',
     '     Seat:A-18',
-    fullWidthLine('-'),
+    straightLine('_'),
     'Ticket Cost:₹150.0',
     fullWidthLine('-'),
     `[NET: ${net}]`,
     `[CGST: ${cgst}]`,
     `[SGST: ${sgst}]`,
     `[MC: ${mc.toFixed(2)}]`,
+    straightLine('_'),
     fullWidthLine('-'),
     `${ticketDate} / ${currentTime}`,
     ticketId,
@@ -52,16 +59,15 @@ function createExactTicketContent() {
   return lines.join('\n');
 }
 
-function testPowerShellPrint() {
-  console.log('🎯 Test PowerShell Start-Process Printing\n');
-  console.log('This should print the actual ticket content, not a test page\n');
+function testBoxFormat() {
+  console.log('🎯 Test Box Format with Straight Lines\n');
   
   try {
-    // Create ticket content with exact format
-    const ticketContent = createExactTicketContent();
+    // Create ticket content with box format
+    const ticketContent = createBoxTicketContent();
     
     // Save to file
-    const ticketFile = path.join(__dirname, 'temp', `powershell_test_${Date.now()}.txt`);
+    const ticketFile = path.join(__dirname, 'temp', `box_format_${Date.now()}.txt`);
     fs.writeFileSync(ticketFile, ticketContent);
     console.log(`💾 Ticket file created: ${ticketFile}`);
     
@@ -71,25 +77,13 @@ function testPowerShellPrint() {
     console.log(ticketContent);
     console.log('='.repeat(50));
     
-    // Use PowerShell Start-Process for automatic printing
-    console.log('\n🖨️ Printing with PowerShell Start-Process:');
-    try {
-      const psCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
-      console.log(`Command: ${psCommand}`);
-      execSync(psCommand, { stdio: 'inherit' });
-      console.log('✅ PowerShell Start-Process executed successfully!');
-      console.log('🖨️ This should print the actual ticket content');
-      console.log('📝 Using your pre-configured printer settings');
-    } catch (error) {
-      console.log('❌ PowerShell Start-Process failed:', error.message);
-    }
-    
     console.log(`\n📄 Ticket file preserved: ${ticketFile}`);
-    console.log('🎉 PowerShell printing test completed!');
+    console.log('🎉 Box format test completed!');
+    console.log('📝 Review the format above and let me know if you want to implement it');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
   }
 }
 
-testPowerShellPrint();
+testBoxFormat();

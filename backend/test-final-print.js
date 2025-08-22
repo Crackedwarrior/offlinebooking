@@ -1,11 +1,13 @@
-// Test PowerShell Start-Process printing method
+// Test Final Print - Most reliable automatic printing
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 function createExactTicketContent() {
-  // Helper function to create exact width line (25 dashes as per specification)
-  const fullWidthLine = (char = '-') => char.repeat(25);
+  const PAPER_WIDTH = 48; // Optimized width for thermal paper
+  
+  // Helper function to create full-width line
+  const fullWidthLine = (char = '-') => char.repeat(PAPER_WIDTH);
   
   // Generate ticket ID
   const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
@@ -25,7 +27,7 @@ function createExactTicketContent() {
     minute: '2-digit' 
   });
   
-  // Exact format matching user specification
+  // Exact format matching SREELEKHA THEATER.txt
   const lines = [
     'SREELEKHA THEATER',
     '     Chickmagalur',
@@ -37,12 +39,12 @@ function createExactTicketContent() {
     '     Class:STAR',
     '     Seat:A-18',
     fullWidthLine('-'),
-    'Ticket Cost:₹150.0',
-    fullWidthLine('-'),
     `[NET: ${net}]`,
     `[CGST: ${cgst}]`,
     `[SGST: ${sgst}]`,
     `[MC: ${mc.toFixed(2)}]`,
+    fullWidthLine('-'),
+    'Ticket Cost:₹150.00',
     fullWidthLine('-'),
     `${ticketDate} / ${currentTime}`,
     ticketId,
@@ -52,16 +54,16 @@ function createExactTicketContent() {
   return lines.join('\n');
 }
 
-function testPowerShellPrint() {
-  console.log('🎯 Test PowerShell Start-Process Printing\n');
-  console.log('This should print the actual ticket content, not a test page\n');
+function testFinalPrint() {
+  console.log('🎯 Test Final Print - Most Reliable Method\n');
+  console.log('Using rundll32 for automatic printing\n');
   
   try {
     // Create ticket content with exact format
     const ticketContent = createExactTicketContent();
     
     // Save to file
-    const ticketFile = path.join(__dirname, 'temp', `powershell_test_${Date.now()}.txt`);
+    const ticketFile = path.join(__dirname, 'temp', `final_print_${Date.now()}.txt`);
     fs.writeFileSync(ticketFile, ticketContent);
     console.log(`💾 Ticket file created: ${ticketFile}`);
     
@@ -71,25 +73,26 @@ function testPowerShellPrint() {
     console.log(ticketContent);
     console.log('='.repeat(50));
     
-    // Use PowerShell Start-Process for automatic printing
-    console.log('\n🖨️ Printing with PowerShell Start-Process:');
+    // Use rundll32 for automatic printing (most reliable)
+    console.log('\n🖨️ Printing automatically with rundll32:');
     try {
-      const psCommand = `powershell -Command "Start-Process -FilePath '${ticketFile}' -Verb Print"`;
-      console.log(`Command: ${psCommand}`);
-      execSync(psCommand, { stdio: 'inherit' });
-      console.log('✅ PowerShell Start-Process executed successfully!');
-      console.log('🖨️ This should print the actual ticket content');
-      console.log('📝 Using your pre-configured printer settings');
+      const printerName = 'EPSON TM-T81 ReceiptE4';
+      const rundllCommand = `rundll32 printui.dll,PrintUIEntry /k /n "${printerName}" "${ticketFile}"`;
+      console.log(`Command: ${rundllCommand}`);
+      execSync(rundllCommand, { stdio: 'inherit' });
+      console.log('✅ Automatic print executed successfully!');
+      console.log('🖨️ Check your printer for the physical output');
+      console.log('📝 This should print with your optimized settings');
     } catch (error) {
-      console.log('❌ PowerShell Start-Process failed:', error.message);
+      console.log('❌ Print failed:', error.message);
     }
     
     console.log(`\n📄 Ticket file preserved: ${ticketFile}`);
-    console.log('🎉 PowerShell printing test completed!');
+    console.log('🎉 Automatic printing completed!');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
   }
 }
 
-testPowerShellPrint();
+testFinalPrint();
