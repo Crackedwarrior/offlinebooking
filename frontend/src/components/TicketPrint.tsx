@@ -280,33 +280,34 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       // Use Tauri printer service for native printing
       const tauriPrinterService = TauriPrinterService.getInstance();
       
-      // Prepare ticket data for each seat
-      const ticketDataArray = selectedSeats.map(seat => ({
+      // Prepare grouped ticket data
+      const ticketGroups = groups.map(group => ({
         theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
         location: printerConfig.location || 'Chickmagalur',
         date: selectedDate,
         showTime: showtime,
         movieName: currentMovie.name,
-        class: seat.classLabel,
-        seatId: seat.id,
-        netAmount: 0, // Will be calculated
-        cgst: 0,
-        sgst: 0,
-        mc: 0,
-        price: seat.price,
+        classLabel: group.classLabel,
+        row: group.row,
+        seatRange: formatSeatNumbers(group.seats),
+        seatCount: group.seats.length,
+        individualPrice: group.price / group.seats.length,
+        totalPrice: group.price,
+        isDecoupled: group.seatIds.some(id => decoupledSeatIds.includes(id)),
+        seatIds: group.seatIds,
         transactionId: 'TXN' + Date.now()
       }));
 
-      console.log('🖨️ Preparing to print tickets via Tauri:', ticketDataArray);
+      console.log('🖨️ Preparing to print grouped tickets via Tauri:', ticketGroups);
 
-      // Print each ticket using Tauri
+      // Print each ticket group using Tauri
       let allPrinted = true;
-      for (const ticketData of ticketDataArray) {
-        // Send raw ticket data to backend for proper formatting
-        const printSuccess = await tauriPrinterService.printTicket(ticketData, printerConfig.name);
+      for (const ticketGroup of ticketGroups) {
+        // Send grouped ticket data to backend for proper formatting
+        const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name);
         
         if (!printSuccess) {
-          console.error('❌ Failed to print ticket for seat:', ticketData.seatId);
+          console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
           allPrinted = false;
           break;
         }

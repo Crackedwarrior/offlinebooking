@@ -1,0 +1,20 @@
+╔═════════════════════╗
+║  SREELEKHA THEATER  ║
+║     Chikmagalur     ║
+║GSTIN:29AAVFS7423E120║
+╚═════════════════════╝
+DATE:2025-08-22
+MATINEE SHOW
+SHOWTIME : 2:45PM
+FILM:KALANK
+┌─────────────────────┐
+│CLASS:BOX            │
+│SEAT:B-3 - 4 (2)     │
+└─────────────────────┘
+ [NET :125.12]
+ [CGST:11.44]┌────────┐
+ [SGST:11.44]│₹300.00 │
+ [MC  :2.00] └────────┘
+ [TOTAL : ₹150.00]
+
+ TKT739191     09:13PM

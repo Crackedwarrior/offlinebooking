@@ -166,14 +166,14 @@ Test Time: ${new Date().toLocaleString()}
         // Clean up ticket file after a delay
         setTimeout(() => {
           if (fs.existsSync(ticketFile)) {
-            fs.unlinkSync(ticketFile);
+      fs.unlinkSync(ticketFile);
             console.log('🧹 Ticket file cleaned up');
           }
         }, 30000); // 30 second delay
-        
-        return {
-          success: true,
-          printer: printerName,
+      
+      return {
+        success: true,
+        printer: printerName,
           message: 'Ticket printed automatically with optimized settings'
         };
       } catch (psError) {
@@ -228,6 +228,16 @@ Test Time: ${new Date().toLocaleString()}
     return timeMap[startTime] || '09:00PM';
   }
 
+  // Helper function to get show class from time
+  getShowClass(showTime: string): string {
+    const showMap: { [key: string]: string } = {
+      '02:45PM': 'MATINEE SHOW\nSHOWTIME : 2:45PM',
+      '06:00PM': 'EVENING SHOW\nSHOWTIME : 6:00PM',
+      '09:30PM': 'NIGHT SHOW\nSHOWTIME : 9:30PM'
+    };
+    return showMap[showTime] || 'MATINEE SHOW\nSHOWTIME : 2:45PM';
+  }
+
   // Create formatted ticket content - Exact format matching user specification
   createTicketContent(ticketData: TicketData): string {
     // Use fixed tax values from your format
@@ -267,8 +277,35 @@ Test Time: ${new Date().toLocaleString()}
     const movieName = ticketData.movieName || 'Movie';
     const formattedMovieName = movieName.length > 19 ? movieName.substring(0, 19) : movieName;
     
-    // Format ticket cost to fit in box
-    const ticketCost = `₹${(ticketData.totalAmount || 0).toFixed(2)}`;
+    // Check if this is a grouped ticket (has seat count)
+    const isGroupedTicket = typeof seatNumber === 'string' && seatNumber.includes('-');
+    let seatCount = '1';
+    let individualPrice = ticketData.totalAmount || 0;
+    
+    if (isGroupedTicket) {
+      // Extract seat count from range like "A15-A16" -> "2"
+      const rangeParts = seatNumber.split('-');
+      if (rangeParts.length === 2) {
+        const start = parseInt(rangeParts[0].replace(/\D/g, ''));
+        const end = parseInt(rangeParts[1].replace(/\D/g, ''));
+        seatCount = (end - start + 1).toString();
+        individualPrice = (ticketData.totalAmount || 0) / parseInt(seatCount);
+      }
+    }
+    
+    // Format ticket cost to fit in box (use individual price, not total)
+    const ticketCost = `₹${individualPrice.toFixed(2)}`;
+    
+    if (isGroupedTicket) {
+      // Extract seat count from range like "A15-A16" -> "2"
+      const rangeParts = seatNumber.split('-');
+      if (rangeParts.length === 2) {
+        const start = parseInt(rangeParts[0].replace(/\D/g, ''));
+        const end = parseInt(rangeParts[1].replace(/\D/g, ''));
+        seatCount = (end - start + 1).toString();
+        individualPrice = (ticketData.totalAmount || 0) / parseInt(seatCount);
+      }
+    }
     
     // Final format matching the exact user specification with dynamic content
     const lines = [
@@ -277,20 +314,18 @@ Test Time: ${new Date().toLocaleString()}
       '║     Chikmagalur     ║',
       '║GSTIN:29AAVFS7423E120║',
       '╚═════════════════════╝',
-      `    DATE:${ticketDate}`,
-      `   SHOWTIME:${ticketData.showTime || '02:45PM'} to ${this.getEndTime(ticketData.showTime || '02:45PM')}`,
-      ` FILM:${formattedMovieName}`,
+      `DATE:${ticketDate}`,
+      ...this.getShowClass(ticketData.showTime || '02:45PM').split('\n'),
+      `FILM:${formattedMovieName}`,
       '┌─────────────────────┐',
       `│${`CLASS:${seatClass}`.padEnd(21)}│`,
-      `│${`SEAT:${seatRow + '-' + seatNumber}`.padEnd(21)}│`,
+                `│${`SEAT:${seatRow.replace('SC-', '').replace('CB-', '').replace('FC-', '').replace('BOX-', '')} ${seatNumber.replace(' - ', '-')} (${seatCount})`.padEnd(21)}│`,
       '└─────────────────────┘',
-      ` [NET: ${net}]`,
-      ` [CGST: ${cgst}]`,
-      ` [SGST: ${sgst}]`,
-      ` [MC: ${mc}]`,
-      '┌─────────────────────┐',
-      `│${`TICKET COST:${ticketCost}`.padEnd(21)}│`,
-      '└─────────────────────┘',
+      ` [NET :${net}]`,
+      ` [CGST:${cgst}]┌────────┐`,
+      ` [SGST:${sgst}]│₹${(ticketData.totalAmount || 0).toFixed(2).padEnd(7)}│`,
+      ` [MC  :${mc}] └────────┘`,
+      ` [TOTAL : ${ticketCost}]`,
       '',
       ` ${ticketId}     ${currentTime.replace(' ', '')}`,
       ''
@@ -349,8 +384,24 @@ Test Time: ${new Date().toLocaleString()}
       console.log(`💰 Found totalAmount: ${totalAmount}`);
     }
     
-    // Handle seats data - Frontend sends individual ticket data
-    if (ticketData.seatId) {
+    // Handle seats data - Frontend sends individual or grouped ticket data
+    if (ticketData.seatRange) {
+      // Frontend sends grouped ticket data
+      console.log(`🎫 Processing grouped ticket: ${ticketData.classLabel} ${ticketData.seatRange} (${ticketData.seatCount} seats)`);
+      
+      // For grouped tickets, we'll create a single seat entry with the range
+      seats = [{
+        row: ticketData.row || 'A',
+        number: ticketData.seatRange, // Use the range as number
+        classLabel: ticketData.classLabel || 'STAR'
+      }];
+      
+      // Use total price for grouped tickets
+      if (ticketData.totalPrice) {
+        totalAmount = ticketData.totalPrice;
+        console.log(`💰 Found total price for group: ${totalAmount}`);
+      }
+    } else if (ticketData.seatId) {
       // Frontend sends individual ticket data with seatId
       const seatId = ticketData.seatId;
       const parts = seatId.split('-');
@@ -372,7 +423,7 @@ Test Time: ${new Date().toLocaleString()}
       // Convert seat IDs to seat objects
       seats = ticketData.seatIds.map((seatId: string) => {
         const parts = seatId.split('-');
-        return {
+    return {
           row: parts[0] || 'A',
           number: parts[1] || '1',
           classLabel: 'STAR' // Default class
