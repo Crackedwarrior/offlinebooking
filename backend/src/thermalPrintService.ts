@@ -307,29 +307,28 @@ Test Time: ${new Date().toLocaleString()}
       }
     }
     
-    // Final format matching the exact user specification with dynamic content
-    const lines = [
-      '╔═════════════════════╗',
-      '║  SREELEKHA THEATER  ║',
-      '║     Chikmagalur     ║',
-      '║GSTIN:29AAVFS7423E120║',
-      '╚═════════════════════╝',
-      `DATE:${ticketDate}`,
-      ...this.getShowClass(ticketData.showTime || '02:45PM').split('\n'),
-      `FILM:${formattedMovieName}`,
-      '┌─────────────────────┐',
-      `│${`CLASS:${seatClass}`.padEnd(21)}│`,
-                `│${`SEAT:${seatRow.replace('SC-', '').replace('CB-', '').replace('FC-', '').replace('BOX-', '')} ${seatNumber.replace(' - ', '-')} (${seatCount})`.padEnd(21)}│`,
-      '└─────────────────────┘',
-      ` [NET :${net}]`,
-      ` [CGST:${cgst}]┌────────┐`,
-      ` [SGST:${sgst}]│₹${(ticketData.totalAmount || 0).toFixed(2).padEnd(7)}│`,
-      ` [MC  :${mc}] └────────┘`,
-      ` [TOTAL : ${ticketCost}]`,
-      '',
-      ` ${ticketId}     ${currentTime.replace(' ', '')}`,
-      ''
-    ];
+            // Final format matching the exact user specification with dynamic content
+        const lines = [
+          '╔═════════════════════╗',
+          '║  SREELEKHA THEATER  ║',
+          '║     Chikmagalur     ║',
+          '║GSTIN:29AAVFS7423E120║',
+          '╚═════════════════════╝',
+          `DATE:${ticketDate}`,
+          ...this.getShowClass(ticketData.showTime || '02:45PM').split('\n'),
+          `FILM:${formattedMovieName}`,
+          '┌─────────────────────┐',
+          `│${`CLASS:${seatClass}`.padEnd(21)}│`,
+          `│${`SEAT:${seatRow.replace('SC-', '').replace('CB-', '').replace('FC-', '').replace('BOX-', '')} ${seatNumber.replace(' - ', '-')} (${seatCount})`.padEnd(21)}│`,
+          '└─────────────────────┘',
+          ` [NET :${net}]`,
+          ` [CGST:${cgst}]┌────────┐`,
+          ` [SGST:${sgst}]│₹${(ticketData.totalAmount || 0).toFixed(2).padEnd(7)}│`,
+          ` [MC  :${mc}] └────────┘`,
+          ` [TOTAL : ${ticketCost}]`,
+          '',
+          ` ${ticketId}     ${currentTime.replace(' ', '')}`
+        ];
     
     return lines.join('\n');
   }
