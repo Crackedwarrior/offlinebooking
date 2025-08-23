@@ -35,6 +35,7 @@ import { windowsPrintService } from './printService';
 import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
 import ThermalPrintService from './thermalPrintService';
+import PdfPrintService from './pdfPrintService';
 import PrinterSetup from './printerSetup';
 import fs from 'fs';
 import path from 'path';
@@ -52,6 +53,7 @@ if (!validateConfig()) {
 const app = express();
 const prisma = new PrismaClient();
 const thermalPrintService = new ThermalPrintService();
+const pdfPrintService = new PdfPrintService();
 
 // Configure CORS
 app.use(cors({
@@ -290,8 +292,33 @@ app.post('/api/thermal-printer/test', asyncHandler(async (req: Request, res: Res
   }
 }));
 
-// Print ticket using thermal printer
+// Print ticket using PDF generation (English version)
 app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Response) => {
+  const { ticketData, printerName } = req.body;
+  
+  if (!ticketData) {
+    throw new Error('Ticket data is required');
+  }
+
+  const result = await pdfPrintService.printTicket(ticketData, printerName);
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      message: result.message,
+      printer: result.printer
+    });
+  } else {
+    res.status(500).json({
+      success: false,
+      error: result.error,
+      printer: result.printer
+    });
+  }
+}));
+
+// Print ticket using old text-based thermal printer (fallback)
+app.post('/api/thermal-printer/print-text', asyncHandler(async (req: Request, res: Response) => {
   const { ticketData, printerName } = req.body;
   
   if (!ticketData) {
