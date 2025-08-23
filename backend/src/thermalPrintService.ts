@@ -308,7 +308,7 @@ Test Time: ${new Date().toLocaleString()}
     }
     
             // Final format matching the exact user specification with dynamic content
-        const lines = [
+    const lines = [
           '╔═════════════════════╗',
           '║  SREELEKHA THEATER  ║',
           '║     Chikmagalur     ║',
@@ -328,7 +328,7 @@ Test Time: ${new Date().toLocaleString()}
           ` [TOTAL : ${ticketCost}]`,
           '',
           ` ${ticketId}     ${currentTime.replace(' ', '')}`
-        ];
+    ];
     
     return lines.join('\n');
   }
