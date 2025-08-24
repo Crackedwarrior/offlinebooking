@@ -36,6 +36,7 @@ import { NativePrintService } from './nativePrint';
 import { EscposPrintService } from './escposPrintService';
 import ThermalPrintService from './thermalPrintService';
 import PdfPrintService from './pdfPrintService';
+import KannadaPdfService from './kannadaPdfService';
 import PrinterSetup from './printerSetup';
 import fs from 'fs';
 import path from 'path';
@@ -54,6 +55,7 @@ const app = express();
 const prisma = new PrismaClient();
 const thermalPrintService = new ThermalPrintService();
 const pdfPrintService = new PdfPrintService();
+const kannadaPdfService = new KannadaPdfService();
 
 // Configure CORS
 app.use(cors({
@@ -292,15 +294,26 @@ app.post('/api/thermal-printer/test', asyncHandler(async (req: Request, res: Res
   }
 }));
 
-// Print ticket using PDF generation (English version)
+// Print ticket using PDF generation (English or Kannada version based on movie settings)
 app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Response) => {
-  const { ticketData, printerName } = req.body;
+  const { ticketData, printerName, movieSettings } = req.body;
   
   if (!ticketData) {
     throw new Error('Ticket data is required');
   }
 
-  const result = await pdfPrintService.printTicket(ticketData, printerName);
+  // Check if movie should be printed in Kannada
+  const shouldPrintInKannada = movieSettings?.printInKannada === true;
+  
+  console.log(`🖨️ Printing ticket - Language: ${shouldPrintInKannada ? 'Kannada' : 'English'}`);
+  console.log(`🎬 Movie settings:`, movieSettings);
+  console.log(`🎬 Ticket data:`, ticketData);
+  console.log(`🎬 Movie language in ticket data:`, ticketData.movieLanguage);
+
+  // Use appropriate service based on language setting
+  const result = shouldPrintInKannada 
+    ? await kannadaPdfService.printTicket(ticketData, printerName)
+    : await pdfPrintService.printTicket(ticketData, printerName);
   
   if (result.success) {
     res.json({

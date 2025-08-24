@@ -30,6 +30,7 @@ const MovieManagement = () => {
     name: '',
     language: '',
     screen: 'Screen 1',
+    printInKannada: false,
     showAssignments: {
       MORNING: false,
       MATINEE: false,
@@ -59,6 +60,7 @@ const MovieManagement = () => {
       name: '',
       language: '',
       screen: 'Screen 1',
+      printInKannada: false,
       showAssignments: {
         MORNING: false,
         MATINEE: false,
@@ -78,6 +80,7 @@ const MovieManagement = () => {
       name: movie.name,
       language: movie.language,
       screen: movie.screen,
+      printInKannada: movie.printInKannada || false,
       showAssignments: { ...movie.showAssignments }
     });
   };
@@ -100,6 +103,7 @@ const MovieManagement = () => {
       name: '',
       language: '',
       screen: 'Screen 1',
+      printInKannada: false,
       showAssignments: {
         MORNING: false,
         MATINEE: false,
@@ -177,6 +181,20 @@ const MovieManagement = () => {
                         placeholder="e.g., HINDI, ENGLISH"
                       />
                     </div>
+                  </div>
+                  
+                  {/* Language Option */}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="print-kannada"
+                      checked={movieForm.printInKannada}
+                      onChange={(e) => setMovieForm(prev => ({ ...prev, printInKannada: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <Label htmlFor="print-kannada" className="text-sm font-medium">
+                      Print tickets in Kannada for this movie
+                    </Label>
                   </div>
                   
                                      {/* Show Assignment - Multiple Checkboxes */}
@@ -264,6 +282,20 @@ const MovieManagement = () => {
                             onChange={(e) => setMovieForm(prev => ({ ...prev, language: e.target.value }))}
                           />
                         </div>
+                      </div>
+                      
+                      {/* Language Option for Edit */}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-print-kannada"
+                          checked={movieForm.printInKannada}
+                          onChange={(e) => setMovieForm(prev => ({ ...prev, printInKannada: e.target.checked }))}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <Label htmlFor="edit-print-kannada" className="text-sm font-medium">
+                          Print tickets in Kannada for this movie
+                        </Label>
                       </div>
                       
                                              {/* Show Assignment for Edit - Multiple Checkboxes */}

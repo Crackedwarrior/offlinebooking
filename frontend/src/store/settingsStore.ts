@@ -7,6 +7,7 @@ export interface MovieSettings {
   name: string;
   language: string;
   screen: string;
+  printInKannada: boolean; // New field for language preference
   showAssignments: {
     MORNING: boolean;
     MATINEE: boolean;
@@ -61,6 +62,7 @@ const defaultMovies: MovieSettings[] = [
     name: 'KALANK',
     language: 'HINDI',
     screen: 'Screen 1',
+    printInKannada: false,
     showAssignments: {
       MORNING: true,
       MATINEE: false,
@@ -73,6 +75,7 @@ const defaultMovies: MovieSettings[] = [
     name: 'AVENGERS: ENDGAME',
     language: 'ENGLISH',
     screen: 'Screen 1',
+    printInKannada: false,
     showAssignments: {
       MORNING: false,
       MATINEE: true,
@@ -85,6 +88,7 @@ const defaultMovies: MovieSettings[] = [
     name: 'PUSHPA',
     language: 'TELUGU',
     screen: 'Screen 1',
+    printInKannada: false,
     showAssignments: {
       MORNING: false,
       MATINEE: false,

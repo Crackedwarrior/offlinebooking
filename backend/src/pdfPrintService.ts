@@ -387,6 +387,11 @@ class PdfPrintService {
       movieName = ticketData.movieName;
     }
     
+    // Add language to movie name if available
+    if (ticketData.movieLanguage) {
+      movieName = `${movieName} (${ticketData.movieLanguage})`;
+    }
+    
     if (ticketData.show) {
       // Convert show key to time format
       const showMap: { [key: string]: { time: string, class: string } } = {

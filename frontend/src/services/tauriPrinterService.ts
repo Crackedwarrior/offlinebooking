@@ -108,11 +108,12 @@ export class TauriPrinterService {
     }
   }
 
-  async printTicket(ticketData: any, printerName?: string): Promise<boolean> {
+  async printTicket(ticketData: any, printerName?: string, movieSettings?: any): Promise<boolean> {
     try {
       DEBUG_CONFIG.log('PRINTER', '🖨️ Printing ticket via backend API...');
       DEBUG_CONFIG.log('PRINTER', '📄 Printer:', printerName || 'Auto-detect');
       DEBUG_CONFIG.log('PRINTER', '📄 Data length:', JSON.stringify(ticketData).length);
+      DEBUG_CONFIG.log('PRINTER', '🎬 Movie settings:', movieSettings);
 
       const response = await fetch(`${BACKEND_URL}/api/thermal-printer/print`, {
         method: 'POST',
@@ -121,7 +122,8 @@ export class TauriPrinterService {
         },
         body: JSON.stringify({
           ticketData,
-          printerName
+          printerName,
+          movieSettings
         })
       });
 

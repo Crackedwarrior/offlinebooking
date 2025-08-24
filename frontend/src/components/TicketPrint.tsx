@@ -287,6 +287,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         date: selectedDate,
         showTime: showtime,
         movieName: currentMovie.name,
+        movieLanguage: currentMovie.language, // Add language information
         classLabel: group.classLabel,
         row: group.row,
         seatRange: formatSeatNumbers(group.seats),
@@ -304,7 +305,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       let allPrinted = true;
       for (const ticketGroup of ticketGroups) {
         // Send grouped ticket data to backend for proper formatting
-        const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name);
+        const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name, currentMovie);
         
         if (!printSuccess) {
           console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
