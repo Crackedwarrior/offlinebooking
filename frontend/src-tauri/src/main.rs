@@ -7,22 +7,51 @@ use tauri::Manager;
 #[tauri::command]
 async fn start_backend() -> Result<(), String> {
     // Start the backend server
-    let backend_path = std::env::current_dir()
-        .unwrap()
-        .join("backend");
+    let exe_path = std::env::current_exe().unwrap();
+    let app_dir = exe_path.parent().unwrap();
+    let backend_path = app_dir.join("backend");
+    
+    println!("🔍 Looking for backend at: {}", backend_path.display());
     
     if backend_path.exists() {
+        println!("✅ Backend directory found, starting server...");
         let output = Command::new("npm")
             .arg("start")
             .current_dir(&backend_path)
             .spawn();
         
         match output {
-            Ok(_) => println!("Backend server started"),
-            Err(e) => eprintln!("Failed to start backend: {}", e),
+            Ok(_) => println!("✅ Backend server started successfully"),
+            Err(e) => eprintln!("❌ Failed to start backend: {}", e),
         }
     } else {
-        eprintln!("Backend directory not found at: {}", backend_path.display());
+        eprintln!("❌ Backend directory not found at: {}", backend_path.display());
+            // Try alternative paths
+    let alt_paths = vec![
+        app_dir.join("..").join("backend"),
+        app_dir.join("..").join("..").join("backend"),
+        std::env::current_dir().unwrap().join("backend"),
+        std::env::current_dir().unwrap().join("..").join("backend"),
+    ];
+        
+        for alt_path in alt_paths {
+            println!("🔍 Trying alternative path: {}", alt_path.display());
+            if alt_path.exists() {
+                println!("✅ Found backend at alternative path: {}", alt_path.display());
+                let output = Command::new("npm")
+                    .arg("start")
+                    .current_dir(&alt_path)
+                    .spawn();
+                
+                match output {
+                    Ok(_) => {
+                        println!("✅ Backend server started from alternative path");
+                        return Ok(());
+                    },
+                    Err(e) => eprintln!("❌ Failed to start backend from alternative path: {}", e),
+                }
+            }
+        }
     }
     
     Ok(())

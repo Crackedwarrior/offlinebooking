@@ -464,7 +464,6 @@ class KannadaPdfService {
     let net = '125.12';
     let cgst = '11.44';
     let sgst = '11.44';
-    let mc = '2.00';
     let ticketId = 'TKT1000000';
     let currentTime = new Date().toLocaleTimeString().split(':').slice(0, 2).join(':');
     
@@ -570,12 +569,22 @@ class KannadaPdfService {
       seatClass = this.translateClassToKannada(ticketData.class || 'STAR');
     }
     
-    // Calculate tax breakdown (simplified)
-    const baseAmount = totalAmount * 0.8; // Assume 80% is base amount
-    net = baseAmount.toFixed(2);
-    cgst = (baseAmount * 0.09).toFixed(2); // 9% CGST
-    sgst = (baseAmount * 0.09).toFixed(2); // 9% SGST
-    mc = (totalAmount * 0.02).toFixed(2); // 2% MC
+         // Calculate tax breakdown with proper formula
+     const mcAmount = 2.00; // Fixed Maintenance Charge
+     const baseAmount = (totalAmount - mcAmount) / 1.18; // Remove MC and divide by 1.18 (1 + 0.18 GST)
+     net = baseAmount.toFixed(2);
+     cgst = (baseAmount * 0.09).toFixed(2); // 9% CGST
+     sgst = (baseAmount * 0.09).toFixed(2); // 9% SGST
+     const mc = mcAmount.toFixed(2); // Convert to string for display
+     
+     console.log('💰 Tax calculation:', {
+       totalAmount,
+       mc: mcAmount,
+       baseAmount: parseFloat(net),
+       cgst: parseFloat(cgst),
+       sgst: parseFloat(sgst),
+       verification: parseFloat(net) + parseFloat(cgst) + parseFloat(sgst) + mcAmount
+     });
     
     // Generate ticket ID
     ticketId = `TKT${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;

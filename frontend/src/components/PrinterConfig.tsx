@@ -51,21 +51,8 @@ export default function PrinterConfig() {
       }
       
       if (printers.length === 0) {
-        // Fallback to test printers for development
-        printers = await tauriPrinterService.getTestPrinters();
-      }
-      
-      if (printers.length === 0) {
-        // Final fallback to hardcoded list
-        printers = [
-          'EPSON TM-T81 ReceiptE4',
-          'EPSON TM-T81 Receipt',
-          'EPSON TM-T20',
-          'EPSON TM-T88VI',
-          'Star TSP100',
-          'Citizen CT-S310II',
-          'Microsoft Print to PDF'
-        ];
+        // No printers found - return empty array
+        printers = [];
       }
       
       setAvailablePrinters(printers);
@@ -75,18 +62,9 @@ export default function PrinterConfig() {
     } catch (error) {
       console.error('❌ Error loading printers:', error);
       
-      // Fallback to hardcoded list
-      const fallbackPrinters = [
-        'EPSON TM-T81 ReceiptE4',
-        'EPSON TM-T81 Receipt',
-        'EPSON TM-T20',
-        'EPSON TM-T88VI',
-        'Star TSP100',
-        'Citizen CT-S310II',
-        'Microsoft Print to PDF'
-      ];
-      setAvailablePrinters(fallbackPrinters);
-      console.log('✅ Using fallback printer list:', fallbackPrinters);
+      // No fallback - return empty array
+      setAvailablePrinters([]);
+      console.log('❌ No printers available - backend may not be running');
     } finally {
       setIsLoading(false);
     }

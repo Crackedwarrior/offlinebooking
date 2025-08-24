@@ -40,17 +40,8 @@ export class TauriPrinterService {
       }
     } catch (error) {
       DEBUG_CONFIG.error('PRINTER', '❌ Error fetching all printers:', error);
-      // Fallback to mock data if backend is not available
-      return [
-        'EPSON TM-T81 ReceiptE4',
-        'EPSON TM-T20',
-        'EPSON TM-T88VI',
-        'Star TSP100',
-        'Citizen CT-S310II',
-        'Microsoft Print to PDF',
-        'HP LaserJet Pro M404n',
-        'Canon PIXMA TS3320'
-      ];
+      // Return empty array if backend is not available - no fallback
+      return [];
     }
   }
 
@@ -70,13 +61,7 @@ export class TauriPrinterService {
       }
     } catch (error) {
       DEBUG_CONFIG.error('PRINTER', '❌ Error fetching USB printers:', error);
-      return [
-        'EPSON TM-T81 ReceiptE4',
-        'EPSON TM-T20',
-        'EPSON TM-T88VI',
-        'Star TSP100',
-        'Citizen CT-S310II'
-      ];
+      return [];
     }
   }
 
@@ -100,11 +85,7 @@ export class TauriPrinterService {
       }
     } catch (error) {
       DEBUG_CONFIG.error('PRINTER', '❌ Error fetching serial printers:', error);
-      return [
-        'EPSON TM-T81 ReceiptE4 (COM1)',
-        'EPSON TM-T20 (COM2)',
-        'Star TSP100 (COM3)'
-      ];
+      return [];
     }
   }
 
