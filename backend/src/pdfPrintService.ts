@@ -177,8 +177,10 @@ class PdfPrintService {
     // Date and Show info - adjusted spacing for larger fonts
     doc.fontSize(normalFontSize).font('Times-Bold'); // Same font family as theater name, no italic
     doc.text(`DATE: ${ticketData.date || new Date().toLocaleDateString()}`, 60, currentY);
-    doc.fontSize(6).font('Helvetica'); // Even smaller font for ticket ID and time
-    doc.text(` S.No:${ticketData.ticketId || 'TKT1000000'}/${ticketData.currentTime || new Date().toLocaleTimeString()}`, 145, currentY - 5); // Position beside date with S.No, moved further up
+    doc.fontSize(7).font('Helvetica'); // Slightly reduced font size for S.No
+    // Format time to exclude seconds
+    const formattedTime = (ticketData.currentTime || new Date().toLocaleTimeString()).split(':').slice(0, 2).join(':');
+    doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, 145, currentY + 1); // Moved right for better positioning
     currentY += 15;
 
     // Movie name - with word wrapping for longer names
@@ -206,51 +208,52 @@ class PdfPrintService {
     
     currentY += 60; // Adjusted for taller box
 
-    // Tax breakdown - aligned with proper spacing
+    // Price breakdown - compact horizontal layout (2x2 format) with better alignment
     doc.fontSize(smallFontSize).font('Helvetica');
-    doc.text(`NET: ₹${ticketData.net || '125.12'}`, 60, currentY);
-    doc.text(`CGST: ₹${ticketData.cgst || '11.44'}`, 60, currentY + 12);
-    doc.text(`SGST: ₹${ticketData.sgst || '11.44'}`, 60, currentY + 24);
-    doc.text(`MC: ₹${ticketData.mc || '2.00'}`, 60, currentY + 36);
+    const priceStartY = currentY;
+    // Align colons by using consistent spacing
+    doc.text(`[NET  : ${(ticketData.net || '125.12').padStart(6)}]  [CGST : ${(ticketData.cgst || '11.44').padStart(7)}]`, 60, currentY);
+    currentY += 12;
+    doc.text(`[SGST : ${(ticketData.sgst || '11.44').padStart(6)}]  [MC   : ${(ticketData.mc || '2.00').padStart(7)}]`, 60, currentY);
+    currentY += 12;
+    doc.text(`[TICKET COST: Rs.${(ticketData.totalAmount || '150.00').padStart(6)}]`, 60, currentY); // Using Rs. instead of ₹
+    currentY += 18; // More spacing before total box
+
+    // Total price box - full width, prominent display
+    doc.rect(55, priceStartY + 36, 170, 40).stroke(); // Moved right and reduced width to ensure right line is visible
+    doc.fontSize(titleFontSize).font('Times-Bold'); // Same font family as theater name, no italic
+    doc.text(`TOTAL: Rs.${ticketData.totalAmount || '150.00'}`, 55, priceStartY + 51, { width: 176, align: 'center' }); // Centered, prominent text
+
+    currentY = priceStartY + 86; // Move tear-off line closer to total box
+
+    // Tear-off line (dotted/dashed line) - shorter to fit on one line
+    doc.fontSize(smallFontSize).font('Helvetica');
+    doc.text('- - - - - - - - - - - - - - - - - - - - - - - - - -', 60, currentY, { width: 156, align: 'center' });
+    currentY += 10; // Less space after tear-off line
     
-    // Total amount - prominent display
-    currentY += 50;
-    doc.rect(55, currentY, 170, 40).stroke(); // Moved right and reduced width to ensure right line is visible
-    doc.fontSize(14).font('Times-Bold'); // Larger font for total
-    doc.text(`TICKET COST: ₹${ticketData.totalAmount || '150.00'}`, 60, currentY + 12, { 
-      width: 176, 
-      align: 'center',
-      characterSpacing: 0.5 // Slight character spacing for emphasis
-    });
-
-    // Tear-off line
-    currentY += 50;
-    doc.lineWidth(1);
-    // Create dotted line manually
-    for (let x = 55; x < 225; x += 4) {
-      doc.moveTo(x, currentY).lineTo(x + 2, currentY).stroke();
-    }
-
-    // Stub section - compact version
+    // COMPACT STUB SECTION (for theater staff)
+    // Theater name compact - bold and italic
+    doc.fontSize(normalFontSize).font('Times-BoldItalic');
+    doc.text(ticketData.theaterName || 'SREELEKHA THEATER', 60, currentY, { width: 156, align: 'center' });
+    currentY += 12;
+    
+    // Essential info in compact form
+    doc.fontSize(smallFontSize).font('Helvetica');
+    doc.text(`${ticketData.date || new Date().toLocaleDateString()} ${ticketData.showClass || 'MATINEE SHOW'}`, 60, currentY, { width: 156, align: 'center' });
+    currentY += 12;
+    doc.text(`FILM: ${ticketData.movieName || 'Movie Name'}`, 60, currentY, { width: 156, align: 'center' });
+    currentY += 18; // More space for longer movie names that may wrap
+    // Split CLASS and SEAT into separate lines to handle longer class names
+    doc.text(`CLASS: ${ticketData.seatClass || 'STAR'}`, 60, currentY, { width: 156, align: 'center' });
     currentY += 10;
-    doc.fontSize(8).font('Helvetica');
-    doc.text(ticketData.theaterName || 'SREELEKHA THEATER', 60, currentY, { width: 176, align: 'center' });
+    doc.text(`SEAT: ${ticketData.seatInfo || 'A 1'}`, 60, currentY, { width: 156, align: 'center' });
     currentY += 12;
-    doc.text(ticketData.movieName || 'Movie Name', 60, currentY, { width: 176, align: 'center' });
-    currentY += 12;
-    doc.text(`${ticketData.date || new Date().toLocaleDateString()} | ${ticketData.showClass || 'MATINEE SHOW'}: ${ticketData.showTime || '02:45PM'}`, 60, currentY, { width: 176, align: 'center' });
-    currentY += 12;
-    doc.text(`${ticketData.seatClass || 'STAR'} | ${ticketData.seatInfo || 'A 1'}`, 60, currentY, { width: 176, align: 'center' });
-    currentY += 12;
-    
-    // Tax breakdown in stub - horizontal layout
-    doc.text(`NET:₹${ticketData.net || '125.12'} CGST:₹${ticketData.cgst || '11.44'} SGST:₹${ticketData.sgst || '11.44'} MC:₹${ticketData.mc || '2.00'}`, 60, currentY, { width: 176, align: 'center' });
-    currentY += 12;
-    doc.fontSize(10).font('Times-Bold');
-    doc.text(`TOTAL: ₹${ticketData.totalAmount || '150.00'}`, 60, currentY, { width: 176, align: 'center' });
-    currentY += 12;
-    doc.fontSize(6).font('Helvetica');
-    doc.text(`S.No: ${ticketData.ticketId || 'TKT1000000'}`, 60, currentY, { width: 176, align: 'center' });
+    // Tax breakdown in horizontal format
+    doc.text(`NET:${ticketData.net || '125.12'} CGST:${ticketData.cgst || '11.44'} SGST:${ticketData.sgst || '11.44'} MC:${ticketData.mc || '2.00'}`, 60, currentY, { width: 156, align: 'center' });
+    currentY += 18; // More spacing between MC and TOTAL
+    doc.text(`TOTAL: Rs.${ticketData.totalAmount || '150.00'}`, 60, currentY, { width: 156, align: 'center' });
+    currentY += 15;
+    doc.text(`${ticketData.ticketId || 'TKT1000000'} ${formattedTime}`, 60, currentY, { width: 156, align: 'center' });
 
     // Finalize the PDF
     doc.end();
@@ -375,7 +378,7 @@ class PdfPrintService {
     let sgst = '11.44';
     let mc = '2.00';
     let ticketId = 'TKT1000000';
-    let currentTime = new Date().toLocaleTimeString();
+    let currentTime = new Date().toLocaleTimeString().split(':').slice(0, 2).join(':');
     
     // Extract data from frontend format
     if (ticketData.movie) {
@@ -399,7 +402,13 @@ class PdfPrintService {
     }
     
     if (ticketData.date) {
-      date = ticketData.date;
+      // Convert date from YYYY-MM-DD to DD/MM/YYYY format
+      const dateParts = ticketData.date.split('-');
+      if (dateParts.length === 3) {
+        date = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`; // DD/MM/YYYY
+      } else {
+        date = ticketData.date; // Fallback to original format
+      }
     }
     
     if (ticketData.price) {
@@ -414,7 +423,24 @@ class PdfPrintService {
     if (ticketData.seatRange) {
       // Grouped ticket data
       seatClass = ticketData.classLabel || 'STAR';
-      seatInfo = ticketData.seatRange;
+      // Extract row letter from row information (e.g., "BOX-A" -> "A")
+      let rowLetter = 'A';
+      if (ticketData.row) {
+        const rowParts = ticketData.row.split('-');
+        rowLetter = rowParts[rowParts.length - 1] || 'A'; // Get the last part after dash
+      }
+      
+      // Format seat info as "A 5-6 (2)" format
+      if (ticketData.seatCount && ticketData.seatCount > 1) {
+        // For multiple seats, create range like "A 5-6 (2)"
+        const startSeat = parseInt(ticketData.seatRange);
+        const endSeat = startSeat + ticketData.seatCount - 1;
+        seatInfo = `${rowLetter} ${startSeat}-${endSeat} (${ticketData.seatCount})`;
+      } else {
+        // For single seat, just show "A 5"
+        seatInfo = `${rowLetter} ${ticketData.seatRange}`;
+      }
+      
       if (ticketData.totalPrice) {
         totalAmount = ticketData.totalPrice;
       }
@@ -429,6 +455,10 @@ class PdfPrintService {
       const firstSeat = ticketData.seats[0];
       seatInfo = `${firstSeat.row || 'A'} ${firstSeat.number || '1'}`;
       seatClass = firstSeat.classLabel || 'STAR';
+    } else if (ticketData.seat) {
+      // Direct seat data
+      seatInfo = ticketData.seat;
+      seatClass = ticketData.class || 'STAR';
     }
     
     // Calculate tax breakdown (simplified)
