@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
 
@@ -28,7 +29,7 @@ import {
 import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 import PriceDisplay from './PriceDisplay';
-import IsolatedPricingInput from './IsolatedPricingInput';
+
 import PrinterConfig from './PrinterConfig';
 
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' | 'printer';
@@ -47,16 +48,23 @@ const Settings = () => {
   renderCount.current += 1;
   console.log(`🔍 Settings component rendering (render #${renderCount.current})`);
   const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
-  const [localPricing, setLocalPricing] = useState(pricing);
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const hasChangesRef = useRef(false);
 
+  // React Hook Form for pricing
+  const { register, handleSubmit, watch, setValue, formState: { isDirty } } = useForm({
+    defaultValues: pricing
+  });
+
+  // Watch all pricing fields for changes
+  const watchedPricing = watch();
+
   // Simple function to check if there are any changes
   const hasChanges = () => {
-    const pricingChanged = JSON.stringify(localPricing) !== JSON.stringify(pricing);
+    const pricingChanged = isDirty;
     const showTimesChanged = JSON.stringify(localShowTimes) !== JSON.stringify(showTimes);
     return pricingChanged || showTimesChanged;
   };
@@ -69,7 +77,7 @@ const Settings = () => {
       setShowSaveButton(true);
       hasChangesRef.current = true;
     }
-  }, [localPricing, localShowTimes, pricing, showTimes]);
+  }, [isDirty, localShowTimes, showTimes]);
 
   // Memoize seat counts calculation
   const seatCounts = useMemo(() => {
@@ -112,14 +120,7 @@ const Settings = () => {
     );
   }
 
-  // Handle pricing changes - track changes without updating state
-  const handlePricingChange = useCallback((classLabel: string, value: number) => {
-    console.log(`🔍 Settings: handlePricingChange called for ${classLabel} with value ${value}`);
-    
-    // Track changes and show save button
-    hasChangesRef.current = true;
-    setShowSaveButton(true);
-  }, []);
+
 
   // Handle show time changes
   const handleShowTimeChange = useCallback((key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
@@ -137,17 +138,12 @@ const Settings = () => {
   // Save all changes
   const handleSave = useCallback(() => {
     try {
-      // Collect current values from input components and update pricing settings
-      const updatedPricing: Record<string, number> = {};
+      // Get current form values
+      const formValues = watchedPricing;
       
-      SEAT_CLASSES.forEach(seatClass => {
-        // Get the current value from the input component
-        const inputElement = document.getElementById(seatClass.label) as HTMLInputElement;
-        if (inputElement) {
-          const value = parseInt(inputElement.value) || 0;
-          updatedPricing[seatClass.label] = value;
-          updatePricing(seatClass.label, value);
-        }
+      // Update pricing settings
+      Object.entries(formValues).forEach(([classLabel, value]) => {
+        updatePricing(classLabel, parseInt(value as string) || 0);
       });
 
       // Update show time settings
@@ -160,11 +156,11 @@ const Settings = () => {
       
       // Show success message
       console.log('✅ Settings saved successfully!');
-      console.log('💰 Updated pricing:', updatedPricing);
+      console.log('💰 Updated pricing:', formValues);
       
       // Force a re-render of components that use pricing
       window.dispatchEvent(new CustomEvent('pricingUpdated', { 
-        detail: { pricing: updatedPricing } 
+        detail: { pricing: formValues } 
       }));
       
       // toast({
@@ -175,7 +171,7 @@ const Settings = () => {
       console.error('❌ Error saving settings:', error);
       setError('Failed to save settings. Please try again.');
     }
-  }, [localShowTimes, updatePricing, updateShowTime]);
+  }, [watchedPricing, localShowTimes, updatePricing, updateShowTime]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
@@ -304,7 +300,7 @@ const Settings = () => {
 
 
 
-  const PricingTab = () => (
+  const PricingTab = useMemo(() => () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -320,12 +316,31 @@ const Settings = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {SEAT_CLASSES.map(seatClass => (
-                <IsolatedPricingInput 
-                  key={seatClass.label} 
-                  seatClass={seatClass}
-                  initialValue={localPricing[seatClass.label] || 0}
-                  onValueChange={handlePricingChange}
-                />
+                <div key={seatClass.label} className="space-y-4">
+                  <div>
+                    <Label htmlFor={seatClass.label} className="text-base font-medium">
+                      {seatClass.label}
+                    </Label>
+                  </div>
+                  <input
+                    {...register(seatClass.label, {
+                      setValueAs: (value) => {
+                        // Handle different value types
+                        if (typeof value === 'number') {
+                          return value;
+                        }
+                        if (typeof value === 'string') {
+                          const cleanValue = value.replace(/[^0-9]/g, '');
+                          return cleanValue === '' ? 0 : parseInt(cleanValue) || 0;
+                        }
+                        return 0;
+                      }
+                    })}
+                    type="text"
+                    placeholder="Enter price"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                  />
+                </div>
               ))}
             </div>
           </CardContent>
@@ -334,7 +349,7 @@ const Settings = () => {
         <PriceDisplay />
       </div>
     </div>
-  );
+  ), [register]);
 
   const ShowTimesTab = useMemo(() => () => (
     <div className="space-y-6">

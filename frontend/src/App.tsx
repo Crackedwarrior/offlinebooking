@@ -115,6 +115,7 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index onLogout={handleLogout} />} />
+              <Route path="/checkout" element={<Index onLogout={handleLogout} />} />
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
