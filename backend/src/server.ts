@@ -221,7 +221,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       };
       
       console.log('🖨️ Printing ticket data:', ticketData);
-      await EscposPrintService.printSilently(ticketData, printerConfig.name || 'EPSON TM-T81 Receipt');
+      await EscposPrintService.printSilently(ticketData, printerConfig.name);
     }
 
     console.log('✅ All tickets printed successfully via ESC/POS');
@@ -230,7 +230,7 @@ app.post('/api/printer/print', asyncHandler(async (req: Request, res: Response) 
       message: `${tickets.length} tickets printed successfully`,
             timestamp: new Date().toISOString(),
             printerInfo: {
-        name: 'EPSON TM-T81 ReceiptE4',
+        name: printerConfig.name,
         status: 'printed',
         method: 'Direct ESC/POS'
       }
