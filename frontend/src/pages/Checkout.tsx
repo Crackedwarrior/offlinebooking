@@ -37,9 +37,10 @@ interface CheckoutProps {
    
   onManualShowSelection?: (showKey: string) => void;
   onClearCheckoutData?: () => void;
+  onNavigateToSeatGrid?: () => void;
 }
 
-const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, onManualShowSelection, onClearCheckoutData }) => {
+const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, onManualShowSelection, onClearCheckoutData, onNavigateToSeatGrid }) => {
   const { seats, selectedShow, setSelectedShow, selectedDate, toggleSeatStatus, loadBookingForDate, initializeSeats, syncSeatStatus } = useBookingStore();
   const { getPriceForClass, getMovieForShow } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes); // Get show times for dynamic logic
@@ -1081,7 +1082,7 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
 
 
   return (
-    <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4 items-start">
+    <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4">
 
       
       <div className="flex-[3] flex flex-col mt-8">
@@ -1312,12 +1313,13 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
       </div>
 
       {/* Ticket Print Component */}
-      <div className="flex-[1]">
+      <div className="flex-[1] flex flex-col h-full">
         <TicketPrint
           selectedSeats={ticketSeats}
           onDelete={handleDeleteTickets}
           onDecouple={handleDecoupleTickets}
           decoupledSeatIds={decoupledSeatIds}
+          onNavigateToSeatGrid={onNavigateToSeatGrid}
           onReset={async () => {
             try {
               // Prepare seat updates for backend

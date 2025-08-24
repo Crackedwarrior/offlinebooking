@@ -36,12 +36,13 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   const { selectedDate, selectedShow, setSelectedShow, seats, toggleSeatStatus, initializeSeats } = useBookingStore();
   const { getShowTimes, getPriceForClass } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes); // Get all show times for dependency
-  const [activeView, setActiveView] = useState<'booking' | 'checkout' | 'confirmation' | 'history' | 'reports' | 'settings'>('booking');
+  const [activeView, setActiveView] = useState<'booking' | 'checkout' | 'confirmation' | 'history' | 'reports' | 'settings'>('checkout');
   const [collapsed, setCollapsed] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [checkoutData, setCheckoutData] = useState<any>(null);
   const [bookingId, setBookingId] = useState<string>('');
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
+  const [isExchangeMode, setIsExchangeMode] = useState(false);
 
   // Custom hook to get current show label dynamically
   const getCurrentShowLabelDynamic = useCallback(() => {
@@ -506,7 +507,164 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         {/* Content Area */}
         <div className="flex-1 p-0">
           {activeView === 'booking' && (
-            <SeatGrid onProceed={(data) => { setCheckoutData(data); setActiveView('checkout'); }} />
+            <SeatGrid 
+              onProceed={(data) => { 
+                setCheckoutData(data); 
+                setActiveView('checkout'); 
+                setIsExchangeMode(false); // Reset exchange mode when proceeding normally
+              }} 
+              showExchangeButton={isExchangeMode}
+              onExchange={async () => {
+                // Handle exchange button click - print tickets and return to checkout
+                console.log('🔄 Exchange button clicked - printing tickets and returning to checkout');
+                
+                try {
+                  // Get selected seats from the store
+                  const selectedSeats = seats.filter(seat => seat.status === 'SELECTED');
+                  
+                  if (selectedSeats.length === 0) {
+                    console.log('⚠️ No seats selected for printing');
+                    return;
+                  }
+                  
+                  // Import the necessary services
+                  const { TauriPrinterService } = await import('@/services/tauriPrinterService');
+                  const { useSettingsStore } = await import('@/store/settingsStore');
+                  const printerService = await import('@/services/printerService');
+                  
+                  // Get movie for current show from settings
+                  const { getMovieForShow } = useSettingsStore.getState();
+                  const currentMovie = getMovieForShow(selectedShow);
+                  
+                  if (!currentMovie) {
+                    console.error('❌ No movie found for show:', selectedShow);
+                    return;
+                  }
+                  
+                  // Get show time details from settings store
+                  const { getShowTimes } = useSettingsStore.getState();
+                  const showTimes = getShowTimes();
+                  const currentShowTime = showTimes.find(show => show.key === selectedShow);
+                  
+                  if (!currentShowTime) {
+                    console.error('❌ No show time found for:', selectedShow);
+                    return;
+                  }
+                  
+                  // Convert 24-hour time to 12-hour format for display
+                  const convertTo12Hour = (time24h: string): string => {
+                    const [hours, minutes] = time24h.split(':').map(Number);
+                    const period = hours >= 12 ? 'PM' : 'AM';
+                    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+                  };
+                  
+                  const showtime = convertTo12Hour(currentShowTime.startTime);
+                  
+                  // Get printer configuration
+                  const printerInstance = printerService.default.getInstance();
+                  const printerConfig = printerInstance.getPrinterConfig();
+                  
+                  if (!printerConfig || !printerConfig.name) {
+                    console.error('❌ No printer configured');
+                    return;
+                  }
+                  
+                  // Use Tauri printer service for native printing
+                  const tauriPrinterService = TauriPrinterService.getInstance();
+                  
+                  // Group seats by class and row
+                  const groups = selectedSeats.reduce((acc, seat) => {
+                    const key = `${seat.classLabel}|${seat.row}`;
+                    if (!acc[key]) {
+                      acc[key] = {
+                        classLabel: seat.classLabel,
+                        row: seat.row,
+                        seats: [],
+                        price: 0,
+                        seatIds: [],
+                      };
+                    }
+                    acc[key].seats.push(seat.number);
+                    acc[key].price += seat.price;
+                    acc[key].seatIds.push(seat.id);
+                    return acc;
+                  }, {} as Record<string, any>);
+                  
+                  const ticketGroups = Object.values(groups).map(group => ({
+                    theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
+                    location: printerConfig.location || 'Chickmagalur',
+                    date: selectedDate,
+                    showTime: showtime,
+                    movieName: currentMovie.name,
+                    movieLanguage: currentMovie.language,
+                    classLabel: group.classLabel,
+                    row: group.row,
+                    seatRange: group.seats.sort((a: number, b: number) => a - b).join(', '),
+                    seatCount: group.seats.length,
+                    individualPrice: group.price / group.seats.length,
+                    totalPrice: group.price,
+                    isDecoupled: false,
+                    seatIds: group.seatIds,
+                    transactionId: 'TXN' + Date.now()
+                  }));
+                  
+                  console.log('🖨️ Preparing to print grouped tickets via Tauri:', ticketGroups);
+                  
+                  // Print each ticket group using Tauri
+                  let allPrinted = true;
+                  for (const ticketGroup of ticketGroups) {
+                    const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name, currentMovie);
+                    
+                    if (!printSuccess) {
+                      console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
+                      allPrinted = false;
+                      break;
+                    }
+                  }
+                  
+                  if (!allPrinted) {
+                    console.error('❌ Failed to print all tickets');
+                    return;
+                  }
+                  
+                  // Save booking to backend
+                  const { createBooking } = await import('@/services/api');
+                  const response = await createBooking({
+                    tickets: selectedSeats.map(seat => ({
+                      id: seat.id,
+                      row: seat.row,
+                      number: seat.number,
+                      classLabel: seat.classLabel,
+                      price: seat.price,
+                    })),
+                    total: selectedSeats.reduce((sum, seat) => sum + seat.price, 0),
+                    totalTickets: selectedSeats.length,
+                    timestamp: new Date().toISOString(),
+                    show: selectedShow,
+                    screen: currentMovie.screen,
+                    movie: currentMovie.name,
+                    date: selectedDate,
+                    source: 'LOCAL'
+                  });
+                  
+                  if (response.success) {
+                    // Mark all selected seats as booked in the store
+                    selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
+                    console.log('✅ Tickets printed and booking saved successfully');
+                  } else {
+                    console.error('❌ Failed to save booking to backend');
+                  }
+                  
+                } catch (error) {
+                  console.error('❌ Error in exchange button:', error);
+                }
+                
+                // Return to checkout page
+                setIsExchangeMode(false);
+                setActiveView('checkout');
+              }}
+            />
           )}
 
           {activeView === 'history' && <BookingHistory />}
@@ -519,6 +677,10 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
               onBookingComplete={handleBookingComplete}
               onManualShowSelection={handleManualShowSelection}
               onClearCheckoutData={() => setCheckoutData(null)}
+              onNavigateToSeatGrid={() => {
+                setIsExchangeMode(true);
+                setActiveView('booking');
+              }}
             />
           )}
 

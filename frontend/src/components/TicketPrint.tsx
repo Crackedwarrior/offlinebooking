@@ -30,6 +30,7 @@ interface TicketPrintProps {
   onBookingComplete?: () => void;
   onDecouple?: (seatIds: string[]) => void;
   decoupledSeatIds?: string[];
+  onNavigateToSeatGrid?: () => void;
 }
 
 // Helper: group seats by class and row, considering decoupled seats
@@ -168,7 +169,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   selectedDate, 
   onBookingComplete,
   onDecouple,
-  decoupledSeatIds = []
+  decoupledSeatIds = [],
+  onNavigateToSeatGrid
 }) => {
   const groups = groupSeats(selectedSeats, decoupledSeatIds);
   const total = groups.reduce((sum, g) => sum + g.price, 0);
@@ -377,24 +379,24 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 w-80 relative flex flex-col" style={{height: '500px', marginTop: 0, background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)'}}>
+    <div className="bg-white rounded-xl shadow-md border border-gray-200 w-80 relative flex flex-col h-full" style={{ padding: '8px 8px -8px 8px' }}>
       
-      <div className="font-semibold text-lg px-4 pt-2 pb-3 border-b border-gray-100 mb-3 flex items-center justify-between">
-        <span>Tickets</span>
+      <div className="font-semibold text-lg px-4 pt-1 pb-2 border-b border-gray-200 mb-2 flex items-center justify-between">
+        <span className="text-gray-900">Tickets</span>
         <div className="flex items-center gap-2">
           {selectedGroupIdxs.length > 0 && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
               {selectedGroupIdxs.length} selected
             </span>
           )}
           {decoupledSeatIds.length > 0 && (
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
               {decoupledSeatIds.length} decoupled
             </span>
           )}
           {onReset && (
             <button
-              className="text-red-500 hover:text-red-700 flex items-center justify-center ml-2"
+              className="text-red-500 hover:text-red-700 flex items-center justify-center ml-2 transition-colors"
               title="Reset all tickets"
               onClick={onReset}
               style={{ padding: 0 }}
@@ -408,115 +410,133 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
       
       {/* Scrollable ticket list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 max-h-80 px-2">
+              <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 px-2">
         {groups.map((g, idx) => {
           const colorClass = classColorMap[g.classLabel] || 'bg-cyan-300';
           return (
-            <div
-              key={g.classLabel + g.row + g.seats.join(',')}
-              className={`rounded-xl shadow-md px-5 py-3 mb-3 cursor-pointer relative transition border-2 flex flex-col justify-between ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-100 shadow-lg scale-105' : 'border-transparent'} hover:shadow-lg ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
-              onClick={() => toggleGroupSelection(idx)}
-              onDoubleClick={() => handleDoubleClickDecouple(g.seatIds)}
-              title="Click to select for deletion • Double-click to decouple into individual tickets"
-            >
-              {/* Top row: label and checkbox */}
-              <div className="flex items-center justify-between w-full">
-                <div className="font-bold text-base leading-tight">
-                  {g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}
-                  {decoupledSeatIds.some(id => g.seatIds.includes(id)) && (
-                    <span className="ml-2 text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
-                      Individual
-                    </span>
-                  )}
-                  {selectedGroupIdxs.includes(idx) && (
-                    <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
-                      Selected
-                    </span>
-                  )}
+                          <div
+                key={g.classLabel + g.row + g.seats.join(',')}
+                className={`rounded-lg border border-gray-200 shadow-sm px-3 py-2 mb-2 cursor-pointer relative transition-all duration-200 ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-50 shadow-md scale-[1.02]' : 'hover:shadow-md hover:border-gray-300'} ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
+                onClick={() => toggleGroupSelection(idx)}
+                onDoubleClick={() => handleDoubleClickDecouple(g.seatIds)}
+                title="Click to select for deletion • Double-click to decouple into individual tickets"
+              >
+                {/* Top row: label and checkbox */}
+                <div className="flex items-center justify-between w-full">
+                  <div className="font-semibold text-sm leading-tight text-gray-900">
+                    {g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}
+                    {decoupledSeatIds.some(id => g.seatIds.includes(id)) && (
+                      <span className="ml-2 text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full font-medium">
+                        Individual
+                      </span>
+                    )}
+                    {selectedGroupIdxs.includes(idx) && (
+                      <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIdxs.includes(idx)}
+                    onChange={() => toggleGroupSelection(idx)}
+                    className="w-4 h-4 accent-blue-600 cursor-pointer rounded border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
+                    style={{ marginTop: 2 }}
+                    onClick={e => e.stopPropagation()}
+                  />
                 </div>
-                <input
-                  type="checkbox"
-                  checked={selectedGroupIdxs.includes(idx)}
-                  onChange={() => toggleGroupSelection(idx)}
-                  className="w-5 h-5 accent-blue-600 cursor-pointer rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
-                  style={{ marginTop: 2 }}
-                  onClick={e => e.stopPropagation()}
-                />
+                
+                {/* Bottom row: price and count */}
+                <div className="flex items-end justify-between w-full mt-2">
+                  <div className="text-sm font-medium text-gray-700">Price: <span className="font-bold text-gray-900">₹{g.price}</span></div>
+                  <div className="text-xs font-semibold bg-gray-100 text-gray-700 rounded-full px-2 py-1">{g.seats.length}</div>
+                </div>
               </div>
-              
-              {/* Bottom row: price and count */}
-              <div className="flex items-end justify-between w-full mt-1">
-                <div className="text-sm font-medium">Price: <span className="font-bold">₹{g.price}</span></div>
-                <div className="text-xs font-semibold bg-white/70 rounded-full px-2 py-0.5 shadow-sm">{g.seats.length}</div>
-              </div>
-            </div>
           );
         })}
         {/* Add spacing below last ticket card */}
-        <div className="mb-4"></div>
+        <div className="mb-2"></div>
       </div>
       
-      {/* Sticky action bar at bottom */}
-      <div className="sticky bottom-0 left-0 bg-white/90 pt-3 pb-2 z-10 px-4 rounded-b-2xl">
-        <hr className="my-3 border-gray-100" />
-        <div className="flex justify-between items-center w-full mb-4">
-          <span>
-            <span className="font-semibold">Total:</span>
-            <span className="text-xl font-bold ml-2">₹ {total}</span>
-          </span>
-          <span className="text-xs bg-gray-100 rounded-full px-3 py-1 font-semibold shadow-sm border border-gray-200">
-            {totalTickets} ticket{totalTickets !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <div className="flex justify-between items-center w-full mt-2 gap-2">
-          <button 
-            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold px-5 py-2 rounded-lg shadow transition" 
-            onClick={handlePrint}
-            disabled={totalTickets === 0}
-          >
-            Print Tickets
-          </button>
-          <button
-            className="bg-red-100 text-red-700 hover:bg-red-200 font-semibold px-4 py-2 rounded-lg border border-red-300 transition text-sm"
-            onClick={async () => {
-              console.log('🗑️ Delete clicked');
-              console.log('🗑️ selectedSeats:', selectedSeats);
-              console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
-              console.log('🗑️ onDelete function exists:', !!onDelete);
-              console.log('🗑️ groups:', groups);
-              
-              if (!onDelete || selectedSeats.length === 0) {
-                console.error('❌ Cannot delete: onDelete function missing or no seats selected');
-                return;
-              }
-              
-              let seatIdsToDelete: string[];
-              
-              if (selectedGroupIdxs.length > 0) {
-                // User has selected specific ticket groups - delete only those
-                seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
-                console.log('🗑️ User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
-              } else {
-                // No specific selection - delete ALL tickets directly
-                seatIdsToDelete = selectedSeats.map(seat => seat.id);
-                console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
-              }
-              
-              console.log('🗑️ About to call onDelete with seatIds:', seatIdsToDelete);
-              
-              try {
-                await onDelete(seatIdsToDelete);
-                console.log('✅ onDelete completed successfully');
-              } catch (error) {
-                console.error('❌ onDelete failed:', error);
-              }
-              
-              setSelectedGroupIdxs([]);
-            }}
-          >
-            Delete
-          </button>
-        </div>
+             {/* Total display - absolutely positioned to align with Delete button */}
+       <div className="absolute left-6 flex items-center gap-3" style={{ top: '460px' }}>
+         <span className="font-semibold text-gray-900">Total:</span>
+         <span className="text-xl font-bold text-gray-900">₹ {total}</span>
+         <span className="text-xs bg-gray-100 text-gray-700 rounded-full px-3 py-1 font-semibold border border-gray-200">
+           {totalTickets} ticket{totalTickets !== 1 ? 's' : ''}
+         </span>
+       </div>
+      
+      {/* Delete button positioned above horizontal line */}
+      <div className="relative w-full">
+        <button
+          className="absolute bg-red-50 text-red-700 hover:bg-red-100 font-medium px-4 py-2 rounded-lg border border-red-200 transition-colors text-sm"
+          style={{ top: '18px', right: '20px' }}
+          onClick={async () => {
+            console.log('🗑️ Delete clicked');
+            console.log('🗑️ selectedSeats:', selectedSeats);
+            console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
+            console.log('🗑️ onDelete function exists:', !!onDelete);
+            console.log('🗑️ groups:', groups);
+            
+            if (!onDelete || selectedSeats.length === 0) {
+              console.error('❌ Cannot delete: onDelete function missing or no seats selected');
+              return;
+            }
+            
+            let seatIdsToDelete: string[];
+            
+            if (selectedGroupIdxs.length > 0) {
+              // User has selected specific ticket groups - delete only those
+              seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
+              console.log('🗑️ User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
+            } else {
+              // No specific selection - delete ALL tickets directly
+              seatIdsToDelete = selectedSeats.map(seat => seat.id);
+              console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
+            }
+            
+            console.log('🗑️ About to call onDelete with seatIds:', seatIdsToDelete);
+            
+            try {
+              await onDelete(seatIdsToDelete);
+              console.log('✅ onDelete completed successfully');
+            } catch (error) {
+              console.error('❌ onDelete failed:', error);
+            }
+            
+            setSelectedGroupIdxs([]);
+          }}
+        >
+          Delete
+        </button>
+      </div>
+
+      {/* Floating split button with full-width lines - outside the padded container */}  
+              <div className="w-full h-64 flex flex-col relative overflow-visible">
+        {/* Full-width horizontal line - extends to edges */}
+        <div className="absolute left-0 h-px bg-gray-300 z-10" style={{ right: '0px', top: '80px' }}></div>
+        
+        {/* Full-height vertical line - extends to edges */}
+        <div className="absolute left-1/2 w-px bg-gray-300 z-10" style={{ transform: 'translateX(-50%)', top: '80px', bottom: '0' }}></div>
+        
+                          {/* Left side - Lightning (Seat Grid) - Non-clickable for now */}
+         <div className="w-1/2 h-full bg-transparent flex items-center justify-center">
+           <div className="flex items-center justify-center" style={{ transform: 'translateX(5px) translateY(20px)' }}>
+             <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+               <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+             </svg>
+           </div>
+         </div>
+         
+         {/* Right side - Printer (Print) - Non-clickable for now */}
+         <div className="absolute right-0 top-0 w-1/2 h-full bg-transparent flex items-center justify-center">
+                        <div className="flex items-center justify-center" style={{ transform: 'translateX(25px) translateY(20px)' }}>
+             <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+               <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+             </svg>
+           </div>
+         </div>
       </div>
       
 
