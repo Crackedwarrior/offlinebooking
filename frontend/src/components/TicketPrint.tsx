@@ -381,7 +381,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-200 w-80 relative flex flex-col h-full" style={{ padding: '8px 8px -8px 8px' }}>
       
-      <div className="font-semibold text-lg px-4 pt-1 pb-2 border-b border-gray-200 mb-2 flex items-center justify-between">
+      <div className="font-semibold text-base px-4 pt-1 pb-2 border-b border-gray-200 mb-2 flex items-center justify-between">
         <span className="text-gray-900">Tickets</span>
         <div className="flex items-center gap-2">
           {selectedGroupIdxs.length > 0 && (
@@ -401,7 +401,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
               onClick={onReset}
               style={{ padding: 0 }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 7H3V3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 7a9 9 0 1 1 2.12 9.17" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 7H3V3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 7a9 9 0 1 1 2.12 9.17" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           )}
         </div>
@@ -471,7 +471,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       <div className="relative w-full">
         <button
           className="absolute bg-red-50 text-red-700 hover:bg-red-100 font-medium px-4 py-2 rounded-lg border border-red-200 transition-colors text-sm"
-          style={{ top: '18px', right: '20px' }}
+          style={{ top: '-65px', right: '20px' }}
           onClick={async () => {
             console.log('🗑️ Delete clicked');
             console.log('🗑️ selectedSeats:', selectedSeats);
@@ -513,30 +513,49 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       </div>
 
       {/* Floating split button with full-width lines - outside the padded container */}  
-              <div className="w-full h-64 flex flex-col relative overflow-visible">
+              <div className="w-full h-40 flex flex-col relative overflow-visible">
         {/* Full-width horizontal line - extends to edges */}
-        <div className="absolute left-0 h-px bg-gray-300 z-10" style={{ right: '0px', top: '80px' }}></div>
+        <div className="absolute left-0 h-px bg-gray-300 z-10" style={{ right: '0px', top: '0px' }}></div>
         
         {/* Full-height vertical line - extends to edges */}
-        <div className="absolute left-1/2 w-px bg-gray-300 z-10" style={{ transform: 'translateX(-50%)', top: '80px', bottom: '0' }}></div>
+        <div className="absolute left-1/2 w-px bg-gray-300 z-10" style={{ transform: 'translateX(-50%)', top: '0px', bottom: '0' }}></div>
         
-                          {/* Left side - Lightning (Seat Grid) - Non-clickable for now */}
-         <div className="w-1/2 h-full bg-transparent flex items-center justify-center">
-           <div className="flex items-center justify-center" style={{ transform: 'translateX(5px) translateY(20px)' }}>
-             <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-               <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-             </svg>
-           </div>
-         </div>
-         
-         {/* Right side - Printer (Print) - Non-clickable for now */}
-         <div className="absolute right-0 top-0 w-1/2 h-full bg-transparent flex items-center justify-center">
-                        <div className="flex items-center justify-center" style={{ transform: 'translateX(25px) translateY(20px)' }}>
-             <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-               <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
-             </svg>
-           </div>
-         </div>
+        {/* Left side - Lightning (Seat Grid) - Clickable */}
+        <button
+          className="w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
+          onClick={() => {
+            console.log('⚡ Lightning button clicked - navigate to seat grid');
+            if (onNavigateToSeatGrid) {
+              onNavigateToSeatGrid();
+            }
+          }}
+        >
+          <div className="flex items-center justify-center" style={{ transform: 'translateX(0px) translateY(0px)' }}>
+            <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+            </svg>
+          </div>
+        </button>
+        
+        {/* Right side - Printer (Print) - Clickable */}
+        <button
+          className="absolute right-0 top-0 w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
+          onClick={() => {
+            console.log('🖨️ Print button clicked');
+            if (selectedSeats.length === 0) {
+              console.log('❌ No tickets to print');
+              return;
+            }
+            
+            handleConfirmPrint();
+          }}
+        >
+          <div className="flex items-center justify-center" style={{ transform: 'translateX(5px) translateY(0px)' }}>
+            <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+            </svg>
+          </div>
+        </button>
       </div>
       
 

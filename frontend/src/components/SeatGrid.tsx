@@ -681,8 +681,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
             right: 0
           }}
         >
-          {/* Left side - Proceed to Checkout button */}
-          <div className="flex items-center gap-6">
+          {/* Left side - Proceed to Checkout button and info (1/2 width) */}
+          <div className="flex items-center gap-6 w-1/2">
             <Button
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer"
               style={{ 
@@ -707,28 +707,26 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
             </div>
           </div>
 
-          {/* Right side - Print Tickets button (only in exchange mode) */}
+          {/* Right side - Entire 1/2 panel clickable for print (only in exchange mode) */}
           {showExchangeButton && (
-            <div className="flex items-center">
-              <Button
-                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold py-2 px-6 rounded transition-all cursor-pointer flex items-center gap-2"
-                style={{ 
-                  border: 'none',
-                  cursor: 'pointer',
-                  pointerEvents: 'auto',
-                  zIndex: 9999
-                }}
+            <div className="relative w-1/2 h-full flex items-center justify-center">
+              {/* Vertical divider line */}
+              <div className="absolute left-0 top-0 w-px h-full bg-gray-300 z-20"></div>
+              
+              {/* Clickable print area - entire right half */}
+              <button
+                className="w-full h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-center"
                 onClick={() => {
+                  console.log('🖨️ SeatGrid Print area clicked');
                   if (onExchange) {
                     onExchange();
                   }
                 }}
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
                 </svg>
-                Print Tickets
-              </Button>
+              </button>
             </div>
           )}
         </div>
