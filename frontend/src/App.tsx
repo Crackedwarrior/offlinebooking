@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import desktopApi from "./services/desktopApi";
 import AuthPage from "./components/AuthPage";
 import { AUTH_CONFIG } from "./config/auth";
-import { testTauriAccess } from "./utils/tauriDebug";
+
 
 
 
@@ -21,35 +21,7 @@ const queryClient = new QueryClient();
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useEffect(() => {
-    // Initialize desktop API if running in Tauri
-    const initDesktopApi = async () => {
-      try {
-        // Check if we're running in Tauri
-        if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-          console.log('Running in Tauri environment');
-          
-          // Test Tauri API access
-          const tauriTest = await testTauriAccess();
-          console.log('Tauri API test result:', tauriTest);
-          
-          // Check if backend is running, start if not
-          const isBackendRunning = await desktopApi.checkBackendHealth();
-          if (!isBackendRunning) {
-            await desktopApi.startBackend();
-          }
-        } else {
-          console.log('Running in browser environment');
-        }
-              } catch (error) {
-          console.error('Failed to initialize desktop API:', error);
-        }
-      };
 
-
-
-    initDesktopApi();
-  }, []);
 
   // Session timeout effect
   useEffect(() => {

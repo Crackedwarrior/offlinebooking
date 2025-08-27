@@ -544,10 +544,10 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     return;
                   }
                   
-                  // Import the necessary services
-                  const { TauriPrinterService } = await import('@/services/tauriPrinterService');
-                  const { useSettingsStore } = await import('@/store/settingsStore');
-                  const printerService = await import('@/services/printerService');
+                                     // Import the necessary services
+                   const { useSettingsStore } = await import('@/store/settingsStore');
+                   const printerService = await import('@/services/printerService');
+                   const { ElectronPrinterService } = await import('@/services/electronPrinterService');
                   
                   // Get movie for current show from settings
                   const { getMovieForShow } = useSettingsStore.getState();
@@ -587,8 +587,8 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     return;
                   }
                   
-                  // Use Tauri printer service for native printing
-                  const tauriPrinterService = TauriPrinterService.getInstance();
+                                                     // Use Electron printer service
+                           const electronPrinterService = ElectronPrinterService.getInstance();
                   
                                      // Group seats by class and row
                    const { getPriceForClass } = useSettingsStore.getState();
@@ -632,12 +632,13 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     transactionId: 'TXN' + Date.now()
                   }));
                   
-                  console.log('🖨️ Preparing to print grouped tickets via Tauri:', ticketGroups);
-                  
-                  // Print each ticket group using Tauri
-                  let allPrinted = true;
-                  for (const ticketGroup of ticketGroups) {
-                    const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name, currentMovie);
+                                     console.log('🖨️ Preparing to print grouped tickets via Electron:', ticketGroups);
+                   
+                   // Print each ticket group using Electron
+                   let allPrinted = true;
+                   for (const ticketGroup of ticketGroups) {
+                     const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
+                     const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
                     
                     if (!printSuccess) {
                       console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);

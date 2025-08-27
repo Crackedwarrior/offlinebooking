@@ -1,0 +1,68 @@
+{
+  "appId": "com.auditoriumx.app",
+  "productName": "AuditoriumX",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "node_modules/**/*",
+    "!node_modules/.cache/**/*",
+    "!node_modules/electron/**/*",
+    "!node_modules/electron-builder/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "../backend",
+      "to": "backend",
+      "filter": [
+        "**/*",
+        "!node_modules/**/*",
+        "!*.log",
+        "!dist/**/*"
+      ]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "electron/assets/icon.ico",
+    "requestedExecutionLevel": "requireAdministrator"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "AuditoriumX",
+    "installerIcon": "electron/assets/icon.ico",
+    "uninstallerIcon": "electron/assets/icon.ico",
+    "installerHeaderIcon": "electron/assets/icon.ico"
+  },
+  "portable": {
+    "artifactName": "AuditoriumX-Portable.exe"
+  },
+  "mac": {
+    "target": "dmg",
+    "icon": "electron/assets/icon.icns",
+    "category": "public.app-category.business"
+  },
+  "linux": {
+    "target": "AppImage",
+    "icon": "electron/assets/icon.png",
+    "category": "Office"
+  },
+  "publish": {
+    "provider": "github",
+    "releaseType": "release"
+  }
+}

@@ -8,7 +8,7 @@ export const DEBUG_CONFIG = {
     CHECKOUT: false,          // Checkout process logs
     PRINTER: true,           // Printer service logs (keep enabled for debugging)
     API: true,               // API call logs (keep enabled for debugging)
-    TAURI: false,            // Tauri availability logs (disabled to reduce noise)
+    ELECTRON: false,         // Electron availability logs (disabled to reduce noise)
   },
   
   // Development mode detection

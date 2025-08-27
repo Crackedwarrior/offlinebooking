@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PrinterConfig } from '@/services/printerService';
 import { PrinterService } from '@/services/printerService';
-import { TauriPrinterService } from '@/services/tauriPrinterService';
+import { ElectronPrinterService } from '@/services/electronPrinterService';
 
 export default function PrinterConfig() {
   const [config, setConfig] = useState<PrinterConfig>({
@@ -39,16 +39,9 @@ export default function PrinterConfig() {
     try {
       setIsLoading(true);
       
-      // Use Tauri printer service to get all printers
-      const tauriPrinterService = TauriPrinterService.getInstance();
-      
-      // Try to get all printers first
-      let printers = await tauriPrinterService.getAllPrinters();
-      
-      if (printers.length === 0) {
-        // Fallback to USB printers
-        printers = await tauriPrinterService.getUsbPrinters();
-      }
+      // Use Electron printer service
+      const electronPrinterService = ElectronPrinterService.getInstance();
+      let printers = await electronPrinterService.getAllPrinters();
       
       if (printers.length === 0) {
         // No printers found - return empty array
@@ -83,34 +76,16 @@ export default function PrinterConfig() {
   const handleTestPrint = async () => {
     setIsLoading(true);
     try {
-      const tauriPrinterService = TauriPrinterService.getInstance();
+      // Use Electron printer service
+      const electronPrinterService = ElectronPrinterService.getInstance();
+      electronPrinterService.setPrinterConfig(config);
       
-      const testTicket: any = {
-        theaterName: config.theaterName,
-        location: config.location,
-        date: new Date().toLocaleDateString(),
-        showTime: '2:00 PM',
-        movieName: 'TEST MOVIE',
-        class: 'TEST CLASS',
-        seatId: 'A1',
-        netAmount: 100,
-        cgst: 9,
-        sgst: 9,
-        mc: 0,
-        price: 118,
-        transactionId: 'TEST123'
-      };
-
-      // Format ticket for thermal printer
-      const formattedTicket = tauriPrinterService.formatTicketForThermal(testTicket);
-      
-      // Print using Tauri
-      const success = await tauriPrinterService.printTicket(formattedTicket, config.name);
+      const success = await electronPrinterService.testPrinter(config.name);
       
       if (success) {
         setMessage({ type: 'success', text: 'Test print completed successfully!' });
       } else {
-        setMessage({ type: 'error', text: 'Test print failed via Tauri' });
+        setMessage({ type: 'error', text: 'Test print failed via Electron' });
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Test print failed: ' + (error as Error).message });

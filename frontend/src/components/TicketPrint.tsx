@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import printerService, { TicketData } from '@/services/printerService';
-import { TauriPrinterService } from '@/services/tauriPrinterService';
+import { ElectronPrinterService } from '@/services/electronPrinterService';
 // import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
@@ -279,8 +279,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         return;
       }
 
-      // Use Tauri printer service for native printing
-      const tauriPrinterService = TauriPrinterService.getInstance();
+      // Use Electron printer service
+      const electronPrinterService = ElectronPrinterService.getInstance();
       
       // Prepare grouped ticket data
       const ticketGroups = groups.map(group => ({
@@ -301,13 +301,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         transactionId: 'TXN' + Date.now()
       }));
 
-      console.log('🖨️ Preparing to print grouped tickets via Tauri:', ticketGroups);
+      console.log('🖨️ Preparing to print grouped tickets via Electron:', ticketGroups);
 
-      // Print each ticket group using Tauri
+      // Print each ticket group using Electron
       let allPrinted = true;
       for (const ticketGroup of ticketGroups) {
-        // Send grouped ticket data to backend for proper formatting
-        const printSuccess = await tauriPrinterService.printTicket(ticketGroup, printerConfig.name, currentMovie);
+        const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
+        const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
         
         if (!printSuccess) {
           console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);

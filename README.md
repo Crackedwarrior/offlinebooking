@@ -24,7 +24,7 @@
 * **Frontend**: **React** + **TypeScript** with **Shadcn UI** for a clean, modern UI.
 * **Backend**: **Node.js** + **Express** for handling all the booking logic and interactions.
 * **Database**: **Prisma ORM** with **SQLite** for local storage.
-* **Desktop App**: **Tauri** for packaging the app as a native desktop application.
+* **Desktop App**: **Electron** for packaging the app as a native desktop application.
 * **POS Printing**: Integrates with POS printers using **ESC/POS commands**.
 
 ---

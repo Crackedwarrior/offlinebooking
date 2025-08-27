@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:web": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:desktop": "dev-desktop.bat",
+    "dev:desktop": "cd frontend && npm run electron:dev",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "tauri:desktop": "cd frontend && npm run tauri:dev",
     "build": "cd frontend && npm run build",
-    "tauri:dev": "cd frontend && npm run tauri:dev",
-    "tauri:build": "cd frontend && npm run tauri:build",
+    "electron:dev": "cd frontend && npm run electron:dev",
+    "electron:build": "cd frontend && npm run electron:build",
+    "electron:pack": "cd frontend && npm run electron:pack",
+    "electron:dist": "cd frontend && npm run electron:dist",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "start": "cd backend && npm start",
     "test": "echo \"Error: no test specified\" && exit 1"

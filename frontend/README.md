@@ -50,7 +50,7 @@ The app is optimized for non-tech-savvy staff, with a simple one-click kiosk-sty
 | Layer        | Technology                   |
 |--------------|------------------------------|
 | Frontend     | React + Tailwind CSS         |
-| Backend      | Node.js (Tauri wrapper)      |
+| Backend      | Node.js (Electron wrapper)   |
 | Local DB     | SQLite (offline-first)       |
 | Cloud Backup | MongoDB Atlas (512MB free)   |
 | PDF Reports  | pdf-lib or jspdf             |
@@ -61,7 +61,7 @@ The app is optimized for non-tech-savvy staff, with a simple one-click kiosk-sty
 
 ## Final Output
 
-A full-screen, installable desktop `.exe` app built using Tauri, meant for theatre counter usage. It requires no internet access to function and offers fast local response with optional cloud backup.
+A full-screen, installable desktop `.exe` app built using Electron, meant for theatre counter usage. It requires no internet access to function and offers fast local response with optional cloud backup.
 
 ---
 
@@ -79,7 +79,7 @@ offlinebooking/
 │ │ └── pdfUtils.js
 │ ├── App.jsx
 │ └── main.jsx
-├── tauri.conf.json
+├── electron/
 └── package.json
 
 ---
@@ -97,7 +97,7 @@ All rights reserved © Crackedwarrior. Redistribution or modification without pe
 - [x] UI built using Lovable AI and Cursor
 - [x] Core frontend functionality complete
 - [ ] PDF generation logic (in progress)
-- [ ] Tauri `.exe` build
+- [ ] Electron `.exe` build
 - [ ] Full database integration and sync
 
 ---

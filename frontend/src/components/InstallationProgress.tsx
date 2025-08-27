@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { invoke } from '@tauri-apps/api/tauri';
-import { listen } from '@tauri-apps/api/event';
+// Electron API for installation progress
 
 interface InstallationStep {
   step: string;
@@ -43,9 +42,10 @@ const InstallationProgress: React.FC<InstallationProgressProps> = ({
     }
   }, [isOpen]);
 
+  // Electron event listener for installation progress
   useEffect(() => {
-    const unlisten = listen('installation-progress', (event) => {
-      const step = event.payload as InstallationStep;
+    const handleInstallationProgress = (event: CustomEvent) => {
+      const step = event.detail as InstallationStep;
       setSteps(prev => [...prev, step]);
       
       if (step.status === 'completed') {
@@ -54,10 +54,11 @@ const InstallationProgress: React.FC<InstallationProgressProps> = ({
         setError(step.message);
         setIsInstalling(false);
       }
-    });
+    };
 
+    window.addEventListener('installation-progress', handleInstallationProgress as EventListener);
     return () => {
-      unlisten.then(f => f());
+      window.removeEventListener('installation-progress', handleInstallationProgress as EventListener);
     };
   }, []);
 
@@ -68,9 +69,22 @@ const InstallationProgress: React.FC<InstallationProgressProps> = ({
     setError(null);
 
     try {
-      await invoke('install_dependencies');
-      setIsInstalling(false);
-      onComplete();
+      // Check if running in Electron
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        const result = await (window as any).electronAPI.installDependencies();
+        if (result.success) {
+          setIsInstalling(false);
+          onComplete();
+        } else {
+          setError(result.message);
+          setIsInstalling(false);
+        }
+      } else {
+        // Fallback for web environment
+        console.log('Starting installation (web environment)...');
+        setIsInstalling(false);
+        onComplete();
+      }
     } catch (err) {
       setError(err as string);
       setIsInstalling(false);
