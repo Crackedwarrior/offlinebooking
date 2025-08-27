@@ -75,6 +75,12 @@ class ApiService {
 
         return data as ApiResponse<T>;
       } catch (error) {
+        // Check if it's a network error (backend not running)
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          console.error('❌ Backend not available. Make sure to run: npm run dev:backend');
+          throw new Error('Backend service not running. Please start the backend server.');
+        }
+        
         logError(error as Error, `API Request: ${endpoint}`);
         throw handleNetworkError(error);
       }
@@ -149,6 +155,19 @@ class ApiService {
   async healthCheck(): Promise<ApiResponse<HealthCheckResponse>> {
     return this.get<HealthCheckResponse>('/api/health');
   }
+
+  // Ticket ID Management
+  async getCurrentTicketId(): Promise<ApiResponse<{ currentId: number; currentTicketId: string; config: any }>> {
+    return this.get<{ currentId: number; currentTicketId: string; config: any }>('/api/ticket-id/current');
+  }
+
+  async resetTicketId(newId: number): Promise<ApiResponse<{ currentId: number; currentTicketId: string }>> {
+    return this.post<{ currentId: number; currentTicketId: string }>('/api/ticket-id/reset', { newId });
+  }
+
+  async getNextTicketId(): Promise<ApiResponse<{ nextTicketId: string }>> {
+    return this.get<{ nextTicketId: string }>('/api/ticket-id/next');
+  }
 }
 
 // Export singleton instance
@@ -164,5 +183,10 @@ export const updateSeatStatus = (seatUpdates: Array<{ seatId: string; status: st
 export const updateBooking = (id: string, data: any) => apiService.updateBooking(id, data);
 export const deleteBooking = (id: string) => apiService.deleteBooking(id);
 export const healthCheck = () => apiService.healthCheck();
+
+// Ticket ID Management convenience functions
+export const getCurrentTicketId = () => apiService.getCurrentTicketId();
+export const resetTicketId = (newId: number) => apiService.resetTicketId(newId);
+export const getNextTicketId = () => apiService.getNextTicketId();
 
 export default apiService; 

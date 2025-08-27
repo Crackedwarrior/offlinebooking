@@ -97,7 +97,7 @@ const AppLayout = () => {
       </div>
       {/* Main Content */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20`}
+        className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20 overflow-x-hidden`}
       >
         <Outlet />
       </div>

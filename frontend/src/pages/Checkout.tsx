@@ -1082,22 +1082,22 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
 
 
   return (
-    <div className="w-full h-full flex flex-row gap-x-6 px-6 pt-4 pb-4">
+    <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-6 pt-4 pb-4 overflow-x-hidden">
 
       
-      <div className="flex-[3] flex flex-col mt-8">
+      <div className="flex-1 lg:flex-[3] flex flex-col mt-8">
         <div className="font-bold text-xl mb-0 ml-0">Checkout Summary</div>
         <div className="mt-4">
-          <div className="flex w-full max-w-5xl pt-0">
-            {/* Show Box */}
-            <div 
-              ref={setShowDropdownRef}
-              className="relative"
-            >
-              <div 
-                className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md cursor-pointer hover:bg-gray-50"
-                onClick={handleShowCardClick}
-              >
+                     <div className="flex flex-row w-full max-w-full lg:max-w-5xl pt-0">
+             {/* Show Box */}
+             <div 
+               ref={setShowDropdownRef}
+               className="relative"
+             >
+               <div 
+                 className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md cursor-pointer hover:bg-gray-50"
+                 onClick={handleShowCardClick}
+               >
                 <div className="font-bold text-base mb-1 leading-tight break-words">{currentMovie.name}</div>
                 <div className="text-sm text-gray-600 mb-1">({currentMovie.language})</div>
                 <div className="flex items-center justify-between mb-1">
@@ -1118,14 +1118,14 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
                 </div>
               </div>
               
-              {/* Show Dropdown */}
-              {showDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[800px] max-w-[1000px]">
+                             {/* Show Dropdown */}
+               {showDropdownOpen && (
+                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-[1250px]">
                   <div className="p-3 border-b border-gray-100">
                     <h3 className="font-semibold text-gray-900">Select Show</h3>
                     <p className="text-xs text-gray-500">Double-click to select a different show • Triple-click to jump to current time show</p>
                   </div>
-                  <div className="max-h-80 overflow-y-auto p-3">
+                  <div className="max-h-80 overflow-y-auto p-3 hide-scrollbar">
                     {showTimes.map((show) => {
                       const isAccessible = isShowAccessible(show);
                       const isSelected = selectedShow === show.key;
@@ -1185,70 +1185,70 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
                               </div>
                             </div>
                             
-                            {/* Show Card Row */}
-                            <div className="flex w-full">
-                              {/* Show Box */}
-                              <div className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md">
-                                <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'KALANK'}</div>
-                                <div className="text-sm text-gray-600 mb-1">({getMovieForShow(show.key)?.language || 'HINDI'})</div>
-                                <span className="text-sm font-semibold text-blue-600 mb-1">{show.label}</span>
-                                <div className="flex justify-between items-center mt-auto">
-                                  <span className="text-sm whitespace-nowrap">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</span>
-                                  <span className="text-base font-semibold ml-2">{(() => {
-                                    const totalSeats = seats.length;
-                                    const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
-                                    return `${availableSeats}/${totalSeats}`;
-                                  })()}</span>
-                                </div>
-                              </div>
-                              
-                              {/* Class Boxes for this show */}
-                              {createClassInfo.map((cls, i) => {
-                                const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
-                                const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
-                                const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
-                                const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS_BOOKED').length;
-                                const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
-                                const price = getPriceForClass(cls.label);
-                                
-                                // Original color mapping
-                                const colorMap = {
-                                  BOX: 'bg-cyan-200',
-                                  'STAR CLASS': 'bg-cyan-400',
-                                  CLASSIC: 'bg-yellow-200',
-                                  'FIRST CLASS': 'bg-pink-300',
-                                  'SECOND CLASS': 'bg-gray-300',
-                                };
-                                
-                                // Determine border radius and negative margin
-                                let cardClass = '';
-                                if (i === 0) cardClass = 'rounded-none -ml-2';
-                                else if (i === createClassInfo.length - 1) cardClass = 'rounded-r-xl -ml-2';
-                                else cardClass = 'rounded-none -ml-2';
-                                
-                                return (
-                                  <div
-                                    key={cls.key}
-                                    className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform ${isAccessible ? 'hover:-translate-y-1 hover:shadow-lg' : ''} ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
-                                  >
-                                    <div>
-                                      <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>
-                                      <span className="block text-sm text-gray-700 text-left">{total} ({available})</span>
-                                      {bmsBooked > 0 && (
-                                        <span className="block text-xs text-blue-600 text-left">BMS: {bmsBooked}</span>
-                                      )}
-                                      {selected > 0 && (
-                                        <span className="block text-xs text-green-600 font-semibold text-left">Selected: {selected}</span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between w-full absolute left-0 bottom-2 px-6">
-                                      <span className="text-[10px] font-semibold">{sold}</span>
-                                      <span className="text-lg font-bold text-right">₹{price}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                                         {/* Show Card Row */}
+                             <div className="flex flex-row w-full">
+                               {/* Show Box */}
+                               <div className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md">
+                                 <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'KALANK'}</div>
+                                 <div className="text-sm text-gray-600 mb-1">({getMovieForShow(show.key)?.language || 'HINDI'})</div>
+                                 <span className="text-sm font-semibold text-blue-600 mb-1">{show.label}</span>
+                                 <div className="flex justify-between items-center mt-auto">
+                                   <span className="text-sm whitespace-nowrap">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</span>
+                                   <span className="text-base font-semibold ml-2">{(() => {
+                                     const totalSeats = seats.length;
+                                     const availableSeats = seats.filter(seat => seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
+                                     return `${availableSeats}/${totalSeats}`;
+                                   })()}</span>
+                                 </div>
+                               </div>
+                               
+                               {/* Class Boxes for this show */}
+                               {createClassInfo.map((cls, i) => {
+                                 const total = seats.filter(seat => cls.rows.includes(seat.row)).length;
+                                 const available = seats.filter(seat => cls.rows.includes(seat.row) && seat.status !== 'BOOKED' && seat.status !== 'BMS_BOOKED').length;
+                                 const sold = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BOOKED').length;
+                                 const bmsBooked = seats.filter(seat => cls.rows.includes(seat.row) && seat.status === 'BMS_BOOKED').length;
+                                 const selected = selectedSeats.filter(seat => cls.rows.includes(seat.row)).length;
+                                 const price = getPriceForClass(cls.label);
+                                 
+                                 // Original color mapping
+                                 const colorMap = {
+                                   BOX: 'bg-cyan-200',
+                                   'STAR CLASS': 'bg-cyan-400',
+                                   CLASSIC: 'bg-yellow-200',
+                                   'FIRST CLASS': 'bg-pink-300',
+                                   'SECOND CLASS': 'bg-gray-300',
+                                 };
+                                 
+                                 // Determine border radius and negative margin
+                                 let cardClass = '';
+                                 if (i === 0) cardClass = 'rounded-none -ml-2';
+                                 else if (i === createClassInfo.length - 1) cardClass = 'rounded-r-xl -ml-2';
+                                 else cardClass = 'rounded-none -ml-2';
+                                 
+                                 return (
+                                   <div
+                                     key={cls.key}
+                                     className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform ${isAccessible ? 'hover:-translate-y-1 hover:shadow-lg' : ''} ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
+                                   >
+                                     <div>
+                                       <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>
+                                       <span className="block text-sm text-gray-700 text-left">{total} ({available})</span>
+                                       {bmsBooked > 0 && (
+                                         <span className="block text-xs text-blue-600 text-left">BMS: {bmsBooked}</span>
+                                       )}
+                                       {selected > 0 && (
+                                         <span className="block text-xs text-green-600 font-semibold text-left">Selected: {selected}</span>
+                                       )}
+                                     </div>
+                                     <div className="flex items-center justify-between w-full absolute left-0 bottom-2 px-6">
+                                       <span className="text-[10px] font-semibold">{sold}</span>
+                                       <span className="text-lg font-bold text-right">₹{price}</span>
+                                     </div>
+                                   </div>
+                                 );
+                               })}
+                             </div>
                           </div>
                         </div>
                       );
@@ -1281,12 +1281,12 @@ const Checkout: React.FC<CheckoutProps> = ({ onBookingComplete, checkoutData, on
               else if (i === createClassInfo.length - 1) cardClass = 'rounded-r-xl -ml-2';
               else cardClass = 'rounded-none -ml-2';
               
-              return (
-                <div
-                  key={cls.key}
-                  className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform hover:-translate-y-1 hover:shadow-lg cursor-pointer ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
-                  onClick={() => handleClassCardClick(cls)}
-                >
+                             return (
+                 <div
+                   key={cls.key}
+                   className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform hover:-translate-y-1 hover:shadow-lg cursor-pointer ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
+                   onClick={() => handleClassCardClick(cls)}
+                 >
                   <div>
                     <span className="font-bold text-lg whitespace-nowrap text-left">{cls.label}</span>
                     <span className="block text-sm text-gray-700 text-left">{total} ({available})</span>

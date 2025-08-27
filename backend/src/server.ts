@@ -38,6 +38,7 @@ import ThermalPrintService from './thermalPrintService';
 import PdfPrintService from './pdfPrintService';
 import KannadaPdfService from './kannadaPdfService';
 import PrinterSetup from './printerSetup';
+import ticketIdService from './ticketIdService';
 import fs from 'fs';
 import path from 'path';
 
@@ -1050,6 +1051,60 @@ app.delete('/api/bookings/:id', asyncHandler(async (req: Request, res: Response)
     success: true,
     data: null,
     message: 'Booking deleted successfully'
+  };
+  
+  res.json(response);
+}));
+
+// Ticket ID Management Endpoints
+app.get('/api/ticket-id/current', asyncHandler(async (req: Request, res: Response) => {
+  const config = ticketIdService.getConfig();
+  const currentTicketId = ticketIdService.getCurrentTicketId();
+  
+  const response: ApiResponse<{ currentId: number; currentTicketId: string; config: any }> = {
+    success: true,
+    data: {
+      currentId: config.currentId,
+      currentTicketId,
+      config
+    },
+    message: 'Current ticket ID retrieved successfully'
+  };
+  
+  res.json(response);
+}));
+
+app.post('/api/ticket-id/reset', asyncHandler(async (req: Request, res: Response) => {
+  const { newId } = req.body;
+  
+  if (typeof newId !== 'number' || newId < 0) {
+    throw new ValidationError('newId must be a positive number');
+  }
+  
+  ticketIdService.resetTicketId(newId);
+  const currentTicketId = ticketIdService.getCurrentTicketId();
+  
+  const response: ApiResponse<{ currentId: number; currentTicketId: string }> = {
+    success: true,
+    data: {
+      currentId: newId,
+      currentTicketId
+    },
+    message: `Ticket ID reset to ${currentTicketId}`
+  };
+  
+  res.json(response);
+}));
+
+app.get('/api/ticket-id/next', asyncHandler(async (req: Request, res: Response) => {
+  const nextTicketId = ticketIdService.getNextTicketId();
+  
+  const response: ApiResponse<{ nextTicketId: string }> = {
+    success: true,
+    data: {
+      nextTicketId
+    },
+    message: 'Next ticket ID generated successfully'
   };
   
   res.json(response);

@@ -1,18 +1,21 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AuditoriumX",
-  "version": "0.1.4",
   "identifier": "com.auditoriumx.app",
+  "productName": "AuditoriumX",
+  "version": "1.0.0",
   "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:8081",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "devUrl": "http://localhost:8081"
   },
   "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* https://localhost:*;"
+    },
     "windows": [
       {
-        "title": "AuditoriumX - Offline Booking System",
+        "title": "AuditoriumX - Professional Theater Booking System",
         "width": 1400,
         "height": 900,
         "minWidth": 1200,
@@ -25,14 +28,11 @@
         "visible": true,
         "alwaysOnTop": false
       }
-    ],
-    "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* https://localhost:*;"
-    }
+    ]
   },
   "bundle": {
     "active": true,
-    "targets": "nsis",
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,10 +42,10 @@
     ],
     "resources": [],
     "externalBin": [],
-    "copyright": "© 2024 AuditoriumX. All rights reserved.",
+    "copyright": "© 2024 AuditoriumX",
     "category": "Business",
-    "shortDescription": "Offline Movie Ticket Booking System",
-    "longDescription": "A comprehensive offline movie ticket booking system with BMS integration, PDF generation, and real-time seat management."
+    "shortDescription": "Professional Theater Booking System",
+    "longDescription": "Complete theater booking and management system with integrated printing and reporting capabilities"
   },
   "plugins": {
     "fs": {
@@ -57,7 +57,7 @@
     },
     "shell": {
       "scope": {
-        "allow": ["npm", "node", "powershell", "cmd", "cargo"]
+        "allow": ["npm", "node", "npx", "powershell", "cmd", "fc-cache"]
       }
     }
   }

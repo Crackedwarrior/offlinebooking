@@ -48,3 +48,35 @@ Stacktrace:   at System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInter
    at winsw.WrapperService.OnShutdown()
 2025-08-20 19:56:19 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
 2025-08-20 19:56:19 - Started 7628
+2025-08-27 14:25:42 - Stopping offlinebookingprintservice.exe
+2025-08-27 14:25:42 - ProcessKill 7628
+2025-08-27 14:25:42 - Shutdown exception
+Message:A system shutdown is in progress.
+
+Stacktrace:   at System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   at System.Management.ManagementScope.InitializeGuts(Object o)
+   at System.Management.ManagementScope.Initialize()
+   at System.Management.ManagementObjectSearcher.Initialize()
+   at System.Management.ManagementObjectSearcher.Get()
+   at winsw.WrapperService.GetChildPids(Int32 pid)
+   at winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   at winsw.WrapperService.StopIt()
+   at winsw.WrapperService.OnShutdown()
+2025-08-27 14:26:33 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2025-08-27 14:26:33 - Started 7256
+2025-08-27 14:34:45 - Stopping offlinebookingprintservice.exe
+2025-08-27 14:34:45 - ProcessKill 7256
+2025-08-27 14:34:46 - Shutdown exception
+Message:A system shutdown is in progress.
+
+Stacktrace:   at System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   at System.Management.ManagementScope.InitializeGuts(Object o)
+   at System.Management.ManagementScope.Initialize()
+   at System.Management.ManagementObjectSearcher.Initialize()
+   at System.Management.ManagementObjectSearcher.Get()
+   at winsw.WrapperService.GetChildPids(Int32 pid)
+   at winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   at winsw.WrapperService.StopIt()
+   at winsw.WrapperService.OnShutdown()
+2025-08-27 14:35:25 - Starting C:\Program Files\nodejs\node.exe  --harmony --max_old_space_size=4096 D:\offlinebooking\backend\node_modules\node-windows\lib\wrapper.js --file D:\offlinebooking\backend\src\printWorker.js --scriptoptions= --log "OfflineBookingPrintService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2025-08-27 14:35:25 - Started 6636

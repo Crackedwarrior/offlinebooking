@@ -1,7 +1,0 @@
-PDF TEST - AUDITORIUMX TICKET SYSTEM
-
-This is a test to verify PDF printing works.
-
-Timestamp: 2025-08-16T12:11:43.716Z
-
----

@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
+import ticketIdService from './ticketIdService';
 
 const execAsync = promisify(exec);
 
@@ -482,8 +483,8 @@ class PdfPrintService {
       verification: parseFloat(net) + parseFloat(cgst) + parseFloat(sgst) + mcAmount
     });
     
-    // Generate ticket ID
-    ticketId = `TKT${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+    // Generate ticket ID using the service
+    ticketId = ticketIdService.getNextTicketId();
     
     return {
       theaterName: 'SREELEKHA THEATER',

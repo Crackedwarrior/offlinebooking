@@ -494,7 +494,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   }, [selectedSeats, moveMode, bmsMode]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
+    <div className="bg-white rounded-lg shadow-sm border p-6 hide-scrollbar">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
@@ -562,8 +562,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       )}
 
       {/* Seat Segments with Headers */}
-      <div className="w-full overflow-x-auto">
-        <div className="space-y-8 mb-6 w-full overflow-hidden">
+      <div className="w-full overflow-x-auto hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="space-y-8 mb-6 w-full overflow-hidden hide-scrollbar">
           {seatSegments.map((segment, segIdx) => (
             <div key={segment.label}>
               <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">{segment.label}</div>

@@ -360,8 +360,25 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   const handleBookingComplete = async (bookingData: any) => {
     try {
       // Save booking to database via API
+       const { getPriceForClass } = useSettingsStore.getState();
+      
+      // Enhance seats with class and price information
+      const enhancedSeats = bookingData.seats.map((seat: any) => {
+        const seatClass = getSeatClassByRow(seat.row);
+        const classLabel = seatClass?.label || 'UNKNOWN';
+        const price = getPriceForClass(classLabel);
+        
+        return {
+          id: seat.id,
+          row: seat.row,
+          number: seat.number,
+          classLabel,
+          price,
+        };
+      });
+      
       const response = await createBooking({
-        tickets: bookingData.seats,
+        tickets: enhancedSeats,
         total: bookingData.totalAmount,
         totalTickets: bookingData.totalTickets,
         timestamp: bookingData.timestamp,
@@ -505,7 +522,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'} mt-20`}
       >
         {/* Content Area */}
-        <div className="flex-1 p-0">
+        <div className="flex-1 p-0 hide-scrollbar">
           {activeView === 'booking' && (
             <SeatGrid 
               onProceed={(data) => { 
@@ -573,12 +590,18 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   // Use Tauri printer service for native printing
                   const tauriPrinterService = TauriPrinterService.getInstance();
                   
-                  // Group seats by class and row
+                                     // Group seats by class and row
+                   const { getPriceForClass } = useSettingsStore.getState();
+                  
                   const groups = selectedSeats.reduce((acc, seat) => {
-                    const key = `${seat.classLabel}|${seat.row}`;
+                    const seatClass = getSeatClassByRow(seat.row);
+                    const classLabel = seatClass?.label || 'UNKNOWN';
+                    const price = getPriceForClass(classLabel);
+                    
+                    const key = `${classLabel}|${seat.row}`;
                     if (!acc[key]) {
                       acc[key] = {
-                        classLabel: seat.classLabel,
+                        classLabel,
                         row: seat.row,
                         seats: [],
                         price: 0,
@@ -586,7 +609,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                       };
                     }
                     acc[key].seats.push(seat.number);
-                    acc[key].price += seat.price;
+                    acc[key].price += price;
                     acc[key].seatIds.push(seat.id);
                     return acc;
                   }, {} as Record<string, any>);
@@ -628,18 +651,28 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     return;
                   }
                   
-                  // Save booking to backend
-                  const { createBooking } = await import('@/services/api');
-                  const response = await createBooking({
-                    tickets: selectedSeats.map(seat => ({
+                                     // Save booking to backend
+                   const { createBooking } = await import('@/services/api');
+                  
+                  // Enhance seats with class and price information
+                  const enhancedSeats = selectedSeats.map(seat => {
+                    const seatClass = getSeatClassByRow(seat.row);
+                    const classLabel = seatClass?.label || 'UNKNOWN';
+                    const price = getPriceForClass(classLabel);
+                    
+                    return {
                       id: seat.id,
                       row: seat.row,
                       number: seat.number,
-                      classLabel: seat.classLabel,
-                      price: seat.price,
-                    })),
-                    total: selectedSeats.reduce((sum, seat) => sum + seat.price, 0),
-                    totalTickets: selectedSeats.length,
+                      classLabel,
+                      price,
+                    };
+                  });
+                  
+                  const response = await createBooking({
+                    tickets: enhancedSeats,
+                    total: enhancedSeats.reduce((sum, seat) => sum + seat.price, 0),
+                    totalTickets: enhancedSeats.length,
                     timestamp: new Date().toISOString(),
                     show: selectedShow,
                     screen: currentMovie.screen,

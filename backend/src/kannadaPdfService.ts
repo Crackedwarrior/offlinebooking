@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
+import ticketIdService from './ticketIdService';
 
 const execAsync = promisify(exec);
 
@@ -464,7 +465,7 @@ class KannadaPdfService {
     let net = '125.12';
     let cgst = '11.44';
     let sgst = '11.44';
-    let ticketId = 'TKT1000000';
+    let ticketId = ticketIdService.getNextTicketId();
     let currentTime = new Date().toLocaleTimeString().split(':').slice(0, 2).join(':');
     
          // Extract data from frontend format
@@ -586,8 +587,8 @@ class KannadaPdfService {
        verification: parseFloat(net) + parseFloat(cgst) + parseFloat(sgst) + mcAmount
      });
     
-    // Generate ticket ID
-    ticketId = `TKT${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+    // Generate ticket ID using the service
+    ticketId = ticketIdService.getNextTicketId();
     
     return {
       theaterName: 'ಶ್ರೀಲೇಖಾ ಚಿತ್ರಮಂದಿರ',

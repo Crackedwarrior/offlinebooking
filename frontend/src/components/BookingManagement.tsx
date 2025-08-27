@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { getBookings, updateBooking, deleteBooking } from '@/services/api';
+import { getBookings, updateBooking, deleteBooking, getCurrentTicketId, resetTicketId } from '@/services/api';
 import { SHOW_TIMES } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw, Search } from 'lucide-react';
+import { Calendar, Clock, Users, Edit, Trash2, Loader2, RotateCcw, Search, Hash, RefreshCw } from 'lucide-react';
 // import { toast } from '@/hooks/use-toast';
 import SeatGrid from '@/components/SeatGrid';
 import { useBookingStore } from '@/store/bookingStore';
@@ -39,6 +39,10 @@ const BookingManagement = () => {
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [currentTicketId, setCurrentTicketId] = useState<string>('');
+  const [ticketIdLoading, setTicketIdLoading] = useState(false);
+  const [resetTicketIdValue, setResetTicketIdValue] = useState<string>('');
+  const [resettingTicketId, setResettingTicketId] = useState(false);
   const { 
     selectedDate, 
     selectedShow, 
@@ -166,6 +170,56 @@ const BookingManagement = () => {
   useEffect(() => {
   }, [selectedShow]);
 
+  // Load current ticket ID on component mount
+  const loadCurrentTicketId = useCallback(async () => {
+    setTicketIdLoading(true);
+    try {
+      const response = await getCurrentTicketId();
+      if (response.success && response.data) {
+        setCurrentTicketId(response.data.currentTicketId);
+      }
+    } catch (error) {
+      console.error('Error loading current ticket ID:', error);
+    } finally {
+      setTicketIdLoading(false);
+    }
+  }, []);
+
+  // Reset ticket ID
+  const handleResetTicketId = useCallback(async () => {
+    const newId = parseInt(resetTicketIdValue);
+    if (isNaN(newId) || newId < 0) {
+      alert('Please enter a valid positive number');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to reset the ticket ID to ${newId}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setResettingTicketId(true);
+    try {
+      const response = await resetTicketId(newId);
+      if (response.success && response.data) {
+        setCurrentTicketId(response.data.currentTicketId);
+        setResetTicketIdValue('');
+        alert(`Ticket ID successfully reset to ${response.data.currentTicketId}`);
+      } else {
+        throw new Error('Failed to reset ticket ID');
+      }
+    } catch (error) {
+      console.error('Error resetting ticket ID:', error);
+      alert('Failed to reset ticket ID. Please try again.');
+    } finally {
+      setResettingTicketId(false);
+    }
+  }, [resetTicketIdValue]);
+
+  // Load ticket ID on component mount
+  useEffect(() => {
+    loadCurrentTicketId();
+  }, [loadCurrentTicketId]);
+
   // Monitor component mount/unmount
   useEffect(() => {
     return () => {
@@ -264,6 +318,85 @@ const BookingManagement = () => {
                   </Button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Ticket ID Management Section */}
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-8 rounded-xl border border-green-100 shadow-sm">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Current Ticket ID Display */}
+            <div className="lg:col-span-4 space-y-2">
+              <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Hash className="w-4 h-4 text-green-600" />
+                Current Ticket ID
+              </Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-mono text-center">
+                  {ticketIdLoading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Loading...
+                    </div>
+                  ) : (
+                    currentTicketId || 'TKT000000'
+                  )}
+                </div>
+                <Button
+                  onClick={loadCurrentTicketId}
+                  disabled={ticketIdLoading}
+                  variant="outline"
+                  size="sm"
+                  className="px-3 py-3"
+                  title="Refresh Ticket ID"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Reset Ticket ID Input */}
+            <div className="lg:col-span-4 space-y-2">
+              <Label htmlFor="resetTicketId" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-green-600" />
+                Reset Ticket ID To
+              </Label>
+              <Input
+                id="resetTicketId"
+                type="number"
+                min="0"
+                placeholder="Enter new ticket number (e.g., 10)"
+                value={resetTicketIdValue}
+                onChange={(e) => setResetTicketIdValue(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
+              />
+            </div>
+
+            {/* Reset Button */}
+            <div className="lg:col-span-4 space-y-2">
+              <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-green-600" />
+                Actions
+              </Label>
+              <Button
+                onClick={handleResetTicketId}
+                disabled={resettingTicketId || !resetTicketIdValue}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {resettingTicketId ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Reset Ticket ID
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>

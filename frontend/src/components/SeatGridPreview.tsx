@@ -84,7 +84,7 @@ const SeatGridPreview = ({ isOpen, onClose, date, show, showLabel }: SeatGridPre
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="flex items-center gap-2">

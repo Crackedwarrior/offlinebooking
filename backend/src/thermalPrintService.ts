@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import ticketIdService from './ticketIdService';
 
 const execAsync = promisify(exec);
 
@@ -254,8 +255,8 @@ Test Time: ${new Date().toLocaleString()}
       minute: '2-digit' 
     });
     
-    // Generate ticket ID in correct format (TKT + 6 digits)
-    const ticketId = `TKT${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
+    // Generate ticket ID using the service
+    const ticketId = ticketIdService.getNextTicketId();
     
     // Helper function to pad text within box width (19 characters)
     const padInBox = (text: string, maxLength: number = 19): string => {
