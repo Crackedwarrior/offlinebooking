@@ -503,17 +503,21 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
           </div>
           <div className="flex items-center space-x-3">
             <span className="text-gray-600">{currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
-            {onLogout && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onLogout}
-                className="text-gray-600 hover:text-red-600 hover:bg-red-50"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                  (window as any).electronAPI.closeApp();
+                } else {
+                  window.close();
+                }
+              }}
+              className="text-gray-600 hover:text-red-600 hover:bg-red-50"
+              title="Close App"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>

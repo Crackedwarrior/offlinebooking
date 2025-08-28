@@ -1,10 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import { fileURLToPath } from 'url';
-import path from 'path';
-
-// ES module equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -12,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App information
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getAppName: () => ipcRenderer.invoke('get-app-name'),
+  closeApp: () => ipcRenderer.invoke('close-app'),
   
   // External links
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -21,7 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Printer operations
   getPrinters: () => ipcRenderer.invoke('get-printers'),
-  printTicket: (ticketData, printerName) => ipcRenderer.invoke('print-ticket', ticketData, printerName),
+  printTicket: (ticketData, printerName, movieData) => ipcRenderer.invoke('print-ticket', ticketData, printerName, movieData),
   
   // Check if running in Electron
   isElectron: true,

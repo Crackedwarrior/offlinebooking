@@ -46,13 +46,16 @@ export class ElectronPrinterService {
     try {
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        return await (window as any).electronAPI.getPrinters();
+        const printers = await (window as any).electronAPI.getPrinters();
+        console.log('🖨️ Real printers fetched:', printers);
+        return printers;
       } else {
-        // Fallback for web environment
-        return ['Test Printer 1', 'Test Printer 2', 'Epson TM-T81'];
+        // Fallback for web environment - return empty array instead of hardcoded data
+        console.log('⚠️ Running in web environment, no real printers available');
+        return [];
       }
     } catch (error) {
-      console.error('Failed to get printers:', error);
+      console.error('❌ Failed to get printers:', error);
       return [];
     }
   }
@@ -122,7 +125,7 @@ export class ElectronPrinterService {
 
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        const result = await (window as any).electronAPI.printTicket(ticketData, printerName);
+        const result = await (window as any).electronAPI.printTicket(ticketData, printerName, movieData);
         return result.success;
       } else {
         // Fallback for web environment

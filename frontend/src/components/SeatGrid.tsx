@@ -672,13 +672,14 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       {/* Fixed Bottom Panel - Only show if not hidden */}
       {!hideProceedButton && (
         <div 
-          className="fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-4 shadow-lg animate-fade-in transition-all duration-300"
+          className="fixed bottom-0 z-[9999] bg-white border-t border-gray-200 flex flex-row items-center justify-between px-6 py-8 shadow-lg animate-fade-in transition-all duration-300"
           style={{ 
             zIndex: 9999, 
             position: 'fixed', 
             bottom: 0,
             left: sidebarCollapsed ? '4rem' : '16rem',
-            right: 0
+            right: 0,
+            height: '80px'
           }}
         >
           {/* Left side - Proceed to Checkout button and info (1/2 width) */}
@@ -709,13 +710,13 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
 
           {/* Right side - Entire 1/2 panel clickable for print (only in exchange mode) */}
           {showExchangeButton && (
-            <div className="relative w-1/2 h-full flex items-center justify-center">
+            <div className="relative w-1/2" style={{ height: '80px' }}>
               {/* Vertical divider line */}
               <div className="absolute left-0 top-0 w-px h-full bg-gray-300 z-20"></div>
               
               {/* Clickable print area - entire right half */}
               <button
-                className="w-full h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-center"
+                className="absolute inset-0 w-full h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
                 onClick={() => {
                   console.log('🖨️ SeatGrid Print area clicked');
                   if (onExchange) {
@@ -723,9 +724,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                   }
                 }}
               >
-                <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
-                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+                  </svg>
+                </div>
               </button>
             </div>
           )}

@@ -520,26 +520,36 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         {/* Full-height vertical line - extends to edges */}
         <div className="absolute left-1/2 w-px bg-gray-300 z-10" style={{ transform: 'translateX(-50%)', top: '0px', bottom: '0' }}></div>
         
+        {/* Container for both buttons to ensure full height coverage */}
+        <div className="w-full h-full flex">
+        
         {/* Left side - Lightning (Seat Grid) - Clickable */}
         <button
-          className="w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
+          className={`w-1/2 h-full transition-colors cursor-pointer flex items-center justify-center ${
+            selectedSeats.length > 0 
+              ? 'bg-transparent hover:bg-gray-50' 
+              : 'bg-gray-100 cursor-not-allowed'
+          }`}
           onClick={() => {
+            if (selectedSeats.length === 0) {
+              console.log('❌ No tickets selected - cannot navigate to seat grid');
+              return;
+            }
+            
             console.log('⚡ Lightning button clicked - navigate to seat grid');
             if (onNavigateToSeatGrid) {
               onNavigateToSeatGrid();
             }
           }}
         >
-          <div className="flex items-center justify-center" style={{ transform: 'translateX(0px) translateY(0px)' }}>
-            <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-            </svg>
-          </div>
+          <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+          </svg>
         </button>
         
         {/* Right side - Printer (Print) - Clickable */}
         <button
-          className="absolute right-0 top-0 w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
+          className="w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-center"
           onClick={() => {
             console.log('🖨️ Print button clicked');
             if (selectedSeats.length === 0) {
@@ -550,12 +560,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
             handleConfirmPrint();
           }}
         >
-          <div className="flex items-center justify-center" style={{ transform: 'translateX(5px) translateY(0px)' }}>
-            <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
-            </svg>
-          </div>
+          <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+          </svg>
         </button>
+      </div>
       </div>
       
 
