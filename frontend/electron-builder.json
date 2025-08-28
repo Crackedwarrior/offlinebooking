@@ -2,7 +2,8 @@
   "appId": "com.auditoriumx.app",
   "productName": "AuditoriumX",
   "directories": {
-    "output": "dist-electron"
+    "output": "dist-electron",
+    "buildResources": "build"
   },
   "files": [
     "dist/**/*",
@@ -14,28 +15,33 @@
   ],
   "extraResources": [
     {
-      "from": "../backend",
+      "from": "backend-dist",
       "to": "backend",
-      "filter": [
-        "**/*",
-        "!node_modules/**/*",
-        "!*.log",
-        "!dist/**/*"
-      ]
+      "filter": ["**/*"]
+    },
+    {
+      "from": "../backend/prisma",
+      "to": "backend/prisma",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "../backend/fonts",
+      "to": "backend/fonts",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "../backend/prisma/dev.db",
+      "to": "backend/database/auditoriumx.db"
     }
   ],
   "win": {
     "target": [
       {
-        "target": "nsis",
-        "arch": ["x64"]
-      },
-      {
         "target": "portable",
         "arch": ["x64"]
       }
     ],
-    "icon": "electron/assets/icon.ico",
+    "icon": "build/icon.ico",
     "requestedExecutionLevel": "requireAdministrator"
   },
   "nsis": {
@@ -43,23 +49,20 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "AuditoriumX",
-    "installerIcon": "electron/assets/icon.ico",
-    "uninstallerIcon": "electron/assets/icon.ico",
-    "installerHeaderIcon": "electron/assets/icon.ico"
+    "shortcutName": "AuditoriumX"
   },
   "portable": {
     "artifactName": "AuditoriumX-Portable.exe"
   },
   "mac": {
     "target": "dmg",
-    "icon": "electron/assets/icon.icns",
-    "category": "public.app-category.business"
+    "category": "public.app-category.business",
+    "icon": "build/icon.icns"
   },
   "linux": {
     "target": "AppImage",
-    "icon": "electron/assets/icon.png",
-    "category": "Office"
+    "category": "Office",
+    "icon": "build/icon.png"
   },
   "publish": {
     "provider": "github",

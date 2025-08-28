@@ -42,10 +42,21 @@ import ticketIdService from './ticketIdService';
 import fs from 'fs';
 import path from 'path';
 
+// Production path handling function
+const getAppDataPath = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // In production, we're running from the current working directory
+    // which will be resources/backend/ when spawned by Electron
+    return process.cwd();
+  }
+  // In development, we're running from backend/dist/ or backend/src/
+  return path.join(__dirname, '../');
+};
+
 // Add ESC/POS imports at the top
 import escpos from 'escpos';
-escpos.USB = require('escpos-usb');
-escpos.Network = require('escpos-network');
+(escpos as any).USB = require('escpos-usb');
+(escpos as any).Network = require('escpos-network');
 
 // Validate configuration on startup
 if (!validateConfig()) {
@@ -476,7 +487,7 @@ app.post('/api/bookings', validateBookingData, asyncHandler(async (req: Request,
 
     // Check if any existing booking has the same seat IDs
     const seatIds = tickets.map((t: any) => t.id);
-    const existingBooking = existingBookings.find(booking => {
+    const existingBooking = existingBookings.find((booking: any) => {
       const bookingSeats = booking.bookedSeats as string[];
       return bookingSeats.length === seatIds.length && 
              seatIds.every(id => bookingSeats.includes(id));
@@ -627,7 +638,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
   console.log('📊 Where clause:', JSON.stringify(where, null, 2));
   
   // Transform to API response format
-  const bookingData: BookingData[] = bookings.map(booking => ({
+  const bookingData: BookingData[] = bookings.map((booking: any) => ({
     id: booking.id,
     date: booking.date.toISOString(),
     show: booking.show,
@@ -719,7 +730,7 @@ app.get('/api/bookings/stats', asyncHandler(async (req: Request, res: Response) 
     data: {
       totalBookings,
       totalRevenue: totalRevenue._sum.totalPrice || 0,
-      bookingsByClass: bookingsByClass.map(item => ({
+      bookingsByClass: bookingsByClass.map((item: any) => ({
         class: item.classLabel,
         count: item._count.id,
         revenue: item._sum.totalPrice || 0
@@ -766,8 +777,8 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
   });
   
   // Extract all booked seats
-  const bookedSeats = bookings.flatMap(booking => 
-    (booking.bookedSeats as string[]).map(seatId => ({
+  const bookedSeats = bookings.flatMap((booking: any) => 
+    (booking.bookedSeats as string[]).map((seatId: string) => ({
       seatId,
       class: booking.classLabel
     }))
@@ -809,7 +820,7 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
   // Get selected seats from in-memory storage
   const storageKey = getStorageKey(date, show);
   const selectedSeats = selectedSeatsStorage.get(storageKey) || new Set();
-  const selectedSeatsArray = Array.from(selectedSeats).map(seatId => ({
+  const selectedSeatsArray = Array.from(selectedSeats).map((seatId: string) => ({
     seatId,
     class: 'SELECTED' // We don't store class info for selected seats, just mark as selected
   }));

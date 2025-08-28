@@ -1,0 +1,55 @@
+directories:
+  output: dist-electron
+  buildResources: build
+appId: com.auditoriumx.app
+productName: AuditoriumX
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+      - node_modules/**/*
+      - '!node_modules/.cache/**/*'
+      - '!node_modules/electron/**/*'
+      - '!node_modules/electron-builder/**/*'
+extraResources:
+  - from: backend-dist
+    to: backend
+    filter:
+      - '**/*'
+  - from: ../backend/prisma
+    to: backend/prisma
+    filter:
+      - '**/*'
+  - from: ../backend/fonts
+    to: backend/fonts
+    filter:
+      - '**/*'
+  - from: ../backend/prisma/dev.db
+    to: backend/database/auditoriumx.db
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  requestedExecutionLevel: requireAdministrator
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: AuditoriumX
+portable:
+  artifactName: AuditoriumX-Portable.exe
+mac:
+  target: dmg
+  category: public.app-category.business
+  icon: build/icon.icns
+linux:
+  target: AppImage
+  category: Office
+  icon: build/icon.png
+publish:
+  provider: github
+  releaseType: release
+electronVersion: 37.3.1

@@ -4,7 +4,10 @@
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/server.ts",
-    "dev": "ts-node src/server.ts"
+    "dev": "ts-node src/server.ts",
+    "build": "tsc && npm run copy:db",
+    "copy:db": "powershell -Command \"Copy-Item -Path 'prisma/dev.db' -Destination 'dist/dev.db' -Force; Copy-Item -Path 'prisma' -Destination 'dist/prisma' -Recurse -Force\"",
+    "start:prod": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +22,8 @@
     "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.6.2",
     "prisma": "^6.11.1",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@fontsource/noto-sans-kannada": "^5.2.6",

@@ -17,29 +17,9 @@ declare module 'escpos' {
     close(): Promise<void>;
   }
 
-  export class USB implements USBDevice {
-    constructor();
-    open(callback: (error: any) => void): void;
-  }
-
-  export class Network implements NetworkDevice {
-    constructor(host: string, port?: number);
-    open(callback: (error: any) => void): void;
-  }
-
-  export class Printer {
-    constructor(device: USBDevice | NetworkDevice);
-    initialize(): void;
-    align(alignment: 'left' | 'center' | 'right'): void;
-    style(style: 'normal' | 'b' | 'u' | 'i'): void;
-    size(width: number, height: number): void;
-    text(text: string): void;
-    cut(): void;
-    close(): Promise<void>;
-  }
-
-  export let USB: typeof USB;
-  export let Network: typeof Network;
+  export const USB: any;
+  export const Network: any;
+  export const Printer: any;
 }
 
 declare module 'escpos-usb' {

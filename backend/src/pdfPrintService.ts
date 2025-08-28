@@ -49,7 +49,9 @@ class PdfPrintService {
   private tempDir: string;
 
   constructor() {
-    this.tempDir = path.join(__dirname, '../temp');
+    // Use production path handling
+    const basePath = process.env.NODE_ENV === 'production' ? process.cwd() : path.join(__dirname, '../');
+    this.tempDir = path.join(basePath, 'temp');
     // Ensure temp directory exists
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });

@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   return {
+    base: './',
     server: {
       host: env.VITE_HOST || "::",
       port: parseInt(env.VITE_PORT || '8080'),

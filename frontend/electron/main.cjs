@@ -12,7 +12,7 @@ let backendProcess;
 
 // Backend server configuration
 const BACKEND_PORT = 3001;
-const FRONTEND_PORT = 8081;
+const FRONTEND_PORT = 8080;
 
 function createWindow() {
   // Create the browser window
@@ -29,7 +29,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs')
     },
     title: 'AuditoriumX - Professional Theater Booking System',
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+
     show: false, // Don't show until ready
     autoHideMenuBar: true,
     fullscreen: true
@@ -38,7 +38,7 @@ function createWindow() {
   // Load the app
   const startUrl = isDev 
     ? `http://localhost:${FRONTEND_PORT}` 
-    : `file://${path.join(__dirname, '../dist/index.html')}`;
+    : `file://${path.join(__dirname, 'dist/index.html')}`;
   
   console.log('🔧 Development mode:', isDev);
   console.log('🔧 Frontend port:', FRONTEND_PORT);
@@ -114,12 +114,31 @@ async function killProcessOnPort(port) {
 function startBackend() {
   return new Promise(async (resolve, reject) => {
     try {
-      const backendPath = path.join(__dirname, '../../backend');
+      const backendPath = isDev 
+        ? path.join(__dirname, '../../backend')
+        : path.join(process.resourcesPath, 'backend');
+      
+      console.log('🔧 Backend path:', backendPath);
       
       // Check if backend directory exists
       if (!fs.existsSync(backendPath)) {
-        console.error('Backend directory not found:', backendPath);
+        console.error('❌ Backend directory not found:', backendPath);
         reject(new Error('Backend directory not found'));
+        return;
+      }
+
+      // In production, the backend files are directly in the backend directory
+      // In development, they're in backend/dist
+      const backendDistPath = isDev 
+        ? path.join(backendPath, 'dist')
+        : backendPath;
+      
+      console.log('🔧 Backend dist path:', backendDistPath);
+      
+      // Check if backend dist directory exists
+      if (!fs.existsSync(backendDistPath)) {
+        console.error('❌ Backend dist directory not found:', backendDistPath);
+        reject(new Error('Backend dist directory not found'));
         return;
       }
 
@@ -167,11 +186,25 @@ function startBackend() {
 
       // Start backend process
       console.log('🔄 Starting backend process...');
-      backendProcess = spawn('npm', ['run', 'dev'], {
-        cwd: backendPath,
+      
+      // Set up environment variables for backend
+      const backendEnv = {
+        ...process.env,
+        NODE_ENV: isDev ? 'development' : 'production',
+        DATABASE_URL: isDev ? `file:${path.join(backendPath, 'dist', 'dev.db')}` : `file:${path.join(backendPath, 'database', 'auditoriumx.db')}`,
+        PORT: '3001',
+        CORS_ORIGIN: `http://localhost:${FRONTEND_PORT}`,
+        LOG_LEVEL: 'info',
+        ENABLE_REQUEST_LOGGING: 'true'
+      };
+      
+      console.log('🔧 Database URL:', backendEnv.DATABASE_URL);
+      
+      backendProcess = spawn('node', ['server.js'], {
+        cwd: backendDistPath,
         stdio: 'pipe',
         shell: true,
-        env: { ...process.env, NODE_ENV: 'development' }
+        env: backendEnv
       });
 
       backendProcess.stdout.on('data', (data) => {

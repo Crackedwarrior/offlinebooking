@@ -7,7 +7,16 @@ dotenv.config();
 // Environment variable validation schema
 const envSchema = z.object({
   // Database
-  DATABASE_URL: z.string().default('file:./prisma/dev.db'),
+  DATABASE_URL: z.string().default(() => {
+    if (process.env.NODE_ENV === 'production') {
+      return 'file:./database/auditoriumx.db';
+    }
+    // In development, check if we're running from compiled dist directory
+    if (__dirname.includes('dist')) {
+      return 'file:./dev.db';
+    }
+    return 'file:./prisma/dev.db';
+  }),
   
   // Server
   PORT: z.string().transform(Number).default('3001'),
