@@ -32,6 +32,27 @@ export function errorLogger(error: Error, req: Request, res: Response, next: Nex
     userAgent: req.get('User-Agent'),
   });
   
+  // Import audit logger here to avoid circular dependency
+  try {
+    const { auditLogger } = require('../utils/auditLogger');
+    auditLogger.logError(
+      'API_ERROR',
+      false,
+      'anonymous',
+      req.ip,
+      req.get('User-Agent'),
+      {
+        error: error.message,
+        url: req.url,
+        method: req.method,
+        stack: config.server.isDevelopment ? error.stack : undefined
+      },
+      requestId
+    );
+  } catch (auditError) {
+    console.error('Failed to log error to audit:', auditError);
+  }
+  
   next(error);
 }
 

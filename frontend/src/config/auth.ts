@@ -7,9 +7,9 @@ export const AUTH_CONFIG = {
   MAX_ATTEMPTS: 3,
   LOCK_DURATION: 30, // seconds
   
-  // Session settings
-  SESSION_TIMEOUT: 8 * 60 * 60 * 1000, // 8 hours in milliseconds
-  AUTO_LOGOUT: true,
+  // Session settings - Disabled for theater use case
+  SESSION_TIMEOUT: 0, // No automatic timeout
+  AUTO_LOGOUT: false, // Manual logout only
 };
 
 // PIN validation rules

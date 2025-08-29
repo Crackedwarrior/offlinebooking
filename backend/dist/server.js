@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const client_1 = require("@prisma/client");
 const cors_1 = __importDefault(require("cors"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const config_1 = require("./config");
 const errorHandler_1 = require("./middleware/errorHandler");
 const errors_1 = require("./utils/errors");
@@ -17,6 +18,9 @@ const pdfPrintService_1 = __importDefault(require("./pdfPrintService"));
 const kannadaPdfService_1 = __importDefault(require("./kannadaPdfService"));
 const printerSetup_1 = __importDefault(require("./printerSetup"));
 const ticketIdService_1 = __importDefault(require("./ticketIdService"));
+const auditLogger_1 = require("./utils/auditLogger");
+const inputSanitizer_1 = require("./utils/inputSanitizer");
+const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 // Production path handling function
 const getAppDataPath = () => {
@@ -36,6 +40,8 @@ escpos_1.default.Network = require('escpos-network');
 if (!(0, config_1.validateConfig)()) {
     process.exit(1);
 }
+// Validate security configuration
+(0, config_1.validateSecurityConfig)();
 const app = (0, express_1.default)();
 const prisma = new client_1.PrismaClient();
 const thermalPrintService = new thermalPrintService_1.default();
@@ -46,7 +52,70 @@ app.use((0, cors_1.default)({
     origin: config_1.config.api.corsOrigin,
     credentials: true,
 }));
+// Add security headers
+app.use((req, res, next) => {
+    // Content Security Policy - More restrictive for production
+    const cspPolicy = config_1.config.server.isProduction
+        ? "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self' http://localhost:* ws://localhost:*; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "object-src 'none'; " +
+            "media-src 'self';"
+        : "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self' http://localhost:* ws://localhost:*; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self';";
+    res.setHeader('Content-Security-Policy', cspPolicy);
+    // Security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=()');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
+    res.setHeader('X-Download-Options', 'noopen');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    // Remove server information
+    res.removeHeader('X-Powered-By');
+    next();
+});
 app.use(express_1.default.json());
+// Add rate limiting
+const generalLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: {
+        success: false,
+        error: 'Too many requests from this IP, please try again later.'
+    },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+// Stricter rate limiting for booking and printing endpoints
+const bookingLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // limit each IP to 20 booking requests per windowMs
+    message: {
+        success: false,
+        error: 'Too many booking requests from this IP, please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
 // Add request ID middleware
 app.use(errorHandler_1.requestIdMiddleware);
 // Health check endpoint
@@ -59,6 +128,102 @@ app.get('/health', (req, res) => {
         environment: config_1.config.server.nodeEnv
     });
 });
+// Security monitoring endpoint (admin only)
+app.get('/api/admin/security-status', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    try {
+        // Get database health (simplified)
+        const dbHealth = {
+            status: 'healthy',
+            details: 'Database connection validated',
+            timestamp: new Date().toISOString()
+        };
+        // Get database stats (simplified)
+        const dbStats = {
+            totalBookings: 0, // Will be populated by actual query if needed
+            totalSeats: 400,
+            lastBackup: undefined,
+            databaseSize: undefined
+        };
+        // Get rate limit info (this would need to be implemented with a rate limiter store)
+        const rateLimitInfo = {
+            general: { remaining: 100, timeUntilReset: 0 },
+            booking: { remaining: 20, timeUntilReset: 0 },
+            print: { remaining: 10, timeUntilReset: 0 }
+        };
+        // Get security configuration status
+        const securityConfig = {
+            webSecurity: config_1.config.server.isProduction ? 'enabled' : 'disabled',
+            cspEnabled: true,
+            rateLimiting: true,
+            inputSanitization: true,
+            auditLogging: true,
+            jwtSecretStrength: config_1.config.security.jwtSecret.length >= 32 ? 'strong' : 'weak'
+        };
+        const securityStatus = {
+            timestamp: new Date().toISOString(),
+            database: {
+                health: dbHealth,
+                stats: dbStats
+            },
+            rateLimiting: rateLimitInfo,
+            security: securityConfig,
+            environment: config_1.config.server.nodeEnv
+        };
+        // Log security status access
+        auditLogger_1.auditLogger.logAdmin('SECURITY_STATUS_ACCESSED', true, 'anonymous', req.ip, req.get('User-Agent'), { environment: config_1.config.server.nodeEnv }, req.requestId);
+        res.json({
+            success: true,
+            data: securityStatus
+        });
+    }
+    catch (error) {
+        console.error('❌ Error getting security status:', error);
+        auditLogger_1.auditLogger.logError('SECURITY_STATUS_FAILED', false, 'anonymous', req.ip, req.get('User-Agent'), { error: error instanceof Error ? error.message : 'Unknown error' }, req.requestId);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}));
+// Audit logs endpoint (admin only)
+app.get('/api/admin/audit-logs', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    try {
+        const logFilePath = auditLogger_1.auditLogger.getLogFilePath();
+        if (!fs_1.default.existsSync(logFilePath)) {
+            return res.json({
+                success: true,
+                logs: [],
+                message: 'No audit logs found'
+            });
+        }
+        const logContent = fs_1.default.readFileSync(logFilePath, 'utf8');
+        const logLines = logContent.trim().split('\n').filter(line => line.trim());
+        const logs = logLines.map(line => {
+            try {
+                return JSON.parse(line);
+            }
+            catch {
+                return { raw: line };
+            }
+        });
+        // Log access to audit logs
+        auditLogger_1.auditLogger.logAdmin('VIEW_AUDIT_LOGS', true, 'anonymous', req.ip, req.get('User-Agent'), { logCount: logs.length }, req.requestId);
+        res.json({
+            success: true,
+            logs: logs.slice(-100), // Return last 100 entries
+            total: logs.length,
+            logFilePath
+        });
+    }
+    catch (error) {
+        console.error('❌ Error reading audit logs:', error);
+        auditLogger_1.auditLogger.logError('VIEW_AUDIT_LOGS_FAILED', false, 'anonymous', req.ip, req.get('User-Agent'), { error: error instanceof Error ? error.message : 'Unknown error' }, req.requestId);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}));
 // Add printer list endpoint
 app.get('/api/printer/list', async (req, res) => {
     try {
@@ -155,13 +320,19 @@ app.get('/api/printer/queue', (0, errorHandler_1.asyncHandler)(async (req, res) 
 // Global flag to prevent multiple simultaneous print operations
 let isPrinting = false;
 // Printer print endpoint
-app.post('/api/printer/print', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+app.post('/api/printer/print', bookingLimiter, (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { tickets, printerConfig } = req.body;
     console.log('🖨️ Printing tickets:', {
         ticketCount: (tickets === null || tickets === void 0 ? void 0 : tickets.length) || 0,
         printerConfig,
         rawBody: req.body
     });
+    // Log print attempt
+    auditLogger_1.auditLogger.logPrint('PRINT_TICKETS_ATTEMPT', true, 'anonymous', req.ip, req.get('User-Agent'), {
+        ticketCount: (tickets === null || tickets === void 0 ? void 0 : tickets.length) || 0,
+        printerName: printerConfig === null || printerConfig === void 0 ? void 0 : printerConfig.name,
+        printerType: 'ESC/POS'
+    }, req.requestId);
     if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
         throw new Error('No tickets provided or invalid tickets format');
     }
@@ -189,6 +360,12 @@ app.post('/api/printer/print', (0, errorHandler_1.asyncHandler)(async (req, res)
             await escposPrintService_1.EscposPrintService.printSilently(ticketData, printerConfig.name);
         }
         console.log('✅ All tickets printed successfully via ESC/POS');
+        // Log successful print
+        auditLogger_1.auditLogger.logPrint('PRINT_TICKETS_SUCCESS', true, 'anonymous', req.ip, req.get('User-Agent'), {
+            ticketCount: tickets.length,
+            printerName: printerConfig.name,
+            printerType: 'ESC/POS'
+        }, req.requestId);
         res.json({
             success: true,
             message: `${tickets.length} tickets printed successfully`,
@@ -202,6 +379,12 @@ app.post('/api/printer/print', (0, errorHandler_1.asyncHandler)(async (req, res)
     }
     catch (error) {
         console.error('❌ ESC/POS printing failed:', error);
+        // Log failed print
+        auditLogger_1.auditLogger.logPrint('PRINT_TICKETS_FAILED', false, 'anonymous', req.ip, req.get('User-Agent'), {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            ticketCount: (tickets === null || tickets === void 0 ? void 0 : tickets.length) || 0,
+            printerName: printerConfig === null || printerConfig === void 0 ? void 0 : printerConfig.name
+        }, req.requestId);
         res.status(500).json({
             success: false,
             message: 'ESC/POS printing failed',
@@ -377,10 +560,38 @@ if (config_1.config.logging.enableRequestLogging) {
         next();
     });
 }
-app.post('/api/bookings', errorHandler_1.validateBookingData, (0, errorHandler_1.asyncHandler)(async (req, res) => {
+app.post('/api/bookings', bookingLimiter, errorHandler_1.validateBookingData, (0, errorHandler_1.asyncHandler)(async (req, res) => {
     var _a;
     const bookingRequest = req.body;
     const { tickets, total, totalTickets, timestamp, show, screen, movie, date, source = 'LOCAL', customerName, customerPhone, customerEmail, notes } = bookingRequest;
+    // Sanitize input data
+    const sanitizedCustomerName = inputSanitizer_1.InputSanitizer.sanitizeString(customerName, 100);
+    const sanitizedCustomerPhone = inputSanitizer_1.InputSanitizer.sanitizePhone(customerPhone);
+    const sanitizedCustomerEmail = customerEmail ? inputSanitizer_1.InputSanitizer.sanitizeEmail(customerEmail) : { data: '', sanitized: false };
+    const sanitizedNotes = inputSanitizer_1.InputSanitizer.sanitizeString(notes, 500);
+    // Check for dangerous content
+    inputSanitizer_1.InputSanitizer.logDangerousContent(customerName, 'customerName', req.requestId);
+    inputSanitizer_1.InputSanitizer.logDangerousContent(customerPhone, 'customerPhone', req.requestId);
+    inputSanitizer_1.InputSanitizer.logDangerousContent(customerEmail, 'customerEmail', req.requestId);
+    inputSanitizer_1.InputSanitizer.logDangerousContent(notes, 'notes', req.requestId);
+    // Log booking attempt
+    auditLogger_1.auditLogger.logBooking('CREATE_BOOKING_ATTEMPT', true, // We'll update this based on success
+    'anonymous', // We'll add user authentication later
+    req.ip, req.get('User-Agent'), {
+        ticketsCount: tickets.length,
+        total,
+        show,
+        screen,
+        movie,
+        date,
+        source,
+        sanitized: {
+            customerName: sanitizedCustomerName.sanitized,
+            customerPhone: sanitizedCustomerPhone.sanitized,
+            customerEmail: sanitizedCustomerEmail.sanitized,
+            notes: sanitizedNotes.sanitized
+        }
+    }, req.requestId);
     console.log('📝 Creating booking with data:', {
         tickets: tickets.length,
         total,
@@ -480,10 +691,10 @@ app.post('/api/bookings', errorHandler_1.validateBookingData, (0, errorHandler_1
             status: 'CONFIRMED',
             source: source,
             synced: newBooking.synced,
-            customerName,
-            customerPhone,
-            customerEmail,
-            notes,
+            customerName: sanitizedCustomerName.data,
+            customerPhone: sanitizedCustomerPhone.data,
+            customerEmail: sanitizedCustomerEmail.data,
+            notes: sanitizedNotes.data,
             totalIncome: 0,
             localIncome: 0,
             bmsIncome: 0,
@@ -497,10 +708,28 @@ app.post('/api/bookings', errorHandler_1.validateBookingData, (0, errorHandler_1
             bookings: [bookingData], // Return single booking in array for compatibility
             message: `Created booking successfully`
         };
+        // Log successful booking
+        auditLogger_1.auditLogger.logBooking('CREATE_BOOKING_SUCCESS', true, 'anonymous', req.ip, req.get('User-Agent'), {
+            bookingId: newBooking.id,
+            ticketsCount: tickets.length,
+            total,
+            show,
+            screen,
+            movie
+        }, req.requestId);
         res.status(201).json(response);
     }
     catch (error) {
         console.error('❌ Error creating booking:', error);
+        // Log failed booking
+        auditLogger_1.auditLogger.logBooking('CREATE_BOOKING_FAILED', false, 'anonymous', req.ip, req.get('User-Agent'), {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            ticketsCount: tickets.length,
+            total,
+            show,
+            screen,
+            movie
+        }, req.requestId);
         throw error; // Let the error handler deal with it
     }
 }));

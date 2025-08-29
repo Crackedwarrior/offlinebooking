@@ -2,7 +2,7 @@
   "appId": "com.auditoriumx.app",
   "productName": "AuditoriumX",
   "directories": {
-    "output": "dist-electron-working",
+    "output": "dist-electron-installer",
     "buildResources": "build"
   },
   "files": [
@@ -37,16 +37,25 @@
     {
       "from": "../backend/prisma/dev.db",
       "to": "backend/database/auditoriumx.db"
+    },
+    {
+      "from": "build/dependencies",
+      "to": "installer/dependencies",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "build/fonts",
+      "to": "installer/fonts",
+      "filter": ["**/*"]
     }
   ],
   "win": {
     "target": [
       {
-        "target": "portable",
+        "target": "nsis",
         "arch": ["x64"]
       }
     ],
-    "icon": "build/icon.png",
     "requestedExecutionLevel": "requireAdministrator",
     "signAndEditExecutable": false
   },
@@ -55,7 +64,9 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "AuditoriumX"
+    "shortcutName": "AuditoriumX",
+    "include": "build/installer.nsh",
+    "artifactName": "AuditoriumX-Setup.exe"
   },
   "portable": {
     "artifactName": "AuditoriumX-Portable.exe"

@@ -21,40 +21,6 @@ const queryClient = new QueryClient();
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-
-
-  // Session timeout effect
-  useEffect(() => {
-    if (!isAuthenticated || !AUTH_CONFIG.AUTO_LOGOUT) return;
-
-    const sessionTimeout = setTimeout(() => {
-      console.log('Session expired, logging out...');
-      setIsAuthenticated(false);
-    }, AUTH_CONFIG.SESSION_TIMEOUT);
-
-    // Reset timeout on user activity
-    const resetTimeout = () => {
-      clearTimeout(sessionTimeout);
-      setTimeout(() => {
-        console.log('Session expired, logging out...');
-        setIsAuthenticated(false);
-      }, AUTH_CONFIG.SESSION_TIMEOUT);
-    };
-
-    // Listen for user activity
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    events.forEach(event => {
-      document.addEventListener(event, resetTimeout, true);
-    });
-
-    return () => {
-      clearTimeout(sessionTimeout);
-      events.forEach(event => {
-        document.removeEventListener(event, resetTimeout, true);
-      });
-    };
-  }, [isAuthenticated]);
-
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
   };

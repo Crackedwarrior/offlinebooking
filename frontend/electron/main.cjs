@@ -40,14 +40,16 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      webSecurity: false, // Disable web security for development
+      webSecurity: isDev ? false : true, // Enable web security in production
       preload: path.join(__dirname, 'preload.cjs')
     },
     title: 'AuditoriumX - Professional Theater Booking System',
 
     show: false, // Don't show until ready
     autoHideMenuBar: true,
-    fullscreen: true
+    fullscreen: true,
+    // Disable DevTools in production
+    ...(isDev ? {} : { devTools: false })
   });
 
   // Load the app

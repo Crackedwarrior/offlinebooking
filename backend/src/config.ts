@@ -31,7 +31,9 @@ const envSchema = z.object({
   ENABLE_REQUEST_LOGGING: z.string().transform((val: string) => val === 'true').default('true'),
   
   // Security
-  JWT_SECRET: z.string().default('dev-secret-key-change-in-production'),
+  JWT_SECRET: z.string()
+    .min(1, 'JWT_SECRET must not be empty')
+    .default('dev-secret-key-change-in-production'),
   BCRYPT_ROUNDS: z.string().transform(Number).default('10'),
   
   // Feature Flags
@@ -128,6 +130,36 @@ export const validateConfig = () => {
   }
   
   return true;
+};
+
+// Security validation
+export const validateSecurityConfig = () => {
+  const warnings: string[] = [];
+  
+  // Check JWT secret strength (only in development for now)
+  if (config.server.isDevelopment) {
+    const jwtSecret = config.security.jwtSecret;
+    
+    if (jwtSecret === 'dev-secret-key-change-in-production') {
+      warnings.push('⚠️ WARNING: Using default JWT secret in production!');
+    }
+    
+    if (jwtSecret.length < 32) {
+      warnings.push('⚠️ WARNING: JWT secret is too short for production!');
+    }
+    
+    if (!/[A-Z]/.test(jwtSecret) || !/[a-z]/.test(jwtSecret) || !/[0-9]/.test(jwtSecret)) {
+      warnings.push('⚠️ WARNING: JWT secret should contain uppercase, lowercase, and numbers!');
+    }
+  }
+  
+  // Log warnings
+  if (warnings.length > 0) {
+    console.warn('🔒 Security Configuration Warnings:');
+    warnings.forEach(warning => console.warn(warning));
+  }
+  
+  return warnings.length === 0;
 };
 
 // Log configuration (only in development)

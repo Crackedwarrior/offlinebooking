@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateConfig = exports.isTest = exports.isProduction = exports.isDevelopment = exports.config = void 0;
+exports.validateSecurityConfig = exports.validateConfig = exports.isTest = exports.isProduction = exports.isDevelopment = exports.config = void 0;
 const zod_1 = require("zod");
 const dotenv_1 = __importDefault(require("dotenv"));
 // Load environment variables
@@ -31,7 +31,9 @@ const envSchema = zod_1.z.object({
     LOG_LEVEL: zod_1.z.enum(['error', 'warn', 'info', 'debug']).default('info'),
     ENABLE_REQUEST_LOGGING: zod_1.z.string().transform((val) => val === 'true').default('true'),
     // Security
-    JWT_SECRET: zod_1.z.string().default('dev-secret-key-change-in-production'),
+    JWT_SECRET: zod_1.z.string()
+        .min(1, 'JWT_SECRET must not be empty')
+        .default('dev-secret-key-change-in-production'),
     BCRYPT_ROUNDS: zod_1.z.string().transform(Number).default('10'),
     // Feature Flags
     ENABLE_SYNC_FEATURE: zod_1.z.string().transform((val) => val === 'true').default('false'),
@@ -115,6 +117,30 @@ const validateConfig = () => {
     return true;
 };
 exports.validateConfig = validateConfig;
+// Security validation
+const validateSecurityConfig = () => {
+    const warnings = [];
+    // Check JWT secret strength (only in development for now)
+    if (exports.config.server.isDevelopment) {
+        const jwtSecret = exports.config.security.jwtSecret;
+        if (jwtSecret === 'dev-secret-key-change-in-production') {
+            warnings.push('⚠️ WARNING: Using default JWT secret in production!');
+        }
+        if (jwtSecret.length < 32) {
+            warnings.push('⚠️ WARNING: JWT secret is too short for production!');
+        }
+        if (!/[A-Z]/.test(jwtSecret) || !/[a-z]/.test(jwtSecret) || !/[0-9]/.test(jwtSecret)) {
+            warnings.push('⚠️ WARNING: JWT secret should contain uppercase, lowercase, and numbers!');
+        }
+    }
+    // Log warnings
+    if (warnings.length > 0) {
+        console.warn('🔒 Security Configuration Warnings:');
+        warnings.forEach(warning => console.warn(warning));
+    }
+    return warnings.length === 0;
+};
+exports.validateSecurityConfig = validateSecurityConfig;
 // Log configuration (only in development)
 if ((0, exports.isDevelopment)()) {
     console.log('🔧 Configuration loaded:', {

@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { logError, isErrorBoundaryError } from '@/utils/errorHandler';
 
+
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
