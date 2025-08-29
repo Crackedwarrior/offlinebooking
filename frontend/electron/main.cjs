@@ -14,6 +14,21 @@ let backendProcess;
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 8080;
 
+// Setup logging
+const logFile = path.join(app.getPath('userData'), 'app.log');
+const logToFile = (message) => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  fs.appendFileSync(logFile, logMessage);
+  console.log(message);
+};
+
+// Log app startup
+logToFile('🚀 Electron app starting...');
+logToFile(`🔧 Development mode: ${isDev}`);
+logToFile(`🔧 App path: ${app.getAppPath()}`);
+logToFile(`🔧 User data path: ${app.getPath('userData')}`);
+
 function createWindow() {
   // Create the browser window
   mainWindow = new BrowserWindow({
@@ -38,16 +53,21 @@ function createWindow() {
   // Load the app
   const startUrl = isDev 
     ? `http://localhost:${FRONTEND_PORT}` 
-    : `file://${path.join(__dirname, 'dist/index.html')}`;
+    : `file://${path.join(app.getAppPath(), 'dist/index.html')}`;
   
   console.log('🔧 Development mode:', isDev);
   console.log('🔧 Frontend port:', FRONTEND_PORT);
+  console.log('🔧 App path:', app.getAppPath());
+  console.log('🔧 __dirname:', __dirname);
   
   console.log('🚀 Loading URL:', startUrl);
   
   // Add error handling for page load
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error('❌ Page load failed:', errorCode, errorDescription, validatedURL);
+    console.error('🔧 Attempted URL:', validatedURL);
+    console.error('🔧 Error code:', errorCode);
+    console.error('🔧 Error description:', errorDescription);
   });
   
   mainWindow.webContents.on('did-finish-load', () => {
@@ -118,11 +138,11 @@ function startBackend() {
         ? path.join(__dirname, '../../backend')
         : path.join(process.resourcesPath, 'backend');
       
-      console.log('🔧 Backend path:', backendPath);
+      logToFile(`🔧 Backend path: ${backendPath}`);
       
       // Check if backend directory exists
       if (!fs.existsSync(backendPath)) {
-        console.error('❌ Backend directory not found:', backendPath);
+        logToFile(`❌ Backend directory not found: ${backendPath}`);
         reject(new Error('Backend directory not found'));
         return;
       }
@@ -133,17 +153,17 @@ function startBackend() {
         ? path.join(backendPath, 'dist')
         : backendPath;
       
-      console.log('🔧 Backend dist path:', backendDistPath);
+      logToFile(`🔧 Backend dist path: ${backendDistPath}`);
       
       // Check if backend dist directory exists
       if (!fs.existsSync(backendDistPath)) {
-        console.error('❌ Backend dist directory not found:', backendDistPath);
+        logToFile(`❌ Backend dist directory not found: ${backendDistPath}`);
         reject(new Error('Backend dist directory not found'));
         return;
       }
 
       // Kill any existing processes on port 3001
-      console.log('🛑 Checking for existing processes on port 3001...');
+      logToFile('🛑 Checking for existing processes on port 3001...');
       await killProcessOnPort(3001);
 
       // Check if port 3001 is available first
@@ -185,7 +205,7 @@ function startBackend() {
       }
 
       // Start backend process
-      console.log('🔄 Starting backend process...');
+      logToFile('🔄 Starting backend process...');
       
       // Set up environment variables for backend
       const backendEnv = {
@@ -198,28 +218,34 @@ function startBackend() {
         ENABLE_REQUEST_LOGGING: 'true'
       };
       
-      console.log('🔧 Database URL:', backendEnv.DATABASE_URL);
+      logToFile(`🔧 Database URL: ${backendEnv.DATABASE_URL}`);
+      logToFile(`🔧 Working directory: ${backendDistPath}`);
+      logToFile(`🔧 Database file exists: ${fs.existsSync(path.join(backendDistPath, 'database', 'auditoriumx.db'))}`);
       
-      backendProcess = spawn('node', ['server.js'], {
+      // Use spawn() with system Node.js in production
+      const nodeExecutable = isDev ? 'node' : 'C:\\Program Files\\nodejs\\node.exe';
+      logToFile(`🔧 Using spawn() with Node.js: ${nodeExecutable}`);
+      
+      backendProcess = spawn(nodeExecutable, ['server.js'], {
         cwd: backendDistPath,
         stdio: 'pipe',
-        shell: true,
         env: backendEnv
       });
 
       backendProcess.stdout.on('data', (data) => {
-        console.log('Backend:', data.toString());
-        if (data.toString().includes('Server running at')) {
-          console.log('✅ Backend server started successfully');
+        const output = data.toString();
+        logToFile(`Backend stdout: ${output}`);
+        if (output.includes('Server running at')) {
+          logToFile('✅ Backend server started successfully');
           // Wait a bit more for the server to be fully ready
           setTimeout(async () => {
             // Verify the backend is actually responding
             const isHealthy = await checkBackendHealth();
             if (isHealthy) {
-              console.log('✅ Backend health check passed');
+              logToFile('✅ Backend health check passed');
               resolve();
             } else {
-              console.log('⚠️ Backend health check failed, but continuing...');
+              logToFile('⚠️ Backend health check failed, but continuing...');
               resolve();
             }
           }, 2000);
@@ -227,27 +253,28 @@ function startBackend() {
       });
 
       backendProcess.stderr.on('data', (data) => {
-        console.error('Backend Error:', data.toString());
+        const error = data.toString();
+        logToFile(`Backend stderr: ${error}`);
       });
 
       backendProcess.on('error', (error) => {
-        console.error('Failed to start backend:', error);
+        logToFile(`Failed to start backend: ${error.message}`);
         reject(error);
       });
 
       backendProcess.on('close', (code) => {
-        console.log(`Backend process exited with code ${code}`);
+        logToFile(`Backend process exited with code ${code}`);
       });
 
       // Timeout after 10 seconds
       setTimeout(() => {
         if (backendProcess && !backendProcess.killed) {
-          console.log('✅ Backend server started (timeout)');
+          logToFile('✅ Backend server started (timeout)');
           resolve();
         }
       }, 10000);
     } catch (error) {
-      console.error('❌ Backend startup error:', error);
+      logToFile(`❌ Backend startup error: ${error.message}`);
       reject(error);
     }
   });
@@ -290,10 +317,17 @@ app.whenReady().then(async () => {
     
     try {
       await Promise.race([backendPromise, timeoutPromise]);
-      console.log('✅ Backend started successfully');
+      logToFile('✅ Backend started successfully');
     } catch (backendError) {
-      console.error('❌ Backend startup failed:', backendError.message);
-      console.log('⚠️ Continuing without backend...');
+      logToFile(`❌ Backend startup failed: ${backendError.message}`);
+      logToFile('⚠️ Continuing without backend...');
+      // Send error to renderer process
+      if (mainWindow) {
+        mainWindow.webContents.send('backend-status', { 
+          status: 'error', 
+          message: backendError.message 
+        });
+      }
     }
     
     // Create window regardless of backend status
@@ -362,6 +396,17 @@ app.on('activate', () => {
 // IPC handlers for communication with renderer process
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('get-backend-status', () => {
+  return {
+    isRunning: backendProcess && !backendProcess.killed,
+    port: BACKEND_PORT
+  };
+});
+
+ipcMain.handle('get-log-file-path', () => {
+  return logFile;
 });
 
 ipcMain.handle('get-app-name', () => {

@@ -2,7 +2,7 @@
   "appId": "com.auditoriumx.app",
   "productName": "AuditoriumX",
   "directories": {
-    "output": "dist-electron",
+    "output": "dist-electron-backend-fix",
     "buildResources": "build"
   },
   "files": [
@@ -41,8 +41,9 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "build/icon.ico",
-    "requestedExecutionLevel": "requireAdministrator"
+    "icon": "build/icon.png",
+    "requestedExecutionLevel": "requireAdministrator",
+    "signAndEditExecutable": false
   },
   "nsis": {
     "oneClick": false,
@@ -56,13 +57,11 @@
   },
   "mac": {
     "target": "dmg",
-    "category": "public.app-category.business",
-    "icon": "build/icon.icns"
+    "category": "public.app-category.business"
   },
   "linux": {
     "target": "AppImage",
-    "category": "Office",
-    "icon": "build/icon.png"
+    "category": "Office"
   },
   "publish": {
     "provider": "github",
