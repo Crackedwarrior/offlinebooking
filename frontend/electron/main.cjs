@@ -223,7 +223,7 @@ function startBackend() {
       logToFile(`🔧 Database file exists: ${fs.existsSync(path.join(backendDistPath, 'database', 'auditoriumx.db'))}`);
       
       // Use spawn() with system Node.js in production
-      const nodeExecutable = isDev ? 'node' : 'C:\\Program Files\\nodejs\\node.exe';
+      const nodeExecutable = isDev ? 'node' : 'node';
       logToFile(`🔧 Using spawn() with Node.js: ${nodeExecutable}`);
       
       backendProcess = spawn(nodeExecutable, ['server.js'], {

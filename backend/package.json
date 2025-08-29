@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "dev": "ts-node src/server.ts",
-    "build": "tsc && npm run copy:db",
+    "build": "tsc && npx prisma generate && npm run copy:db",
     "copy:db": "powershell -Command \"Copy-Item -Path 'prisma/dev.db' -Destination 'dist/dev.db' -Force; Copy-Item -Path 'prisma' -Destination 'dist/prisma' -Recurse -Force\"",
     "start:prod": "node dist/server.js"
   },

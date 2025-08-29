@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppName: () => ipcRenderer.invoke('get-app-name'),
   closeApp: () => ipcRenderer.invoke('close-app'),
   
+  // Backend status
+  getBackendStatus: () => ipcRenderer.invoke('get-backend-status'),
+  getLogFilePath: () => ipcRenderer.invoke('get-log-file-path'),
+  
   // External links
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   
@@ -43,4 +47,9 @@ ipcRenderer.on('printer-event', (event, data) => {
 // Handle backend events
 ipcRenderer.on('backend-event', (event, data) => {
   window.dispatchEvent(new CustomEvent('backend-event', { detail: data }));
+});
+
+// Handle backend status updates
+ipcRenderer.on('backend-status', (event, data) => {
+  window.dispatchEvent(new CustomEvent('backend-status', { detail: data }));
 });

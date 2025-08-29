@@ -2,7 +2,7 @@
   "appId": "com.auditoriumx.app",
   "productName": "AuditoriumX",
   "directories": {
-    "output": "dist-electron-backend-fix",
+    "output": "dist-electron-working",
     "buildResources": "build"
   },
   "files": [
@@ -17,6 +17,11 @@
     {
       "from": "backend-dist",
       "to": "backend",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "backend-dist/node_modules",
+      "to": "backend/node_modules",
       "filter": ["**/*"]
     },
     {

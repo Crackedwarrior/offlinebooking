@@ -6,12 +6,12 @@
   "author": "Crackedwarrior",
   "license": "MIT",
   "homepage": "https://github.com/Crackedwarrior/offlinebooking",
-  "type": "module",
+
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host",
     "build:backend": "cd ../backend && npm run build",
-    "copy:backend": "powershell -Command \"Copy-Item -Path '../backend/dist/*' -Destination 'backend-dist' -Recurse -Force\"",
+    "copy:backend": "powershell -Command \"if (Test-Path 'backend-dist') { Remove-Item 'backend-dist' -Recurse -Force }; Copy-Item -Path '../backend/dist' -Destination 'backend-dist' -Recurse -Force; Copy-Item -Path '../backend/package.json' -Destination 'backend-dist/package.json' -Force; Copy-Item -Path '../backend/node_modules/.prisma' -Destination 'backend-dist/node_modules/.prisma' -Recurse -Force -ErrorAction SilentlyContinue; Copy-Item -Path '../backend/node_modules/@prisma' -Destination 'backend-dist/node_modules/@prisma' -Recurse -Force -ErrorAction SilentlyContinue\"",
     "build": "npm run build:backend && npm run copy:backend && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron electron/main.cjs\"",
