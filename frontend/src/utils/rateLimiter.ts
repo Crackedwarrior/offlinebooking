@@ -14,10 +14,10 @@ class RateLimiter {
   private configs: Map<string, RateLimitConfig> = new Map();
 
   constructor() {
-    // Set default rate limits
-    this.setLimit('api', { maxRequests: 100, windowMs: 15 * 60 * 1000 }); // 100 requests per 15 minutes
-    this.setLimit('booking', { maxRequests: 20, windowMs: 15 * 60 * 1000 }); // 20 booking requests per 15 minutes
-    this.setLimit('print', { maxRequests: 10, windowMs: 15 * 60 * 1000 }); // 10 print requests per 15 minutes
+    // Set theatre booking system optimized rate limits
+    this.setLimit('api', { maxRequests: 200, windowMs: 1 * 60 * 1000 }); // 200 requests per minute (industry standard)
+    this.setLimit('booking', { maxRequests: 50, windowMs: 1 * 60 * 1000 }); // 50 booking requests per minute (realistic for theatre)
+    this.setLimit('print', { maxRequests: 30, windowMs: 1 * 60 * 1000 }); // 30 print requests per minute (reasonable for theatre operations)
   }
 
   setLimit(key: string, config: RateLimitConfig): void {

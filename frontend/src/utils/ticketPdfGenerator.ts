@@ -128,7 +128,7 @@ export class TicketPdfGenerator {
       <body>
         <div class="ticket">
           <div class="header">SREELEKHA THEATER</div>
-          <div class="location">Chickmagalur</div>
+          <div class="location">Chikmagalur</div>
           <div class="separator">==========================================</div>
           
           <div class="info-row">Date: ${ticketData.date}</div>

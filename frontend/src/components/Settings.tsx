@@ -2,11 +2,11 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form';
 import { useSettingsStore, ShowTimeSettings } from '@/store/settingsStore';
 import MovieManagement from './MovieManagement';
+import { SettingsErrorBoundary } from './SpecializedErrorBoundaries';
 
 import { SEAT_CLASSES } from '@/lib/config';
 import { seatsByRow } from '@/lib/seatMatrix';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -16,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Settings as SettingsIcon, 
   Save, 
-  RotateCcw, 
   Film, 
   DollarSign, 
   Clock, 
@@ -26,7 +25,6 @@ import {
   Trash2
 } from 'lucide-react';
 // import { toast } from '@/hooks/use-toast';
-import { SimpleTimePicker } from './SimpleTimePicker';
 import BookingManagement from './BookingManagement';
 import PriceDisplay from './PriceDisplay';
 
@@ -34,29 +32,20 @@ import PrinterConfig from './PrinterConfig';
 
 type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' | 'printer';
 
-// Helper function to convert 24-hour time to 12-hour format
-const convertTo12Hour = (time24h: string): string => {
-  const [hours, minutes] = time24h.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  
-  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-};
 
 const Settings = () => {
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  console.log(`🔍 Settings component rendering (render #${renderCount.current})`);
-  const { pricing, showTimes, updatePricing, updateShowTime, resetToDefaults } = useSettingsStore();
+  // Removed debug render counting - performance optimization
+  const { pricing, showTimes, movies, updatePricing, updateShowTime, deleteShowTime, resetToDefaults } = useSettingsStore();
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const hasChangesRef = useRef(false);
 
+
   // React Hook Form for pricing
   const { register, handleSubmit, watch, setValue, formState: { isDirty } } = useForm({
-    defaultValues: pricing
+    defaultValues: pricing || {}
   });
 
   // Watch all pricing fields for changes
@@ -72,7 +61,6 @@ const Settings = () => {
   // Monitor changes and show save button
   useEffect(() => {
     const hasAnyChanges = hasChanges();
-    console.log('🔍 Settings: Checking for changes:', hasAnyChanges);
     if (hasAnyChanges) {
       setShowSaveButton(true);
       hasChangesRef.current = true;
@@ -124,8 +112,6 @@ const Settings = () => {
 
   // Handle show time changes
   const handleShowTimeChange = useCallback((key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
-    console.log(`🔍 Settings: handleShowTimeChange called for ${key}.${field} with value ${value}`);
-    
     setLocalShowTimes(prev => prev.map(show => 
       show.key === key ? { ...show, [field]: value } : show
     ));
@@ -135,6 +121,22 @@ const Settings = () => {
     setShowSaveButton(true);
   }, []);
 
+
+  // Handle deleting show time
+  const handleDeleteShowTime = useCallback((key: string) => {
+    if (localShowTimes.length <= 1) {
+      setError('Cannot delete the last show time');
+      return;
+    }
+
+    deleteShowTime(key);
+    setLocalShowTimes(prev => prev.filter(show => show.key !== key));
+    
+    // Track changes and show save button
+    hasChangesRef.current = true;
+    setShowSaveButton(true);
+  }, [localShowTimes, deleteShowTime]);
+
   // Save all changes
   const handleSave = useCallback(() => {
     try {
@@ -143,7 +145,7 @@ const Settings = () => {
       
       // Update pricing settings
       Object.entries(formValues).forEach(([classLabel, value]) => {
-        updatePricing(classLabel, parseInt(value as string) || 0);
+        updatePricing(classLabel, parseInt(String(value)) || 0);
       });
 
       // Update show time settings
@@ -155,9 +157,6 @@ const Settings = () => {
       setShowSaveButton(false);
       
       // Show success message
-      console.log('✅ Settings saved successfully!');
-      console.log('💰 Updated pricing:', formValues);
-      
       // Force a re-render of components that use pricing
       window.dispatchEvent(new CustomEvent('pricingUpdated', { 
         detail: { pricing: formValues } 
@@ -177,7 +176,10 @@ const Settings = () => {
   const handleReset = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
       resetToDefaults();
-      setLocalPricing(pricing);
+      // Reset form values to defaults
+      Object.entries(pricing).forEach(([classLabel, value]) => {
+        setValue(classLabel, value);
+      });
       setLocalShowTimes(showTimes);
       hasChangesRef.current = false;
       setShowSaveButton(false);
@@ -186,7 +188,7 @@ const Settings = () => {
       //   description: 'All settings have been reset to their default values.',
       // });
     }
-  }, [resetToDefaults, pricing, showTimes]);
+  }, [resetToDefaults, pricing, setValue, showTimes]);
 
   // Clear all data completely
   const handleClearAllData = useCallback(() => {
@@ -254,7 +256,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-orange-600">Movies</p>
-                  <p className="text-2xl font-bold text-orange-800">{localShowTimes.length}</p>
+                  <p className="text-2xl font-bold text-orange-800">{movies.length}</p>
                 </div>
                 <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                   <Film className="w-4 h-4 text-orange-600" />
@@ -285,7 +287,7 @@ const Settings = () => {
                   <div key={show.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <span className="font-medium">{show.label}</span>
-                      <p className="text-sm text-gray-600">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</p>
+                      <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
                     </div>
                     <Badge variant="outline">Active</Badge>
                   </div>
@@ -363,35 +365,130 @@ const Settings = () => {
             Configure show times and their settings
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold">Show Times ({localShowTimes.length})</h3>
+          </div>
+
+          {/* Existing Show Times */}
           <div className="space-y-6">
             {localShowTimes.map(show => (
               <div key={show.key} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-semibold">{show.label}</h3>
-                    <p className="text-sm text-gray-600">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</p>
+                    <p className="text-sm text-gray-600">{show.startTime} - {show.endTime}</p>
                   </div>
+                  <div className="flex items-center gap-2">
                   <Switch
                     checked={show.enabled}
                     onCheckedChange={(checked) => handleShowTimeChange(show.key, 'enabled', checked)}
                   />
+                    {localShowTimes.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteShowTime(show.key)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor={`${show.key}-start`}>Start Time</Label>
-                    <SimpleTimePicker
-                      value={show.startTime}
-                      onChange={(time) => handleShowTimeChange(show.key, 'startTime', time)}
-                    />
+                    <div className="flex gap-1 items-center">
+                      <select
+                        value={show.startTime ? parseInt(show.startTime.split(' ')[0].split(':')[0]) || 10 : 10}
+                        onChange={(e) => {
+                          const hours = e.target.value;
+                          const minutes = show.startTime ? show.startTime.split(' ')[0].split(':')[1] || '00' : '00';
+                          const ampm = show.startTime ? show.startTime.split(' ')[1] || 'AM' : 'AM';
+                          handleShowTimeChange(show.key, 'startTime', `${hours}:${minutes} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(hour => (
+                          <option key={hour} value={hour}>{hour}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-500">:</span>
+                      <select
+                        value={show.startTime ? show.startTime.split(' ')[0].split(':')[1] || '00' : '00'}
+                        onChange={(e) => {
+                          const minutes = e.target.value;
+                          const hours = show.startTime ? show.startTime.split(' ')[0].split(':')[0] || '10' : '10';
+                          const ampm = show.startTime ? show.startTime.split(' ')[1] || 'AM' : 'AM';
+                          handleShowTimeChange(show.key, 'startTime', `${hours}:${minutes} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0')).map(minute => (
+                          <option key={minute} value={minute}>{minute}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={show.startTime ? show.startTime.split(' ')[1] || 'AM' : 'AM'}
+                        onChange={(e) => {
+                          const ampm = e.target.value;
+                          const timePart = show.startTime ? show.startTime.split(' ')[0] || '10:00' : '10:00';
+                          handleShowTimeChange(show.key, 'startTime', `${timePart} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor={`${show.key}-end`}>End Time</Label>
-                    <SimpleTimePicker
-                      value={show.endTime}
-                      onChange={(time) => handleShowTimeChange(show.key, 'endTime', time)}
-                    />
+                    <div className="flex gap-1 items-center">
+                      <select
+                        value={show.endTime ? parseInt(show.endTime.split(' ')[0].split(':')[0]) || 12 : 12}
+                        onChange={(e) => {
+                          const hours = e.target.value;
+                          const minutes = show.endTime ? show.endTime.split(' ')[0].split(':')[1] || '00' : '00';
+                          const ampm = show.endTime ? show.endTime.split(' ')[1] || 'PM' : 'PM';
+                          handleShowTimeChange(show.key, 'endTime', `${hours}:${minutes} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(hour => (
+                          <option key={hour} value={hour}>{hour}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-500">:</span>
+                      <select
+                        value={show.endTime ? show.endTime.split(' ')[0].split(':')[1] || '00' : '00'}
+                        onChange={(e) => {
+                          const minutes = e.target.value;
+                          const hours = show.endTime ? show.endTime.split(' ')[0].split(':')[0] || '12' : '12';
+                          const ampm = show.endTime ? show.endTime.split(' ')[1] || 'PM' : 'PM';
+                          handleShowTimeChange(show.key, 'endTime', `${hours}:${minutes} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0')).map(minute => (
+                          <option key={minute} value={minute}>{minute}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={show.endTime ? show.endTime.split(' ')[1] || 'PM' : 'PM'}
+                        onChange={(e) => {
+                          const ampm = e.target.value;
+                          const timePart = show.endTime ? show.endTime.split(' ')[0] || '12:00' : '12:00';
+                          handleShowTimeChange(show.key, 'endTime', `${timePart} ${ampm}`);
+                        }}
+                        className="px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -400,7 +497,7 @@ const Settings = () => {
         </CardContent>
       </Card>
     </div>
-  ), [localShowTimes, handleShowTimeChange]);
+  ), [localShowTimes, handleShowTimeChange, handleDeleteShowTime]);
 
   const MoviesTab = useMemo(() => () => (
     <div className="space-y-6">
@@ -435,7 +532,7 @@ const Settings = () => {
             🖨️ Printer Configuration
           </CardTitle>
           <CardDescription>
-            Configure Epson TM-T20 M249A POS printer settings and test connection
+            Configure printer settings and test connection
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -448,6 +545,7 @@ const Settings = () => {
 
 
   return (
+    <SettingsErrorBoundary>
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Settings</h1>
@@ -491,19 +589,20 @@ const Settings = () => {
       </Tabs>
 
       {/* Global Save Button */}
-      {showSaveButton && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={handleSave}
-            className="bg-green-600 hover:bg-green-700 shadow-lg"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Save Changes
-          </Button>
-        </div>
-      )}
+        {showSaveButton && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Button
+              onClick={handleSave}
+              className="bg-green-600 hover:bg-green-700 shadow-lg"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save Changes
+            </Button>
+          </div>
+        )}
 
     </div>
+    </SettingsErrorBoundary>
   );
 };
 

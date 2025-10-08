@@ -8,13 +8,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PrinterConfig } from '@/services/printerService';
 import { PrinterService } from '@/services/printerService';
 import { ElectronPrinterService } from '@/services/electronPrinterService';
+import { getTheaterConfig } from '@/config/theaterConfig';
 
 export default function PrinterConfig() {
   const [config, setConfig] = useState<PrinterConfig>({
     name: '',
     port: '',
-    theaterName: 'SREELEKHA THEATER',
-    location: 'Chickmagalur',
+    theaterName: getTheaterConfig().name,
+    location: getTheaterConfig().location,
     gstin: '',
     printerType: 'backend'
   });

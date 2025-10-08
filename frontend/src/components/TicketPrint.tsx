@@ -3,6 +3,8 @@ import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import printerService, { TicketData } from '@/services/printerService';
 import { ElectronPrinterService } from '@/services/electronPrinterService';
+import { getTheaterConfig } from '@/config/theaterConfig';
+import { PrintErrorBoundary } from './SpecializedErrorBoundaries';
 // import { toast } from '@/hooks/use-toast';
 
 // Types for seat and ticket group
@@ -71,23 +73,44 @@ function groupSeats(seats: Seat[], decoupledSeatIds: string[] = []): TicketGroup
   return Object.values(groups);
 }
 
-// Helper: format seat numbers as range or comma-separated
+// Helper: format seat numbers as range format (e.g., "4 - 6" instead of "4,5,6")
 function formatSeatNumbers(seats: number[]): string {
   if (seats.length === 1) return seats[0].toString();
-  // Check if continuous
-  let ranges: string[] = [];
-  let start = seats[0], end = seats[0];
-  for (let i = 1; i <= seats.length; i++) {
-    if (seats[i] === end + 1) {
-      end = seats[i];
-    } else {
-      if (start === end) ranges.push(`${start}`);
-      else ranges.push(`${start} - ${end}`);
-      start = seats[i];
-      end = seats[i];
+  
+  // Sort seats to ensure proper range detection
+  const sortedSeats = [...seats].sort((a, b) => a - b);
+  
+  // Check if seats are continuous
+  const isContinuous = sortedSeats.every((seat, index) => {
+    if (index === 0) return true;
+    return seat === sortedSeats[index - 1] + 1;
+  });
+  
+  if (isContinuous) {
+    // All seats are continuous - use range format
+    return `${sortedSeats[0]} - ${sortedSeats[sortedSeats.length - 1]}`;
+  } else {
+    // Non-continuous seats - group into ranges
+    let ranges: string[] = [];
+    let start = sortedSeats[0], end = sortedSeats[0];
+    
+    for (let i = 1; i <= sortedSeats.length; i++) {
+      if (i < sortedSeats.length && sortedSeats[i] === end + 1) {
+        end = sortedSeats[i];
+      } else {
+        if (start === end) {
+          ranges.push(`${start}`);
+        } else {
+          ranges.push(`${start} - ${end}`);
+        }
+        if (i < sortedSeats.length) {
+          start = sortedSeats[i];
+          end = sortedSeats[i];
+        }
+      }
     }
+    return ranges.join(', ');
   }
-  return ranges.join(', ');
 }
 
 const classColorMap: Record<string, string> = {
@@ -126,8 +149,8 @@ function formatTicketDataWorkaround(
   showtime: string,
   movieName: string
 ): TicketData {
-  const theaterName = 'SREELEKHA THEATER';
-  const location = 'Chickmagalur';
+  const theaterName = getTheaterConfig().name;
+  const location = getTheaterConfig().location;
   
   // Calculate GST components (assuming 18% total GST: 9% CGST + 9% SGST)
   const gstRate = 0.18;
@@ -177,31 +200,31 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const totalTickets = selectedSeats.length;
   const [selectedGroupIdxs, setSelectedGroupIdxs] = useState<number[]>([]);
 
+  // 🔍 DEBUG: Log grouping results
+  console.log('🎫 TICKETPRINT DEBUG: selectedSeats count:', selectedSeats.length);
+  console.log('🎫 TICKETPRINT DEBUG: selectedSeats:', selectedSeats.map(s => `${s.id} (${s.row}${s.number})`));
+  console.log('🎫 TICKETPRINT DEBUG: groups count:', groups.length);
+  console.log('🎫 TICKETPRINT DEBUG: groups:', groups.map(g => `${g.classLabel} ${g.row} seats: ${g.seats.join(',')}`));
+
+  // Removed excessive debug logging - performance optimization
   const selectedShow = useBookingStore(state => state.selectedShow);
   const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
   const { getMovieForShow } = useSettingsStore();
 
     const toggleGroupSelection = (idx: number) => {
-    console.log('🎯 Toggling group selection:', idx);
     setSelectedGroupIdxs(prev => {
       const newSelection = prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx];
-      console.log('🎯 New selection:', newSelection);
       return newSelection;
     });
   };
 
   const handleDelete = () => {
-    console.log('🗑️ handleDelete called');
-    console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
-    console.log('🗑️ groups:', groups);
-    
     if (!onDelete) {
       console.error('❌ onDelete function not provided');
       return;
     }
     
     const seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
-    console.log('🗑️ seatIdsToDelete:', seatIdsToDelete);
     
     if (seatIdsToDelete.length === 0) {
       console.warn('⚠️ No seats selected for deletion');
@@ -259,15 +282,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         return;
       }
 
-      // Convert 24-hour time to 12-hour format for display
-      const convertTo12Hour = (time24h: string): string => {
-        const [hours, minutes] = time24h.split(':').map(Number);
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-      };
-
-      const showtime = convertTo12Hour(currentShowTime.startTime);
+      // Use show time directly (already in 12-hour format)
+      const showtime = currentShowTime.startTime;
       console.log('🕐 Formatted showtime:', showtime);
 
       // Get printer configuration
@@ -284,10 +300,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       
       // Prepare grouped ticket data
       const ticketGroups = groups.map(group => ({
-        theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
-        location: printerConfig.location || 'Chickmagalur',
+        theaterName: printerConfig.theaterName || getTheaterConfig().name,
+        location: printerConfig.location || getTheaterConfig().location,
         date: selectedDate,
         showTime: showtime,
+        showKey: selectedShow,
         movieName: currentMovie.name,
         movieLanguage: currentMovie.language, // Add language information
         classLabel: group.classLabel,
@@ -302,12 +319,48 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       }));
 
       console.log('🖨️ Preparing to print grouped tickets via Electron:', ticketGroups);
+      
+      // 🚀 FRONTEND DEBUG: Log which service will be used
+      console.log('🚀 FRONTEND DEBUG: Movie language:', currentMovie.language);
+      console.log('🚀 FRONTEND DEBUG: Movie printInKannada setting:', currentMovie.printInKannada);
+      if (currentMovie.printInKannada) {
+        console.log('🚀 FRONTEND DEBUG: This movie will use FastKannadaPrintService (wkhtmltopdf)');
+        console.log('🚀 FRONTEND DEBUG: Expected performance: 3-5x faster than Puppeteer');
+      } else {
+        console.log('🔤 FRONTEND DEBUG: This movie will use PdfPrintService (PDFKit) for English');
+      }
 
       // Print each ticket group using Electron
       let allPrinted = true;
       for (const ticketGroup of ticketGroups) {
         const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
+        console.log('🚀 FRONTEND DEBUG: About to print ticket group:', ticketGroup.seatRange);
+        console.log('🚀 FRONTEND DEBUG: Movie data being sent:', currentMovie);
+        
+        // 🚀 FRONTEND DEBUG: Start timing for performance measurement
+        const startTime = Date.now();
+        console.log('🚀 FRONTEND DEBUG: Starting print at:', new Date().toISOString());
+        
         const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
+        
+        // 🚀 FRONTEND DEBUG: End timing and log performance
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        console.log('🚀 FRONTEND DEBUG: Print completed at:', new Date().toISOString());
+        console.log('🚀 FRONTEND DEBUG: Print duration:', duration + 'ms');
+        
+        if (currentMovie.printInKannada) {
+          console.log('🚀 FRONTEND DEBUG: FastKannadaPrintService (wkhtmltopdf) performance:', duration + 'ms');
+          if (duration < 2000) {
+            console.log('🚀 FRONTEND DEBUG: ✅ Excellent performance! Under 2 seconds');
+          } else if (duration < 5000) {
+            console.log('🚀 FRONTEND DEBUG: ✅ Good performance! Under 5 seconds');
+          } else {
+            console.log('🚀 FRONTEND DEBUG: ⚠️ Performance could be better. Consider checking wkhtmltopdf setup');
+          }
+        } else {
+          console.log('🔤 FRONTEND DEBUG: PdfPrintService (PDFKit) performance:', duration + 'ms');
+        }
         
         if (!printSuccess) {
           console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
@@ -356,10 +409,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       if (response && response.success) {
         // Mark all selected seats as booked in the store
         selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
-        
+
         console.log('✅ Tickets printed and booking saved successfully');
         setSelectedGroupIdxs([]);
-        
+
+        // Stay on checkout page after successful print - don't navigate back to seat grid
+        // User can manually navigate back when ready
+
         // Notify parent to complete booking (with delay to avoid React warnings)
         setTimeout(() => {
           if (onBookingComplete) onBookingComplete();
@@ -379,7 +435,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md border border-gray-200 w-80 relative flex flex-col h-full" style={{ padding: '8px 8px -8px 8px' }}>
+    <PrintErrorBoundary>
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 w-80 relative flex flex-col h-full" style={{ padding: '8px 8px -8px 8px' }}>
       
       <div className="font-semibold text-base px-4 pt-1 pb-2 border-b border-gray-200 mb-2 flex items-center justify-between">
         <span className="text-gray-900">Tickets</span>
@@ -581,6 +638,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         }
       `}</style>
     </div>
+    </PrintErrorBoundary>
   );
 };
 

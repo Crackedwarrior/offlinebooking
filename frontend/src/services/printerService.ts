@@ -1,4 +1,5 @@
 import { TicketPdfGenerator } from '../utils/ticketPdfGenerator';
+import { getTheaterConfig } from '../config/theaterConfig';
 
 export interface TicketData {
   theaterName: string;
@@ -75,8 +76,8 @@ export class PrinterService {
     movieName: string
   ): TicketData {
     const config = this.getPrinterConfig();
-    const theaterName = config?.theaterName || 'SREELEKHA THEATER';
-    const location = config?.location || 'Chickmagalur';
+    const theaterName = config?.theaterName || getTheaterConfig().name;
+    const location = config?.location || getTheaterConfig().location;
     
     // Calculate GST components (assuming 18% total GST: 9% CGST + 9% SGST)
     const gstRate = 0.18;
@@ -120,9 +121,9 @@ export class PrinterService {
       '\x1B\x52\x00',    // Select USA character set
       '\x1B\x61\x01',    // Center alignment
       '\x1B\x21\x30',    // Double height and width for header
-      'SREELEKHA THEATER\n',
+      `${getTheaterConfig().name}\n`,
       '\x1B\x21\x00',    // Normal size
-      'Chickmagalur\n',
+      `${getTheaterConfig().location}\n`,
       '\x1B\x61\x00',    // Left alignment
       '==========================================\n', // 42 characters
       '\x1B\x21\x10',    // Double height for important info
@@ -146,7 +147,7 @@ export class PrinterService {
       '\x1B\x21\x10',    // Double height
       'THANK YOU!\n',
       '\x1B\x21\x00',    // Normal size
-      'SREELEKHA THEATER\n',
+      `${getTheaterConfig().name}\n`,
       '\x1B\x61\x00',    // Left alignment
       '\x1B\x69'         // Cut paper
     ];
@@ -211,8 +212,8 @@ export class PrinterService {
           printerConfig: {
             name: printerName,
             port: config?.port || '',
-            theaterName: config?.theaterName || 'SREELEKHA THEATER',
-            location: config?.location || 'Chickmagalur',
+            theaterName: config?.theaterName || getTheaterConfig().name,
+            location: config?.location || getTheaterConfig().location,
             gstin: config?.gstin || ''
           }
         }),

@@ -30,6 +30,20 @@ interface EnvironmentConfig {
     bmsApiUrl?: string;
     emailServiceUrl?: string;
   };
+  
+  // Theater Configuration
+  theater: {
+    name: string;
+    location: string;
+    gstin: string;
+    defaultTaxValues: {
+      net: string;
+      cgst: string;
+      sgst: string;
+      mc: string;
+      totalAmount: string;
+    };
+  };
 }
 
 // Get environment variables with fallbacks
@@ -82,6 +96,20 @@ export const envConfig: EnvironmentConfig = {
   external: {
     bmsApiUrl: getEnvVar('VITE_BMS_API_URL', ''),
     emailServiceUrl: getEnvVar('VITE_EMAIL_SERVICE_URL', ''),
+  },
+  
+  // Theater Configuration
+  theater: {
+    name: getEnvVar('VITE_THEATER_NAME', 'SREELEKHA THEATER'),
+    location: getEnvVar('VITE_THEATER_LOCATION', 'Chikmagalur'),
+    gstin: getEnvVar('VITE_THEATER_GSTIN', '29AAVFS7423E120'),
+    defaultTaxValues: {
+      net: getEnvVar('VITE_DEFAULT_NET', '125.12'),
+      cgst: getEnvVar('VITE_DEFAULT_CGST', '11.44'),
+      sgst: getEnvVar('VITE_DEFAULT_SGST', '11.44'),
+      mc: getEnvVar('VITE_DEFAULT_MC', '2.00'),
+      totalAmount: getEnvVar('VITE_DEFAULT_TOTAL', '150.00'),
+    },
   },
 };
 

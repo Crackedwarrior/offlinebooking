@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { seatsByRow } from '@/lib/seatMatrix';
 
+// Debug the import
+console.log('🔍 seatsByRow imported:', Object.keys(seatsByRow).length, 'rows');
+
 export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'BMS_BOOKED' | 'SELECTED';
 export type ShowTime = 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
 
@@ -26,6 +29,10 @@ export interface BookingState {
   setSelectedDate: (date: string) => void;
   setSelectedShow: (show: ShowTime) => void;
   toggleSeatStatus: (seatId: string, newStatus: SeatStatus) => void;
+  // ✅ NEW PROFESSIONAL BATCH OPERATIONS
+  selectMultipleSeats: (seatIds: string[]) => void;
+  deselectMultipleSeats: (seatIds: string[]) => void;
+  atomicSeatReplacement: (deselectIds: string[], selectIds: string[]) => void;
   saveBooking: () => void;
   loadBookingForDate: (date: string, show: ShowTime) => void;
   initializeSeats: () => void;
@@ -41,8 +48,11 @@ export interface BookingState {
 
 // Initialize seat layout from seatsByRow
 const createInitialSeats = (): Seat[] => {
+  console.log('🔍 createInitialSeats called');
+  console.log('🔍 seatsByRow keys:', Object.keys(seatsByRow));
   const seats: Seat[] = [];
   Object.entries(seatsByRow).forEach(([row, numbers]) => {
+    console.log(`🔍 Processing row ${row}:`, numbers);
     numbers.forEach((num, idx) => {
       if (typeof num === 'number') {
         seats.push({
@@ -54,6 +64,8 @@ const createInitialSeats = (): Seat[] => {
       }
     });
   });
+  console.log('🔍 createInitialSeats created', seats.length, 'seats');
+  console.log('🔍 First few seats:', seats.slice(0, 5));
   return seats;
 };
 
@@ -68,134 +80,218 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   setSelectedShow: (show) => set({ selectedShow: show }),
   
   toggleSeatStatus: (seatId, newStatus) => {
-    // console.log('🔄 toggleSeatStatus called:', { seatId, newStatus });
+    console.log('🔄 toggleSeatStatus called:', { seatId, newStatus });
     set((state) => {
       const updatedSeats = state.seats.map(seat =>
         seat.id === seatId ? { ...seat, status: newStatus } : seat
       );
-      // console.log('🔄 Updated seats:', updatedSeats.filter(s => s.id === seatId));
+      console.log('🔄 Updated seats:', updatedSeats.filter(s => s.id === seatId));
+      console.log('🔄 Total selected seats after update:', updatedSeats.filter(s => s.status === 'SELECTED').length);
       return { seats: updatedSeats };
     });
   },
-  
-  saveBooking: () => set((state) => ({
-    bookingHistory: [
-      ...state.bookingHistory,
-      {
+
+  // ✅ NEW PROFESSIONAL BATCH OPERATIONS - PREVENTS RACE CONDITIONS
+  selectMultipleSeats: (seatIds: string[]) => {
+    console.log('🔄 selectMultipleSeats called:', { seatIds });
+    set((state) => {
+      const updatedSeats = state.seats.map(seat => 
+        seatIds.includes(seat.id) && seat.status === 'AVAILABLE'
+          ? { ...seat, status: 'SELECTED' as SeatStatus }
+          : seat
+      );
+      console.log('🔄 Total selected seats after batch select:', updatedSeats.filter(s => s.status === 'SELECTED').length);
+      return { seats: updatedSeats };
+    });
+  },
+
+  deselectMultipleSeats: (seatIds: string[]) => {
+    set((state) => ({
+      seats: state.seats.map(seat => 
+        seatIds.includes(seat.id) && seat.status === 'SELECTED'
+          ? { ...seat, status: 'AVAILABLE' as SeatStatus }
+          : seat
+      )
+    }));
+  },
+
+  // ✅ ATOMIC SEAT REPLACEMENT - FOR AUTOMATIC SELECTION ALGORITHMS
+  atomicSeatReplacement: (deselectIds: string[], selectIds: string[]) => {
+    console.log('🔄 atomicSeatReplacement called:', { deselectIds, selectIds });
+    set((state) => {
+      let deselectedCount = 0;
+      let selectedCount = 0;
+
+      const updatedSeats = state.seats.map(seat => {
+        // First priority: Select new seats (even if they were in deselectIds)
+        if (selectIds.includes(seat.id) && seat.status === 'AVAILABLE') {
+          selectedCount++;
+          return { ...seat, status: 'SELECTED' as SeatStatus };
+        }
+        // Second priority: Deselect old seats (only if not in selectIds)
+        if (deselectIds.includes(seat.id) && !selectIds.includes(seat.id) && seat.status === 'SELECTED') {
+          deselectedCount++;
+          return { ...seat, status: 'AVAILABLE' as SeatStatus };
+        }
+        return seat;
+      });
+
+      const totalSelected = updatedSeats.filter(s => s.status === 'SELECTED').length;
+      console.log('🔄 atomicSeatReplacement result:', { deselected: deselectedCount, selected: selectedCount, totalSelected });
+      
+      return { seats: updatedSeats };
+    });
+  },
+
+  saveBooking: () => {
+    const state = get();
+    const selectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
+    
+    if (selectedSeats.length > 0) {
+      const booking = {
         date: state.selectedDate,
         show: state.selectedShow,
-        seats: [...state.seats],
-        timestamp: new Date().toISOString()
-      }
-    ]
-  })),
-  
+        seats: selectedSeats,
+        timestamp: new Date().toISOString(),
+      };
+      
+      set((state) => ({
+        bookingHistory: [...state.bookingHistory, booking],
+        seats: state.seats.map(seat => 
+          seat.status === 'SELECTED' 
+            ? { ...seat, status: 'BOOKED' as SeatStatus }
+            : seat
+        ),
+      }));
+    }
+  },
+
   loadBookingForDate: (date, show) => {
-    // console.log(`🔄 loadBookingForDate called: ${date}, ${show}`);
+    console.log('🔍 loadBookingForDate called:', { date, show });
     const state = get();
     const booking = state.bookingHistory.find(
       b => b.date === date && b.show === show
     );
     
+    console.log('🔍 Found booking:', booking ? 'yes' : 'no');
+    
     if (booking) {
-      // console.log(`✅ Found existing booking for ${date} ${show}, loading ${booking.seats.length} seats`);
-      set({
-        selectedDate: date,
-        selectedShow: show,
-        seats: [...booking.seats]
-      });
+      const bookedSeatIds = booking.seats.map(seat => seat.id);
+      console.log('🔍 Loading existing booking with', bookedSeatIds.length, 'booked seats');
+      set((state) => ({
+        seats: state.seats.map(seat => 
+          bookedSeatIds.includes(seat.id)
+            ? { ...seat, status: 'BOOKED' as SeatStatus }
+            : { ...seat, status: 'AVAILABLE' as SeatStatus }
+        ),
+      }));
     } else {
-      // console.log(`🆕 No existing booking for ${date} ${show}, initializing fresh seats`);
-      set({
-        selectedDate: date,
-        selectedShow: show,
-        seats: createInitialSeats()
-      });
+      // Reset all seats to available if no booking found
+      console.log('🔍 No booking found, ensuring seats are available');
+      set((state) => ({
+        seats: state.seats.map(seat => ({ ...seat, status: 'AVAILABLE' as SeatStatus }))
+      }));
     }
   },
   
   initializeSeats: () => set({ seats: createInitialSeats() }),
   
   syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds?: string[]) => {
+    // ✅ PREVENT RAPID SYNC CALLS - ADD DEBOUNCE
+    const now = Date.now();
+    const lastSyncKey = `${bookedSeatIds.length}-${bmsSeatIds.length}`;
     const state = get();
-    const currentlySelectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
-    // console.log('🔄 syncSeatStatus called with:', {
-    //   bookedSeatIds: bookedSeatIds.length,
-    //   bmsSeatIds: bmsSeatIds.length,
-    //   currentlySelectedSeats: currentlySelectedSeats.length,
-    //   totalSeats: state.seats.length,
-    //   currentShow: state.selectedShow,
-    //   currentDate: state.selectedDate
-    // });
-    
-    // Create new seats array with all seats reset to available
-    const newSeats = createInitialSeats();
-    
-    // Mark booked seats as booked
-    let bookedCount = 0;
-    bookedSeatIds.forEach(seatId => {
-      const seatIndex = newSeats.findIndex(s => s.id === seatId);
-      if (seatIndex !== -1) {
-        newSeats[seatIndex].status = 'BOOKED';
-        bookedCount++;
-      } else {
-        console.warn('⚠️ Booked seat ID not found:', seatId);
-      }
-    });
-    
-    // Mark BMS seats as bms-booked
-    let bmsCount = 0;
-    bmsSeatIds.forEach(seatId => {
-      const seatIndex = newSeats.findIndex(s => s.id === seatId);
-      if (seatIndex !== -1) {
-        newSeats[seatIndex].status = 'BMS_BOOKED';
-        bmsCount++;
-      } else {
-        console.warn('⚠️ BMS seat ID not found:', seatId);
-      }
-    });
-    
-    // Mark selected seats from backend
-    let selectedCount = 0;
-    if (selectedSeatIds && selectedSeatIds.length > 0) {
-      selectedSeatIds.forEach(seatId => {
-        const seatIndex = newSeats.findIndex(s => s.id === seatId);
-        if (seatIndex !== -1) {
-          newSeats[seatIndex].status = 'SELECTED';
-          selectedCount++;
-        } else {
-          console.warn('⚠️ Selected seat ID not found:', seatId);
-        }
-      });
+    // Skip if same data was synced within last 500ms (shorter debounce)
+    if ((window as any).lastSyncTime && 
+        (window as any).lastSyncKey === lastSyncKey && 
+        now - (window as any).lastSyncTime < 500) {
+      console.log('🔄 syncSeatStatus SKIPPED - duplicate call within 500ms');
+      return;
     }
     
-    // Restore currently selected seats that are still available and not already marked as selected
-    let restoredCount = 0;
-    currentlySelectedSeats.forEach(seat => {
-      if (!bookedSeatIds.includes(seat.id) && !bmsSeatIds.includes(seat.id) && (!selectedSeatIds || !selectedSeatIds.includes(seat.id))) {
-        const seatIndex = newSeats.findIndex(s => s.id === seat.id);
-        if (seatIndex !== -1) {
-          newSeats[seatIndex].status = 'SELECTED';
-          restoredCount++;
+    (window as any).lastSyncTime = now;
+    (window as any).lastSyncKey = lastSyncKey;
+
+    // ✅ NEW PROFESSIONAL APPROACH - SURGICAL UPDATES ONLY
+    set((state) => {
+      console.log('🔄 syncSeatStatus called with:', {
+        bookedSeatIds: bookedSeatIds.length,
+        bmsSeatIds: bmsSeatIds.length,
+        totalSeats: state.seats.length,
+        currentShow: state.selectedShow,
+        currentDate: state.selectedDate
+      });
+
+      let bookedCount = 0;
+      let bmsCount = 0;
+      let freedCount = 0;
+      let selectedCount = 0;
+
+      // ✅ SURGICAL UPDATES: Only change seats that NEED to change
+      const updatedSeats = state.seats.map(seat => {
+        // Mark seats as BOOKED if they're in bookedSeatIds
+        if (bookedSeatIds.includes(seat.id) && seat.status !== 'BOOKED') {
+          bookedCount++;
+          return { ...seat, status: 'BOOKED' as SeatStatus };
         }
+        // Mark seats as BMS_BOOKED if they're in bmsSeatIds
+        if (bmsSeatIds.includes(seat.id) && seat.status !== 'BMS_BOOKED') {
+          bmsCount++;
+          return { ...seat, status: 'BMS_BOOKED' as SeatStatus };
+        }
+        // Free seats that are no longer booked
+        if (seat.status === 'BOOKED' && !bookedSeatIds.includes(seat.id)) {
+          freedCount++;
+          return { ...seat, status: 'AVAILABLE' as SeatStatus };
+        }
+        // Free seats that are no longer BMS booked
+        if (seat.status === 'BMS_BOOKED' && !bmsSeatIds.includes(seat.id)) {
+          freedCount++;
+          return { ...seat, status: 'AVAILABLE' as SeatStatus };
+        }
+        // Restore selected seats from backend (if any)
+        if (selectedSeatIds && selectedSeatIds.includes(seat.id) && seat.status === 'AVAILABLE') {
+          selectedCount++;
+          return { ...seat, status: 'SELECTED' as SeatStatus };
+        }
+        // ✅ CRITICAL: Keep manually selected seats unchanged!
+        return seat;
+      });
+
+      console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS, ${freedCount} freed, ${selectedCount} selected from backend`);
+      return { seats: updatedSeats };
+    });
+  },
+
+  getBookingStats: () => {
+    const state = get();
+    const stats = {
+      total: state.seats.length,
+      available: 0,
+      booked: 0,
+      blocked: 0,
+      bmsBooked: 0,
+    };
+
+    state.seats.forEach(seat => {
+      switch (seat.status) {
+        case 'AVAILABLE':
+        case 'SELECTED':
+          stats.available++;
+          break;
+        case 'BOOKED':
+          stats.booked++;
+          break;
+        case 'BLOCKED':
+          stats.blocked++;
+          break;
+        case 'BMS_BOOKED':
+          stats.bmsBooked++;
+          break;
       }
     });
-    
-    // console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS seats, ${selectedCount} selected from backend, ${restoredCount} selected seats restored`);
-    
-    // Update the state with the new seats array
-    set({ seats: newSeats });
+
+    return stats;
   },
-  
-  getBookingStats: () => {
-    const { seats } = get();
-    return {
-      total: seats.length,
-      available: seats.filter(s => s.status === 'AVAILABLE').length,
-      booked: seats.filter(s => s.status === 'BOOKED').length,
-      blocked: seats.filter(s => s.status === 'BLOCKED').length,
-      bmsBooked: seats.filter(s => s.status === 'BMS_BOOKED').length,
-    };
-  }
 }));

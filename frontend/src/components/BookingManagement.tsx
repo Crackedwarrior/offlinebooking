@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { getBookings, updateBooking, deleteBooking, getCurrentTicketId, resetTicketId } from '@/services/api';
 import { SHOW_TIMES } from '@/lib/config';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import StableInput from '@/components/StableInput';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +71,9 @@ const BookingManagement = () => {
       }
     `;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   // Memoize the store state to prevent unnecessary re-renders
@@ -363,13 +365,13 @@ const BookingManagement = () => {
                 <RefreshCw className="w-4 h-4 text-green-600" />
                 Reset Ticket ID To
               </Label>
-              <Input
+              <StableInput
                 id="resetTicketId"
                 type="number"
                 min="0"
                 placeholder="Enter new ticket number (e.g., 10)"
                 value={resetTicketIdValue}
-                onChange={(e) => setResetTicketIdValue(e.target.value)}
+                onChange={(value) => setResetTicketIdValue(value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
               />
             </div>

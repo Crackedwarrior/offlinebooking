@@ -24,6 +24,13 @@ const classLabelMap: Record<string, string> = SEAT_CLASSES.reduce((acc, cls) => 
   return acc;
 }, {} as Record<string, string>);
 
+type ClassCountRow = {
+  label: string;
+  regular: number;
+  bms: number;
+  total: number;
+};
+
 // Memoized table row component to prevent unnecessary re-renders
 const TableRow = memo(({ row, index }: { row: any; index: number }) => (
   <tr className={`border-b border-gray-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
@@ -274,26 +281,45 @@ const BookingHistory = () => {
     const stats: Record<ShowTime, any> = {} as Record<ShowTime, any>;
     
     showOrder.forEach(show => {
+      const localSeatIds = new Set<string>();
+      const bmsSeatIds = new Set<string>();
+
       const showBookings = (databaseBookings || []).filter(b => {
         const dbDate = new Date(b.date).toISOString().split('T')[0];
         return dbDate === dateISO && b.show === show.key;
       });
       
-      const total = 590; // Total seats in theater
-      
-      // Calculate unique booked seats instead of total seat instances
-      const uniqueBookedSeats = new Set<string>();
       showBookings.forEach(b => {
-        if (b.bookedSeats && Array.isArray(b.bookedSeats)) {
-          b.bookedSeats.forEach(seatId => uniqueBookedSeats.add(seatId));
-        }
+        if (!Array.isArray(b.bookedSeats)) return;
+        const isBmsBooking = b.source === 'BMS' || b.source === 'bms';
+        b.bookedSeats.forEach(seatId => {
+          const key = `${show.key}-${seatId}`;
+          if (isBmsBooking) {
+            bmsSeatIds.add(key);
+          } else {
+            localSeatIds.add(key);
+          }
+        });
       });
-      const booked = uniqueBookedSeats.size;
-      
-      // Get BMS seats from seat status data
+
       const showSeatStatus = seatStatusData[show.key];
-      const bms = showSeatStatus?.bmsSeats?.length || 0;
-      
+      if (showSeatStatus) {
+        (showSeatStatus.bookedSeats || []).forEach((seat: any) => {
+          const seatId = typeof seat === 'string' ? seat : seat?.seatId;
+          if (!seatId) return;
+          localSeatIds.add(`${show.key}-${seatId}`);
+        });
+
+        (showSeatStatus.bmsSeats || []).forEach((seat: any) => {
+          const seatId = typeof seat === 'string' ? seat : seat?.seatId;
+          if (!seatId) return;
+          bmsSeatIds.add(`${show.key}-${seatId}`);
+        });
+      }
+
+      const total = 590; // Total seats in theater
+      const booked = localSeatIds.size;
+      const bms = bmsSeatIds.size;
       const available = total - booked - bms;
       const blocked = 0; // No blocked seats yet
       const occupancy = ((booked + bms) / (total || 1) * 100).toFixed(1);
@@ -331,155 +357,113 @@ const BookingHistory = () => {
     }
     
     console.warn(`⚠️ Could not determine class for seat ID: ${seatId}`);
-    return 'STAR CLASS'; // Default fallback to match server.ts
+    // Do not misclassify unknown rows into STAR CLASS. Return null so caller can ignore.
+    return null;
   }, []);
 
-  // Helper to get seat class breakdown for a booking or fallback to current seats
-  const getClassCounts = useCallback((booking: any) => {
-    // Always use database bookings when available, regardless of booking parameter
-    if (databaseBookings && databaseBookings.length > 0) {
-      // Database booking format - count by classLabel for the selected date and show
-      const dateObj = new Date(selectedDate);
-      const dateISO = dateObj.toISOString().split('T')[0];
-      
-      const classCounts: Record<string, { regular: number; bms: number }> = {};
-      const uniqueSeatsByClass: Record<string, { regular: Set<string>; bms: Set<string> }> = {};
-      
-      // Process regular bookings from database
-      (databaseBookings || []).forEach((b, index) => {
-        const dbDate = new Date(b.date).toISOString().split('T')[0];
-        const showMatches = selectedShow ? b.show === selectedShow : true;
-        
-        if (dbDate === dateISO && showMatches && b.classLabel) {
-          // Initialize sets for this class if not exists
-          if (!uniqueSeatsByClass[b.classLabel]) {
-            uniqueSeatsByClass[b.classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
-          }
-          
-          // Add unique seats for this class based on source
-          if (b.bookedSeats && Array.isArray(b.bookedSeats)) {
-            const isBMS = b.source === 'BMS' || b.source === 'bms';
-            b.bookedSeats.forEach(seatId => {
-              if (isBMS) {
-                uniqueSeatsByClass[b.classLabel].bms.add(seatId);
-              } else {
-                uniqueSeatsByClass[b.classLabel].regular.add(seatId);
-              }
-            });
-          }
-        }
-      });
-      
-      // Process BMS seats from seat status data
-      if (selectedShow) {
-        // For specific show, get BMS seats from that show's seat status
-        const showSeatStatus = seatStatusData[selectedShow];
-        if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-          
-          showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
-            const seatId = bmsSeat.seatId;
-            // Use the class from the BMS seat data if available, otherwise determine from seat ID
-            const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
-            
-            if (classLabel) {
-              if (!uniqueSeatsByClass[classLabel]) {
-                uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
-              }
-              // Use a unique key that includes the show to avoid deduplication
-              const uniqueKey = `${selectedShow}-${seatId}`;
-              uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
-            }
-          });
-          
-          // Debug log BMS seats by class for this specific show
-          console.log(`🔍 BMS seats for ${selectedShow} show by class:`, {
-            totalBmsSeats: showSeatStatus.bmsSeats.length,
-            classCounts: Object.fromEntries(
-              Object.entries(uniqueSeatsByClass)
-                .filter(([_, sets]) => sets.bms.size > 0)
-                .map(([classLabel, sets]) => [classLabel, sets.bms.size])
-            )
-          });
-        }
-      } else {
-        // For all shows, aggregate BMS seats from all shows
-        
-        // Only proceed if seatStatusData is populated
-        if (Object.keys(seatStatusData).length > 0) {
-          Object.entries(seatStatusData).forEach(([showKey, showSeatStatus]) => {
-            if (showSeatStatus?.bmsSeats && Array.isArray(showSeatStatus.bmsSeats)) {
-              
-              showSeatStatus.bmsSeats.forEach((bmsSeat: any) => {
-                const seatId = bmsSeat.seatId;
-                // Use the class from the BMS seat data if available, otherwise determine from seat ID
-                const classLabel = bmsSeat.class || getClassFromSeatId(seatId);
-                
-                if (classLabel) {
-                  if (!uniqueSeatsByClass[classLabel]) {
-                    uniqueSeatsByClass[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
-                  }
-                  // Don't deduplicate - count each seat from each show separately
-                  // Use a unique key that includes the show to avoid deduplication
-                  const uniqueKey = `${showKey}-${seatId}`;
-                  uniqueSeatsByClass[classLabel].bms.add(uniqueKey);
-                }
-              });
-              
-              // Debug log BMS seats by class for each show
-              const showBmsClassCounts: Record<string, number> = {};
-              
-              // Properly type the filtering and counting operation
-              Object.entries(uniqueSeatsByClass).forEach(([classLabel, sets]) => {
-                if (sets.bms.size > 0) {
-                  const count = Array.from(sets.bms).filter(key => key.startsWith(`${showKey}-`)).length;
-                  if (count > 0) {
-                    showBmsClassCounts[classLabel] = count;
-                  }
-                }
-              });
-              
-              if (Object.keys(showBmsClassCounts).length > 0) {
-                console.log(`🔍 BMS seats for ${showKey} show by class:`, {
-                  totalBmsSeats: showSeatStatus.bmsSeats.length,
-                  classCounts: showBmsClassCounts
-                });
-              }
-            }
-          });
-        }
+  // Build seat sets for a given show and date using both seat status data and bookings
+  const buildSeatSetsForShow = useCallback((showKey: ShowTime, dateISO: string) => {
+    const classSeatSets: Record<string, { regular: Set<string>; bms: Set<string> }> = {};
+
+    const ensureClassEntry = (classLabel: string) => {
+      if (!classSeatSets[classLabel]) {
+        classSeatSets[classLabel] = {
+          regular: new Set<string>(),
+          bms: new Set<string>()
+        };
       }
-      
-      // Convert sets to counts
-      Object.entries(uniqueSeatsByClass).forEach(([classLabel, seatSets]) => {
-        classCounts[classLabel] = {
+      return classSeatSets[classLabel];
+    };
+
+    const addSeat = (seatId: string | undefined, classLabel: string | undefined | null, type: 'regular' | 'bms') => {
+      if (!seatId) return;
+      const resolvedClass = classLabel || getClassFromSeatId(seatId);
+      if (!resolvedClass) return;
+      const targetSets = ensureClassEntry(resolvedClass);
+      const uniqueKey = `${showKey}-${seatId}`;
+      if (type === 'regular') {
+        targetSets.regular.add(uniqueKey);
+              } else {
+        targetSets.bms.add(uniqueKey);
+      }
+    };
+
+    const showSeatStatus = seatStatusData[showKey];
+    if (showSeatStatus) {
+      (showSeatStatus.bookedSeats || []).forEach((seat: any) => {
+        const seatId = typeof seat === 'string' ? seat : seat?.seatId;
+        const classLabel = typeof seat === 'string' ? undefined : seat?.class || seat?.classLabel;
+        addSeat(seatId, classLabel, 'regular');
+      });
+
+      (showSeatStatus.bmsSeats || []).forEach((seat: any) => {
+        const seatId = typeof seat === 'string' ? seat : seat?.seatId;
+        const classLabel = typeof seat === 'string' ? undefined : seat?.class || seat?.classLabel;
+        addSeat(seatId, classLabel, 'bms');
+      });
+    }
+
+    (databaseBookings || []).forEach(b => {
+      const dbDate = new Date(b.date).toISOString().split('T')[0];
+      if (dbDate !== dateISO || b.show !== showKey || !Array.isArray(b.bookedSeats)) return;
+
+      const isBMS = b.source === 'BMS' || b.source === 'bms';
+      b.bookedSeats.forEach(seatEntry => {
+        const seatId = typeof seatEntry === 'string' ? seatEntry : seatEntry?.seatId;
+        // Derive class per seatId to prevent misclassification (no defaulting to STAR CLASS)
+        const derivedClass = seatId ? getClassFromSeatId(seatId) : null;
+        const classLabel = typeof seatEntry === 'string'
+          ? (derivedClass || b.classLabel)
+          : (seatEntry?.class || seatEntry?.classLabel || derivedClass || b.classLabel);
+        addSeat(seatId, classLabel, isBMS ? 'bms' : 'regular');
+      });
+    });
+
+    return classSeatSets;
+  }, [seatStatusData, databaseBookings, getClassFromSeatId]);
+
+  // Helper to get seat class breakdown for a booking or fallback to current seats
+  const getClassCounts = useCallback((options?: { date?: string; show?: ShowTime | null }) => {
+    const dateISO = options?.date || selectedDate;
+    const showFilter = options?.show ?? selectedShow;
+
+    const aggregateSets: Record<string, { regular: Set<string>; bms: Set<string> }> = {};
+
+    const mergeClassSets = (classSets: Record<string, { regular: Set<string>; bms: Set<string> }>) => {
+      Object.entries(classSets).forEach(([classLabel, seatSets]) => {
+        if (!aggregateSets[classLabel]) {
+          aggregateSets[classLabel] = { regular: new Set<string>(), bms: new Set<string>() };
+        }
+        seatSets.regular.forEach(id => aggregateSets[classLabel].regular.add(id));
+        seatSets.bms.forEach(id => aggregateSets[classLabel].bms.add(id));
+      });
+    };
+
+    if (showFilter) {
+      mergeClassSets(buildSeatSetsForShow(showFilter, dateISO));
+    } else {
+      showOrder.forEach(show => {
+        mergeClassSets(buildSeatSetsForShow(show.key, dateISO));
+      });
+    }
+
+    if (Object.keys(aggregateSets).length === 0) {
+      // No API data yet: avoid using local in-memory seats which may belong to a different date/show.
+      // Return zeros per class and let UI update when fresh data arrives.
+      return seatSegments.reduce<Record<string, { regular: number; bms: number }>>((acc, seg) => {
+        acc[seg.label] = { regular: 0, bms: 0 };
+        return acc;
+      }, {});
+    }
+
+    return Object.entries(aggregateSets).reduce<Record<string, { regular: number; bms: number }>>((acc, [classLabel, seatSets]) => {
+      acc[classLabel] = {
           regular: seatSets.regular.size,
           bms: seatSets.bms.size
         };
-      });
-      
-      return seatSegments.map(seg => {
-        const counts = classCounts[seg.label] || { regular: 0, bms: 0 };
-        return {
-          label: classLabelMap[seg.label] || seg.label,
-          regular: counts.regular,
-          bms: counts.bms,
-          total: counts.regular + counts.bms
-        };
-      });
-    } else {
-      // Fallback to current seats
-      return seatSegments.map(seg => {
-        const regularSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BOOKED').length;
-        const bmsSeats = seats.filter((s: any) => seg.rows.includes(s.row) && s.status === 'BMS_BOOKED').length;
-        return {
-          label: classLabelMap[seg.label] || seg.label,
-          regular: regularSeats,
-          bms: bmsSeats,
-          total: regularSeats + bmsSeats
-        };
-      });
-    }
-  }, [databaseBookings, selectedDate, selectedShow, seats, seatStatusData, getClassFromSeatId]);
+      return acc;
+    }, {});
+  }, [buildSeatSetsForShow, selectedDate, selectedShow, showOrder, seatSegments, seats]);
 
 
   // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
@@ -668,10 +652,50 @@ const BookingHistory = () => {
   const grossIncome = incomeBreakdown.total;
 
   // Calculate class counts once for the selected date and show (or all shows if none selected)
+  const classCountsByShow = useMemo(() => {
+    const map: Record<string, ClassCountRow[]> = {};
+    showOrder.forEach(show => {
+      const countsByLabel = getClassCounts({ date: selectedDate, show: show.key });
+      map[show.key] = seatSegments.map(seg => {
+        const counts = countsByLabel[seg.label] || { regular: 0, bms: 0 };
+        return {
+          label: classLabelMap[seg.label] || seg.label,
+          regular: counts.regular,
+          bms: counts.bms,
+          total: counts.regular + counts.bms
+        };
+      });
+    });
+    return map;
+  }, [getClassCounts, selectedDate, showOrder, seatSegments, classLabelMap]);
+
   const classCountsData = useMemo(() => {
-    const result = getClassCounts(null);
-    return result;
-  }, [getClassCounts]);
+    if (selectedShow) {
+      return classCountsByShow[selectedShow] || [];
+    }
+
+    const aggregated = showOrder.reduce<Record<string, { regular: number; bms: number }>>((acc, show) => {
+      const perShowCounts = getClassCounts({ date: selectedDate, show: show.key });
+      Object.entries(perShowCounts).forEach(([classLabel, counts]) => {
+        if (!acc[classLabel]) {
+          acc[classLabel] = { regular: 0, bms: 0 };
+        }
+        acc[classLabel].regular += counts.regular;
+        acc[classLabel].bms += counts.bms;
+      });
+      return acc;
+    }, {});
+
+    return seatSegments.map(seg => {
+      const counts = aggregated[seg.label] || { regular: 0, bms: 0 };
+      return {
+        label: classLabelMap[seg.label] || seg.label,
+        regular: counts.regular,
+        bms: counts.bms,
+        total: counts.regular + counts.bms
+      };
+    });
+  }, [classCountsByShow, selectedShow, showOrder, classLabelMap, getClassCounts, selectedDate, seatSegments]);
 
   // Memoize quick summary calculations to prevent recalculation on every render
   const quickSummaryData = useMemo(() => {
@@ -712,8 +736,7 @@ const BookingHistory = () => {
       // Get class counts for this show
       const classCounts = getClassCounts({ 
         date, 
-        show: showKey, 
-        bookedSeats: showBookings.flatMap(b => b.bookedSeats || [])
+        show: showKey
       });
       
       // Prepare report data

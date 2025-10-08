@@ -130,8 +130,8 @@ export class ElectronPrinterService {
       // 🚀 FRONTEND DEBUG: Log which service will be used based on movie data
       if (movieData && movieData.printInKannada) {
         console.log('🚀 FRONTEND DEBUG: Movie is set to print in Kannada');
-        console.log('🚀 FRONTEND DEBUG: Backend will use FastKannadaPrintService (wkhtmltopdf)');
-        console.log('🚀 FRONTEND DEBUG: This should be 3-5x faster than the old Puppeteer method');
+        console.log('🚀 FRONTEND DEBUG: Backend will use UltraFastKannadaPrintService (PDF-lib)');
+        console.log('🚀 FRONTEND DEBUG: This should be as fast as English tickets (0.5-1 seconds)');
       } else {
         console.log('🔤 FRONTEND DEBUG: Movie is set to print in English');
         console.log('🔤 FRONTEND DEBUG: Backend will use PdfPrintService (PDFKit)');

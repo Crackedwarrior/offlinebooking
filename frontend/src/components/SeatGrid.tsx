@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useBookingStore, SeatStatus, Seat } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { seatsByRow } from '@/lib/seatMatrix';
@@ -7,6 +7,7 @@ import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus, saveBmsSeatStatus, updateSeatStatus } from '@/services/api';
 import { usePricing } from '@/hooks/use-pricing';
+import { SeatGridErrorBoundary } from './SpecializedErrorBoundaries';
 // import { useToast } from '@/hooks/use-toast';
 
 export const seatSegments = SEAT_CLASSES.map(cls => ({
@@ -39,6 +40,46 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [bmsMode, setBmsMode] = useState(false);
   const [moveMode, setMoveMode] = useState(false);
+  
+  // Double-click detection for manual selection/deselection in move mode
+  const [clickCount, setClickCount] = useState(0);
+  const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // BMS batch update state
+  const [pendingBmsUpdates, setPendingBmsUpdates] = useState<Map<string, 'BMS_BOOKED' | 'AVAILABLE'>>(new Map());
+  const batchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Batch BMS updates to reduce API calls
+  const processBmsBatch = useCallback(async () => {
+    if (pendingBmsUpdates.size === 0) return;
+    
+    const updates = Array.from(pendingBmsUpdates.entries());
+    const bmsBookedSeats = updates.filter(([_, status]) => status === 'BMS_BOOKED').map(([seatId, _]) => seatId);
+    const availableSeats = updates.filter(([_, status]) => status === 'AVAILABLE').map(([seatId, _]) => seatId);
+    
+    try {
+      // Process BMS_BOOKED seats
+      if (bmsBookedSeats.length > 0) {
+        await saveBmsSeatStatus(bmsBookedSeats, 'BMS_BOOKED', selectedDate!, selectedShow!);
+      }
+      
+      // Process AVAILABLE seats
+      if (availableSeats.length > 0) {
+        await saveBmsSeatStatus(availableSeats, 'AVAILABLE', selectedDate!, selectedShow!);
+      }
+      
+      console.log(`✅ Batch updated ${updates.length} BMS seat statuses`);
+      setPendingBmsUpdates(new Map());
+    } catch (error) {
+      console.error('❌ Failed to batch update BMS statuses:', error);
+      // Revert all changes on error
+      updates.forEach(([seatId, originalStatus]) => {
+        const oppositeStatus = originalStatus === 'BMS_BOOKED' ? 'AVAILABLE' : 'BMS_BOOKED';
+        toggleSeatStatus(seatId, oppositeStatus);
+      });
+      setPendingBmsUpdates(new Map());
+    }
+  }, [pendingBmsUpdates, selectedDate, selectedShow, saveBmsSeatStatus, toggleSeatStatus]);
 
   // Memoize fetchSeatStatus to prevent unnecessary re-creations
   const fetchSeatStatus = useCallback(async () => {
@@ -87,7 +128,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     } finally {
       setLoadingSeats(false);
     }
-  }, [selectedDate, selectedShow, syncSeatStatus, seats]);
+  }, [selectedDate, selectedShow]); // ✅ REMOVED syncSeatStatus and seats to prevent feedback loops
 
   // Memoize other functions
   const handleResetSeats = useCallback(() => {
@@ -153,66 +194,127 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     }
   }, []);
 
+  // Cleanup timeout on unmount and process any pending updates
+  useEffect(() => {
+    return () => {
+      if (batchTimeoutRef.current) {
+        clearTimeout(batchTimeoutRef.current);
+      }
+      // Process any pending updates before unmounting
+      if (pendingBmsUpdates.size > 0) {
+        processBmsBatch();
+      }
+    };
+  }, [processBmsBatch, pendingBmsUpdates]);
+
   // Enhanced seat click handler with BMS mode and move mode
   const handleSeatClick = async (seat: Seat) => {
+    // Set a flag to indicate manual selection is happening
+    console.log('🔍 Manual seat click detected:', seat.id);
+    
     if (moveMode) {
-      // Move Mode: Allow deselection of selected seats or moving to available seats
-      if (seat.status === 'SELECTED') {
-        // Allow deselection of selected seats in move mode
-        toggleSeatStatus(seat.id, 'AVAILABLE');
-      } else if (seat.status === 'AVAILABLE') {
-        // Move block to this available seat
-        await executeMove(seat);
-      } else {
-        // toast({
-        //   title: 'Invalid Target',
-        //   description: 'You can only move to available seats or deselect selected seats.',
-        //   variant: 'destructive',
-        // });
+      // Double-click detection for manual selection/deselection in move mode
+      setClickCount(prev => prev + 1);
+      
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+      }
+      
+      const timer = setTimeout(() => {
+        // Single click - move mode behavior
+        if (seat.status === 'SELECTED') {
+          // Allow deselection of selected seats in move mode
+          toggleSeatStatus(seat.id, 'AVAILABLE');
+        } else if (seat.status === 'AVAILABLE') {
+          // Move block to this available seat
+          executeMove(seat);
+        }
+        setClickCount(0);
+      }, 300);
+      
+      setClickTimer(timer);
+      
+      if (clickCount === 1) {
+        // Double click - manual selection/deselection
+        clearTimeout(timer);
+        setClickCount(0);
+        
+        if (seat.status === 'SELECTED') {
+          // Double-click to deselect
+          toggleSeatStatus(seat.id, 'AVAILABLE');
+          console.log('🔍 Double-click: Deselected seat', seat.id);
+        } else if (seat.status === 'AVAILABLE') {
+          // Double-click to select
+          toggleSeatStatus(seat.id, 'SELECTED');
+          console.log('🔍 Double-click: Selected seat', seat.id);
+        }
       }
       return;
     }
 
     if (bmsMode) {
-      // BMS Mode: Toggle between available and bms-booked
+      // BMS Mode: Toggle between available and bms-booked with batching
       if (seat.status === 'AVAILABLE') {
         // Optimistically update UI first
         toggleSeatStatus(seat.id, 'BMS_BOOKED');
         
-        // Save to backend
-        try {
-          await saveBmsSeatStatus([seat.id], 'BMS_BOOKED', selectedDate, selectedShow);
-  
-        } catch (error) {
-          console.error('❌ Failed to save BMS status:', error);
-          // Revert the change if backend save failed
-          toggleSeatStatus(seat.id, 'AVAILABLE');
-          // TODO: Add toast notification here
-          // toast({
-          //   title: 'Error',
-          //   description: 'Failed to save BMS status. Please try again.',
-          //   variant: 'destructive',
-          // });
-        }
+        // Add to batch for backend update
+        setPendingBmsUpdates(prev => {
+          const newMap = new Map(prev.set(seat.id, 'BMS_BOOKED'));
+          
+          // Process immediately if batch is getting large (20+ seats)
+          const currentBatchSize = newMap.size;
+          if (currentBatchSize >= 20) {
+            // Clear existing timeout and process immediately
+            if (batchTimeoutRef.current) {
+              clearTimeout(batchTimeoutRef.current);
+            }
+            setTimeout(() => {
+              processBmsBatch();
+            }, 50); // Very short delay for large batches
+          } else {
+            // Normal debouncing for smaller batches
+            if (batchTimeoutRef.current) {
+              clearTimeout(batchTimeoutRef.current);
+            }
+            batchTimeoutRef.current = setTimeout(() => {
+              processBmsBatch();
+            }, 500); // 500ms debounce
+          }
+          
+          return newMap;
+        });
+        
       } else if (seat.status === 'BMS_BOOKED') {
         // Optimistically update UI first
         toggleSeatStatus(seat.id, 'AVAILABLE');
         
-        // Save to backend
-        try {
-          await saveBmsSeatStatus([seat.id], 'AVAILABLE', selectedDate, selectedShow);
-  
-        } catch (error) {
-          console.error('❌ Failed to remove BMS status:', error);
-          // Revert the change if backend save failed
-          toggleSeatStatus(seat.id, 'BMS_BOOKED');
-          // TODO: Add toast notification here
-          // toast({
-          //   title: 'Error',
-          //   description: 'Failed to remove BMS status. Please try again.',
-          //   variant: 'destructive',
-          // });
-        }
+        // Add to batch for backend update
+        setPendingBmsUpdates(prev => {
+          const newMap = new Map(prev.set(seat.id, 'AVAILABLE'));
+          
+          // Process immediately if batch is getting large (20+ seats)
+          const currentBatchSize = newMap.size;
+          if (currentBatchSize >= 20) {
+            // Clear existing timeout and process immediately
+            if (batchTimeoutRef.current) {
+              clearTimeout(batchTimeoutRef.current);
+            }
+            setTimeout(() => {
+              processBmsBatch();
+            }, 50); // Very short delay for large batches
+          } else {
+            // Normal debouncing for smaller batches
+            if (batchTimeoutRef.current) {
+              clearTimeout(batchTimeoutRef.current);
+            }
+            batchTimeoutRef.current = setTimeout(() => {
+              processBmsBatch();
+            }, 500); // 500ms debounce
+          }
+          
+          return newMap;
+        });
       }
       // Don't allow BMS marking on already booked or selected seats
     } else {
@@ -404,7 +506,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     // console.log('🔍 Seat Status Breakdown:', JSON.stringify(statusBreakdown, null, 2));
   }, [seats, availableCount, bookedCount, bmsBookedCount, blockedCount, selectedSeats.length, selectedDate, selectedShow]);
 
-  // Get sidebar collapsed state
+  // Get sidebar collapsed state - FIXED: Remove polling interval
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   useEffect(() => {
     const handleStorage = () => {
@@ -427,15 +529,27 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       }
     };
     
+    // Use event-driven updates instead of polling
     window.addEventListener('storage', handleStorage);
-    checkSidebarState();
     
-    // Check periodically to catch dynamic changes
-    const interval = setInterval(checkSidebarState, 1000);
+    // Use MutationObserver to watch for DOM changes instead of polling
+    const observer = new MutationObserver(() => {
+      checkSidebarState();
+    });
+    
+    // Observe the main content area for changes
+    const mainContent = document.querySelector('main') || document.body;
+    observer.observe(mainContent, {
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+    
+    // Initial check
+    checkSidebarState();
     
     return () => {
       window.removeEventListener('storage', handleStorage);
-      clearInterval(interval);
+      observer.disconnect();
     };
   }, []);
 
@@ -469,14 +583,41 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         return a.number - b.number;
       });
 
-      // Verify contiguity
+      // Verify contiguity using seat matrix to account for aisle gaps
       let isContiguous = true;
       for (let i = 1; i < sortedSeats.length; i++) {
         const prev = sortedSeats[i - 1];
         const curr = sortedSeats[i];
-        if (prev.row !== curr.row || curr.number !== prev.number + 1) {
+        
+        if (prev.row !== curr.row) {
           isContiguous = false;
           break;
+        }
+        
+        // Check if seats are actually contiguous in the seat matrix
+        const rowKey = `${prev.row}`; // e.g., "SC-A"
+        const seatMatrix = seatsByRow[rowKey];
+        
+        if (!seatMatrix) {
+          // Fallback to simple number check if matrix not found
+          if (curr.number !== prev.number + 1) {
+            isContiguous = false;
+            break;
+          }
+        } else {
+          // Find positions in the matrix
+          const prevIndex = seatMatrix.indexOf(prev.number);
+          const currIndex = seatMatrix.indexOf(curr.number);
+          
+          // Check if they are adjacent in the matrix (accounting for aisle gaps)
+          // Must be consecutive indices AND consecutive seat numbers
+          const indicesAdjacent = prevIndex !== -1 && currIndex !== -1 && currIndex === prevIndex + 1;
+          const numbersAdjacent = curr.number === prev.number + 1;
+          
+          if (!indicesAdjacent || !numbersAdjacent) {
+            isContiguous = false;
+            break;
+          }
         }
       }
 
@@ -494,7 +635,8 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   }, [selectedSeats, moveMode, bmsMode]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6 hide-scrollbar">
+    <SeatGridErrorBoundary>
+      <div className="bg-white rounded-lg shadow-sm border p-6 hide-scrollbar">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
@@ -735,6 +877,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         </div>
       )}
     </div>
+    </SeatGridErrorBoundary>
   );
 };
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useBookingStore } from '@/store/bookingStore';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronDown, Clock, Calendar, History, Download, Settings as SettingsIcon, RotateCcw } from 'lucide-react';
@@ -7,15 +7,58 @@ import { format } from 'date-fns';
 import { getCurrentShowLabel } from '@/lib/utils';
 import SeatGrid from '@/components/SeatGrid';
 import Checkout from '@/pages/Checkout';
-import BookingHistory from '@/components/BookingHistory';
-import BoxVsOnlineReport from '@/components/BoxVsOnlineReport';
-import Settings from '@/components/Settings';
-import BookingConfirmation from '@/components/BookingConfirmation';
-
 import DateSelector from '@/components/DateSelector';
+import { getTheaterConfig } from '@/config/theaterConfig';
+import { getShowKeyFromNow, getShowLabelByKey, formatTo12Hour } from '@/lib/time';
 import ShowSelector from '@/components/ShowSelector';
+
+// Lazy load heavy components
+const BookingHistory = lazy(() => import('@/components/BookingHistory'));
+const BoxVsOnlineReport = lazy(() => import('@/components/BoxVsOnlineReport'));
+const Settings = lazy(() => import('@/components/Settings'));
+const BookingConfirmation = lazy(() => import('@/components/BookingConfirmation'));
 import { getSeatClassByRow } from '@/lib/config';
 import { createBooking } from '@/services/api';
+
+// Helper: format seat numbers as range format (e.g., "4 - 6" instead of "4,5,6")
+function formatSeatNumbers(seats: number[]): string {
+  if (seats.length === 1) return seats[0].toString();
+  
+  // Sort seats to ensure proper range detection
+  const sortedSeats = [...seats].sort((a, b) => a - b);
+  
+  // Check if seats are continuous
+  const isContinuous = sortedSeats.every((seat, index) => {
+    if (index === 0) return true;
+    return seat === sortedSeats[index - 1] + 1;
+  });
+  
+  if (isContinuous) {
+    // All seats are continuous - use range format
+    return `${sortedSeats[0]} - ${sortedSeats[sortedSeats.length - 1]}`;
+  } else {
+    // Non-continuous seats - group into ranges
+    let ranges: string[] = [];
+    let start = sortedSeats[0], end = sortedSeats[0];
+    
+    for (let i = 1; i <= sortedSeats.length; i++) {
+      if (i < sortedSeats.length && sortedSeats[i] === end + 1) {
+        end = sortedSeats[i];
+      } else {
+        if (start === end) {
+          ranges.push(`${start}`);
+        } else {
+          ranges.push(`${start} - ${end}`);
+        }
+        if (i < sortedSeats.length) {
+          start = sortedSeats[i];
+          end = sortedSeats[i];
+        }
+      }
+    }
+    return ranges.join(', ');
+  }
+}
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 // import { toast } from '@/hooks/use-toast';
@@ -43,43 +86,20 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   const [bookingId, setBookingId] = useState<string>('');
   const [decoupledSeatIds, setDecoupledSeatIds] = useState<string[]>([]);
   const [isExchangeMode, setIsExchangeMode] = useState(false);
+  
+  // Add state to track if this is the first app load
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   // Custom hook to get current show label dynamically
   const getCurrentShowLabelDynamic = useCallback(() => {
     try {
       const enabledShowTimes = showTimes.filter(show => show.enabled);
-      
-      if (enabledShowTimes.length === 0) {
-        return 'No shows available';
-      }
-      
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes();
-      
-      // Find the current show based on time ranges
-      for (const show of enabledShowTimes) {
-        const [startHour, startMin] = show.startTime.split(':').map(Number);
-        const [endHour, endMin] = show.endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-        
-        // Handle overnight shows (e.g., 23:30 - 02:30)
-        if (endMinutes < startMinutes) {
-          if (currentTime >= startMinutes || currentTime < endMinutes) {
-            return show.label;
-          }
-        } else {
-          if (currentTime >= startMinutes && currentTime < endMinutes) {
-            return show.label;
-          }
-        }
-      }
-      
-      // Default to first show if no match
-      return enabledShowTimes[0]?.label || 'No shows available';
+      if (enabledShowTimes.length === 0) return 'No shows available';
+      const key = getShowKeyFromNow(enabledShowTimes as any);
+      return key ? getShowLabelByKey(enabledShowTimes as any, key) : enabledShowTimes[0].label;
     } catch (error) {
       console.log('❌ Error in getCurrentShowLabelDynamic, using fallback');
-      return getCurrentShowLabel(); // Fallback to static
+      return getCurrentShowLabel();
     }
   }, [showTimes]);
 
@@ -96,6 +116,26 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     }, 60000); // Check every minute instead of every 5 minutes
     return () => clearInterval(interval);
   }, [currentTime]);
+
+  // ✅ AUTO-NAVIGATE TO SEAT GRID ON FIRST LOAD - Trigger seat data loading
+  useEffect(() => {
+    if (isFirstLoad) {
+      console.log('🔄 First app load detected - auto-navigating to seat grid to load data...');
+      
+      // Navigate to seat grid to trigger seat data loading
+      setActiveView('booking');
+      setIsExchangeMode(true);
+      
+      // After a short delay, navigate back to checkout
+      setTimeout(() => {
+        console.log('🔄 Auto-navigating back to checkout after seat data load...');
+        setIsExchangeMode(false);
+        setActiveView('checkout');
+        setIsFirstLoad(false); // Mark as no longer first load
+      }, 1000); // 1 second delay
+    }
+  }, [isFirstLoad]);
+
 
   // Helper: get current show key based on time (using dynamic settings)
   const getCurrentShowKey = useCallback(() => {
@@ -115,17 +155,25 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       // A show should remain active until the next show starts
       for (let i = 0; i < enabledShowTimes.length; i++) {
         const show = enabledShowTimes[i];
-        const [startHour, startMin] = show.startTime.split(':').map(Number);
-        const [endHour, endMin] = show.endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
+        
+        // Parse 12-hour format times
+        const parseTime = (timeStr: string) => {
+          const [timePart, period] = timeStr.split(' ');
+          const [hour, min] = timePart.split(':').map(Number);
+          let hour24 = hour;
+          if (period === 'PM' && hour !== 12) hour24 += 12;
+          if (period === 'AM' && hour === 12) hour24 = 0;
+          return hour24 * 60 + min;
+        };
+        
+        const startMinutes = parseTime(show.startTime);
+        const endMinutes = parseTime(show.endTime);
         
         // Find the next show's start time
         const nextShow = enabledShowTimes[i + 1];
         let nextShowStartMinutes = null;
         if (nextShow) {
-          const [nextStartHour, nextStartMin] = nextShow.startTime.split(':').map(Number);
-          nextShowStartMinutes = nextStartHour * 60 + nextStartMin;
+          nextShowStartMinutes = parseTime(nextShow.startTime);
         }
         
         // Check if current time is within this show's active period
@@ -167,8 +215,18 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       // If no show is active, find the most recent show that has ended
       for (let i = enabledShowTimes.length - 1; i >= 0; i--) {
         const show = enabledShowTimes[i];
-        const [startHour, startMin] = show.startTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
+        
+        // Parse 12-hour format times
+        const parseTime = (timeStr: string) => {
+          const [timePart, period] = timeStr.split(' ');
+          const [hour, min] = timePart.split(':').map(Number);
+          let hour24 = hour;
+          if (period === 'PM' && hour !== 12) hour24 += 12;
+          if (period === 'AM' && hour === 12) hour24 = 0;
+          return hour24 * 60 + min;
+        };
+        
+        const startMinutes = parseTime(show.startTime);
         
         if (currentTimeMinutes >= startMinutes) {
           return show.key;
@@ -178,32 +236,8 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       // Default to first show if no match
       return enabledShowTimes[0]?.key || 'EVENING';
     } catch (error) {
-      // Fallback to static configuration
-      const now = new Date();
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      const totalMinutes = hours * 60 + minutes;
-      
-      // Use the same logic as getCurrentShowLabel() - hardcoded time ranges
-      if (totalMinutes >= 600 && totalMinutes < 720) {
-        return 'MORNING';
-      }
-      if (totalMinutes >= 840 && totalMinutes < 1020) {
-        return 'MATINEE';
-      }
-      if (totalMinutes >= 1080 && totalMinutes < 1260) {
-        return 'EVENING';
-      }
-      if (totalMinutes >= 1350 || totalMinutes < 600) {
-        return 'NIGHT';
-      }
-      
-      // Handle the gap between 12:00 PM and 6:00 PM (720-1080 minutes)
-      if (totalMinutes >= 720 && totalMinutes < 1080) {
-        return 'EVENING';
-      }
-      
-      return 'EVENING'; // fallback
+      console.error('❌ Error in getCurrentShowKey:', error);
+      return 'EVENING'; // Simple fallback without hardcoded timings
     }
   }, [showTimes]); // Add showTimes as dependency
 
@@ -212,11 +246,13 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
   // Handler for manual show selection
   const handleManualShowSelection = useCallback((showKey: string) => {
-    console.log(`🎯 Manual show selection: ${showKey}`);
+    // console.log(`🎯 Manual show selection: ${showKey}`);
+    // console.log('🎯 Setting userManuallySelectedShow to true');
     setUserManuallySelectedShow(true);
-    setSelectedShow(showKey);
+    // console.log('🎯 Calling setSelectedShow with:', showKey);
+    setSelectedShow(showKey as ShowTime);
     setTimeout(() => {
-      console.log('🔄 Resetting manual selection flag after 10 minutes');
+      // console.log('🔄 Resetting manual selection flag after 10 minutes');
       setUserManuallySelectedShow(false);
     }, 10 * 60 * 1000); // 10 minutes
   }, [setSelectedShow]);
@@ -242,7 +278,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     // Only update if the selected show doesn't match the current time show
     if (selectedShow !== currentShowKey) {
       console.log(`🔄 Auto-updating show: ${selectedShow} → ${currentShowKey}`);
-      setSelectedShow(currentShowKey);
+      setSelectedShow(currentShowKey as ShowTime);
     } else {
       // console.log('✅ No auto-update needed: show already matches current time');
     }
@@ -304,7 +340,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   const deselectSeats = useCallback((seatsToDeselect: any[]) => {
     const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
     seatsToDeselect.forEach(seat => {
-      toggleSeatStatus(seat.id, 'available');
+      toggleSeatStatus(seat.id, 'AVAILABLE');
     });
     
     // Update checkout data by removing the deselected seats
@@ -333,13 +369,13 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
     // Set all to available
     seatsToDecouple.forEach(seat => {
-      toggleSeatStatus(seat.id, 'available');
+      toggleSeatStatus(seat.id, 'AVAILABLE');
     });
     // Wait for state to update
     await new Promise(res => setTimeout(res, 50));
     // Set all to booked (individually)
     seatsToDecouple.forEach(seat => {
-      toggleSeatStatus(seat.id, 'booked');
+      toggleSeatStatus(seat.id, 'BOOKED');
     });
     // Add these seat IDs to decoupledSeatIds
     setDecoupledSeatIds(prev => [...prev, ...seatsToDecouple.map(seat => seat.id)]);
@@ -400,7 +436,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         // Mark the booked seats as booked in the store (don't reset all seats)
         const toggleSeatStatus = useBookingStore.getState().toggleSeatStatus;
         bookingData.seats.forEach((seat: any) => {
-          toggleSeatStatus(seat.id, 'booked');
+          toggleSeatStatus(seat.id, 'BOOKED');
         });
         
         // Clear checkout data completely after booking to avoid infinite loops
@@ -438,7 +474,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveView(item.id)}
+                onClick={() => setActiveView(item.id as any)}
                 onDoubleClick={() => setCollapsed((c) => !c)}
                 className={`transition-colors w-full
                   ${collapsed
@@ -502,7 +538,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
           </div>
           <div className="flex items-center space-x-3">
-            <span className="text-gray-600">{currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+            <span className="text-gray-600">{formatTo12Hour(currentTime)}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -573,14 +609,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   }
                   
                   // Convert 24-hour time to 12-hour format for display
-                  const convertTo12Hour = (time24h: string): string => {
-                    const [hours, minutes] = time24h.split(':').map(Number);
-                    const period = hours >= 12 ? 'PM' : 'AM';
-                    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-                    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-                  };
-                  
-                  const showtime = convertTo12Hour(currentShowTime.startTime);
+                  const showtime = currentShowTime.startTime;
                   
                   // Get printer configuration
                   const printerInstance = printerService.default.getInstance();
@@ -618,16 +647,25 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     return acc;
                   }, {} as Record<string, any>);
                   
+                  console.log('🕐 FRONTEND TIME DEBUG:');
+                  console.log('🕐 showtime variable:', showtime);
+                  console.log('🕐 showtime type:', typeof showtime);
+                  console.log('🕐 showtime length:', showtime?.length);
+                  console.log('🕐 currentShowTime object:', currentShowTime);
+                  console.log('🕐 currentShowTime.startTime:', currentShowTime?.startTime);
+                  console.log('🕐 currentShowTime.endTime:', currentShowTime?.endTime);
+                  
                   const ticketGroups = Object.values(groups).map(group => ({
-                    theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
-                    location: printerConfig.location || 'Chickmagalur',
+                    theaterName: printerConfig.theaterName || getTheaterConfig().name,
+                    location: printerConfig.location || getTheaterConfig().location,
                     date: selectedDate,
                     showTime: showtime,
+                    showKey: selectedShow,
                     movieName: currentMovie.name,
                     movieLanguage: currentMovie.language,
                     classLabel: group.classLabel,
                     row: group.row,
-                    seatRange: group.seats.sort((a: number, b: number) => a - b).join(', '),
+                    seatRange: formatSeatNumbers(group.seats),
                     seatCount: group.seats.length,
                     individualPrice: group.price / group.seats.length,
                     totalPrice: group.price,
@@ -705,9 +743,21 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
             />
           )}
 
-          {activeView === 'history' && <BookingHistory />}
-          {activeView === 'reports' && <BoxVsOnlineReport />}
-          {activeView === 'settings' && <Settings />}
+          {activeView === 'history' && (
+            <Suspense fallback={<div className="flex items-center justify-center p-8">Loading booking history...</div>}>
+              <BookingHistory />
+            </Suspense>
+          )}
+          {activeView === 'reports' && (
+            <Suspense fallback={<div className="flex items-center justify-center p-8">Loading reports...</div>}>
+              <BoxVsOnlineReport />
+            </Suspense>
+          )}
+          {activeView === 'settings' && (
+            <Suspense fallback={<div className="flex items-center justify-center p-8">Loading settings...</div>}>
+              <Settings />
+            </Suspense>
+          )}
 
           {activeView === 'checkout' && (
             <Checkout

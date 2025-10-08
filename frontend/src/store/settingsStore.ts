@@ -42,6 +42,7 @@ export interface SettingsState {
   getMovieForShow: (showKey: string) => MovieSettings | null; // Keep for backward compatibility
   updatePricing: (classLabel: string, price: number) => void;
   updateShowTime: (key: string, settings: Partial<ShowTimeSettings>) => void;
+  deleteShowTime: (key: string) => void;
   resetToDefaults: () => void;
   getPriceForClass: (classLabel: string) => number;
   getShowTimes: () => ShowTimeSettings[];
@@ -106,106 +107,17 @@ const defaultPricing: PricingSettings = {
   'SECOND CLASS': 0
 };
 
-/**
- * Converts 12-hour time format to 24-hour format for internal processing.
- * 
- * This function handles various edge cases and provides robust error handling:
- * - Invalid input validation
- * - Default fallback values
- * - Robust parsing with regex
- * - Edge case handling for 12 AM/PM
- * 
- * @param time12h - Time in 12-hour format (e.g., "10:00 AM", "2:30 PM")
- * @returns Time in 24-hour format (e.g., "10:00", "14:30")
- * 
- * @example
- * convertTo24Hour("10:00 AM") // Returns "10:00"
- * convertTo24Hour("2:30 PM")  // Returns "14:30"
- * convertTo24Hour("12:00 AM") // Returns "00:00"
- * convertTo24Hour("12:00 PM") // Returns "12:00"
- * convertTo24Hour("invalid")  // Returns "10:00" (fallback)
- * 
- * @complexity O(1)
- * @throws {Error} Falls back to default value "10:00" if parsing fails
- */
-function convertTo24Hour(time12h: string): string {
-  // Handle cases where time12h might be undefined or invalid
-  if (!time12h || typeof time12h !== 'string') {
-    return '10:00';
-  }
-  
-  // Parse the time string (e.g., "10:00 AM" or "2:00 PM")
-  const match = time12h.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) {
-    return '10:00';
-  }
-  
-  let [_, hoursStr, minutesStr, period] = match;
-  let hours = parseInt(hoursStr);
-  const minutes = parseInt(minutesStr);
-  
-  // Validate parsed values
-  if (isNaN(hours) || isNaN(minutes)) {
-    return '10:00';
-  }
-  
-  if (period.toUpperCase() === 'PM' && hours !== 12) {
-    hours += 12;
-  } else if (period.toUpperCase() === 'AM' && hours === 12) {
-    hours = 0;
-  }
-  
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-}
-
-/**
- * Converts 24-hour time format to 12-hour format for display purposes.
- * 
- * This function provides the reverse operation of convertTo24Hour and handles:
- * - Invalid input validation
- * - Default fallback values
- * - Edge case handling for midnight and noon
- * - Proper formatting with leading zeros
- * 
- * @param time24h - Time in 24-hour format (e.g., "14:30", "09:15")
- * @returns Time in 12-hour format (e.g., "2:30 PM", "9:15 AM")
- * 
- * @example
- * convertTo12Hour("14:30") // Returns "2:30 PM"
- * convertTo12Hour("09:15") // Returns "9:15 AM"
- * convertTo12Hour("00:00") // Returns "12:00 AM"
- * convertTo12Hour("12:00") // Returns "12:00 PM"
- * convertTo12Hour("invalid") // Returns "10:00 AM" (fallback)
- * 
- * @complexity O(1)
- * @throws {Error} Falls back to default value "10:00 AM" if parsing fails
- */
-function convertTo12Hour(time24h: string): string {
-  // Handle cases where time24h might be undefined or invalid
-  if (!time24h || typeof time24h !== 'string') {
-    return '10:00 AM';
-  }
-  
-  const [hours, minutes] = time24h.split(':').map(Number);
-  
-  // Validate parsed values
-  if (isNaN(hours) || isNaN(minutes)) {
-    return '10:00 AM';
-  }
-  
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  
-  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-}
 
 const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
-  const [startTime, endTime] = show.timing.split(' - ');
+  const timeParts = show.timing.split(' - ');
+  const startTime = timeParts[0] || '10:00 AM';
+  const endTime = timeParts[1] || '12:00 PM';
+  
   return {
     key: show.key,
     label: show.label,
-    startTime: convertTo24Hour(startTime.trim()),
-    endTime: convertTo24Hour(endTime.trim()),
+    startTime: startTime.trim(),
+    endTime: endTime.trim(),
     enabled: true
   };
 });
@@ -228,10 +140,7 @@ export const useSettingsStore = create<SettingsState>()(
       })),
 
       deleteMovie: (id) => set((state) => ({
-        movies: state.movies.filter(movie => movie.id !== id),
-        showMovieMapping: Object.fromEntries(
-          Object.entries(state.showMovieMapping).filter(([_, movieId]) => movieId !== id)
-        )
+        movies: state.movies.filter(movie => movie.id !== id)
       })),
 
       /**
@@ -351,6 +260,10 @@ export const useSettingsStore = create<SettingsState>()(
         )
       })),
 
+      deleteShowTime: (key: string) => set((state) => ({
+        showTimes: state.showTimes.filter(show => show.key !== key)
+      })),
+
       resetToDefaults: () => {
         // Clear persisted data from localStorage
         localStorage.removeItem('booking-settings');
@@ -369,7 +282,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       getShowTimes: () => {
         const state = get();
-        return state.showTimes.filter(show => show.enabled);
+        return state.showTimes; // Return all shows, not just enabled ones
       },
 
       // Optimized selectors

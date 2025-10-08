@@ -184,40 +184,27 @@ const BoxVsOnlineReport = () => {
       });
     });
     
-    // Process regular bookings - use actual booking data
+    // Process regular bookings - derive class per seat to avoid misclassification
     bookings.forEach(booking => {
       console.log('📝 Processing booking:', booking);
-      console.log('📝 Booking classLabel:', booking.classLabel);
-      console.log('📝 Booking show:', booking.show);
-      console.log('📝 Booking bookedSeats:', booking.bookedSeats);
-      
-      // Normalize classLabel to match our expected format
-      let normalizedClassLabel = booking.classLabel;
-      
-      // Keep CLASSIC as is to match server.ts implementation
-      // No need to convert CLASSIC to CLASSIC BALCONY
-      
-      // Log the class label for debugging
-      console.log('🔄 Using class label:', normalizedClassLabel);
-      
-      const key = `${booking.show}-${normalizedClassLabel}`;
-      console.log('🔑 Booking key:', key);
-      
-      const existing = salesDataMap.get(key);
-      
-      if (existing) {
-        console.log('📝 Updating existing entry for:', key);
-        // Use actual movie name from booking data
-        existing.movie = booking.movie || getMovieNameForShow(booking.show);
-        existing.counter_qty += booking.bookedSeats?.length || 0;
-        existing.counter_amt += booking.totalPrice || 0;
-        existing.total_qty = existing.online_qty + existing.bms_pos_qty + existing.counter_qty;
-        existing.total_amt = existing.online_amt + existing.bms_pos_amt + existing.counter_amt;
-        console.log('📝 Updated entry:', existing);
-      } else {
-        console.log('❌ No existing entry found for key:', key);
-        console.log('📝 Available keys in salesDataMap:', Array.from(salesDataMap.keys()));
-      }
+      const showKey = booking.show;
+      const movieName = booking.movie || getMovieNameForShow(showKey);
+      const seatIds: string[] = Array.isArray(booking.bookedSeats) ? booking.bookedSeats : [];
+      const pricePerSeat = (booking.totalPrice || 0) / (seatIds.length || 1);
+
+      seatIds.forEach(seatId => {
+        const classLabel = extractClassFromSeatId(seatId);
+        if (!classLabel) return;
+        const key = `${showKey}-${classLabel}`;
+        const existing = salesDataMap.get(key);
+        if (existing) {
+          existing.movie = movieName;
+          existing.counter_qty += 1;
+          existing.counter_amt += pricePerSeat;
+          existing.total_qty = existing.online_qty + existing.bms_pos_qty + existing.counter_qty;
+          existing.total_amt = existing.online_amt + existing.bms_pos_amt + existing.counter_amt;
+        }
+      });
     });
     
     // Process BMS seats - use actual BMS data with show information
@@ -292,7 +279,7 @@ const BoxVsOnlineReport = () => {
     return 'EVENING';
   };
 
-  const extractClassFromSeatId = (seatId: string): string => {
+  const extractClassFromSeatId = (seatId: string): string | null => {
     // Extract row prefix from seat ID (e.g., "SC-D1" -> "SC")
     const rowPrefix = seatId.split('-')[0];
     
@@ -319,9 +306,9 @@ const BoxVsOnlineReport = () => {
     
     // Log warning for unrecognized seat IDs
     console.warn(`⚠️ Unrecognized seat ID prefix: ${rowPrefix} in ${seatId}`);
-    
-    // Default fallback
-    return 'STAR CLASS';
+
+    // No fallback misclassification in reports
+    return null;
   };
 
   const getPriceForClass = (classLabel: string): number => {
@@ -343,11 +330,8 @@ const BoxVsOnlineReport = () => {
     const showTime = showTimes.find(st => st.key === show);
     
     if (showTime && showTime.enabled) {
-      // Convert 24-hour format to 12-hour format for display
-      const [hours, minutes] = showTime.startTime.split(':').map(Number);
-      const period = hours >= 12 ? 'pm' : 'am';
-      const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+      // Times are now stored in 12-hour format, so use them directly
+      return showTime.startTime;
     }
     
     // Fallback to hardcoded timings if settings not available
