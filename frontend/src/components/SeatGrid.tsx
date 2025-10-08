@@ -718,8 +718,22 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                     <div className="flex justify-center w-full">
                       <div
                         className="grid gap-1"
-                        style={{ gridTemplateColumns: `repeat(${seatsByRow[row].length}, minmax(0, 1fr))` }}
+                        style={{
+                          gridTemplateColumns: (() => {
+                            const isBoxRow = row.startsWith('BOX');
+                            if (!isBoxRow) return `repeat(${seatsByRow[row].length}, minmax(0, 1fr))`;
+                            const starRowKey = Object.keys(seatsByRow).find(k => k.startsWith('SC-')) as string | undefined;
+                            const starCols = starRowKey ? (seatsByRow as any)[starRowKey].length : undefined;
+                            const boxLen = (seatsByRow as any)[row].length;
+                            const totalCols = starCols ? starCols : boxLen + 2; // fallback to offset-only
+                            return `repeat(${totalCols}, minmax(0, 1fr))`;
+                          })()
+                        }}
                       >
+                        {/* Leading placeholders to offset BOX rows by 2 columns */}
+                        {row.startsWith('BOX') && [0,1].map(i => (
+                          <div key={`box-offset-start-${row}-${i}`} className="w-9 h-9" style={{ visibility: 'hidden' }} />
+                        ))}
                         {seatsByRow[row].map((seatNum, idx) => {
                           if (seatNum === '') {
                             return <div key={idx} className="w-9 h-9" style={{ visibility: 'hidden' }} />;
@@ -765,6 +779,17 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
                             </button>
                           );
                         })}
+                        {/* Trailing placeholders to keep BOX total columns equal to Star Class */}
+                        {row.startsWith('BOX') && (() => {
+                          const starRowKey = Object.keys(seatsByRow).find(k => k.startsWith('SC-')) as string | undefined;
+                          const starCols = starRowKey ? (seatsByRow as any)[starRowKey].length : undefined;
+                          const boxLen = (seatsByRow as any)[row].length;
+                          const totalCols = starCols ? starCols : boxLen + 2;
+                          const trailing = Math.max(totalCols - 2 - boxLen, 0);
+                          return Array.from({ length: trailing }).map((_, i) => (
+                            <div key={`box-offset-end-${row}-${i}`} className="w-9 h-9" style={{ visibility: 'hidden' }} />
+                          ));
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -804,12 +829,6 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         </div>
       </div>
 
-      {/* Screen Indicator */}
-      <div className="mb-8">
-        <div className="bg-gray-800 text-white text-center py-3 rounded-lg mb-4">
-          <span className="text-lg font-medium">🎬 SCREEN</span>
-        </div>
-      </div>
 
       {/* Fixed Bottom Panel - Only show if not hidden */}
       {!hideProceedButton && (

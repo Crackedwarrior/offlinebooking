@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import ticketIdService from './ticketIdService';
+import { getTheaterConfig } from './config/theaterConfig';
 
 const execAsync = promisify(exec);
 
@@ -29,6 +30,17 @@ interface TicketData {
   screen?: string;
   seats?: TicketSeat[];
   totalAmount?: number;
+  // Additional properties for formatted ticket data
+  row?: string;
+  seatRange?: string;
+  classLabel?: string;
+  seatCount?: number;
+  individualPrice?: number;
+  // Tax properties
+  net?: string;
+  cgst?: string;
+  sgst?: string;
+  mc?: string;
 }
 
 interface PrintResult {
@@ -233,21 +245,28 @@ Test Time: ${new Date().toLocaleString()}
 
   // Helper function to get show class from time
   getShowClass(showTime: string): string {
-    const showMap: { [key: string]: string } = {
-      '02:45PM': 'MATINEE SHOW\nSHOWTIME : 2:45PM',
-      '06:00PM': 'EVENING SHOW\nSHOWTIME : 6:00PM',
-      '09:30PM': 'NIGHT SHOW\nSHOWTIME : 9:30PM'
-    };
-    return showMap[showTime] || 'MATINEE SHOW\nSHOWTIME : 2:45PM';
+    // Use the showTime directly from frontend - no hardcoded mapping needed
+    if (!showTime) {
+      return 'UNKNOWN SHOW\nSHOWTIME : UNKNOWN';
+    }
+    
+    // Extract time from showTime and format it
+    const timeMatch = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (timeMatch) {
+      const [, hour, minute, period] = timeMatch;
+      return `SHOW\nSHOWTIME : ${hour}:${minute}${period.toUpperCase()}`;
+    }
+    
+    return `SHOW\nSHOWTIME : ${showTime}`;
   }
 
   // Create formatted ticket content - Exact format matching user specification
   createTicketContent(ticketData: TicketData): string {
-    // Use fixed tax values from your format
-    const net = '125.12';
-    const cgst = '11.44';
-    const sgst = '11.44';
-    const mc = '2.00';
+    // Use tax values from frontend if available, otherwise use defaults
+    const net = ticketData.net || getTheaterConfig().defaultTaxValues.net;
+    const cgst = ticketData.cgst || getTheaterConfig().defaultTaxValues.cgst;
+    const sgst = ticketData.sgst || getTheaterConfig().defaultTaxValues.sgst;
+    const mc = ticketData.mc || getTheaterConfig().defaultTaxValues.mc;
     
     // Format date and time - use the ticket date, not current date
     const ticketDate = ticketData.date || new Date().toLocaleDateString('en-GB');
@@ -268,11 +287,10 @@ Test Time: ${new Date().toLocaleString()}
       return text.padEnd(maxLength);
     };
 
-    // Get seat and class information
-    const seat = ticketData.seats?.[0];
-    const seatRow = seat?.row || 'A';
-    const seatNumber = seat?.number || '1';
-    const seatClass = seat?.classLabel || 'STAR';
+    // Get seat and class information from the formatted data
+    const seatRow = ticketData.row || 'A';
+    const seatNumber = ticketData.seatRange || '1';
+    const seatClass = ticketData.classLabel;
     
     console.log(`🎪 Using seat data: row=${seatRow}, number=${seatNumber}, class=${seatClass}`);
     
@@ -281,41 +299,19 @@ Test Time: ${new Date().toLocaleString()}
     const formattedMovieName = movieName.length > 19 ? movieName.substring(0, 19) : movieName;
     
     // Check if this is a grouped ticket (has seat count)
-    const isGroupedTicket = typeof seatNumber === 'string' && seatNumber.includes('-');
-    let seatCount = '1';
-    let individualPrice = ticketData.totalAmount || 0;
-    
-    if (isGroupedTicket) {
-      // Extract seat count from range like "A15-A16" -> "2"
-      const rangeParts = seatNumber.split('-');
-      if (rangeParts.length === 2) {
-        const start = parseInt(rangeParts[0].replace(/\D/g, ''));
-        const end = parseInt(rangeParts[1].replace(/\D/g, ''));
-        seatCount = (end - start + 1).toString();
-        individualPrice = (ticketData.totalAmount || 0) / parseInt(seatCount);
-      }
-    }
+    const seatCount = ticketData.seatCount || 1;
+    const individualPrice = ticketData.individualPrice || (parseFloat(String(ticketData.totalAmount || '0')) || 0) / seatCount;
     
     // Format ticket cost to fit in box (use individual price, not total)
     const ticketCost = `₹${individualPrice.toFixed(2)}`;
     
-    if (isGroupedTicket) {
-      // Extract seat count from range like "A15-A16" -> "2"
-      const rangeParts = seatNumber.split('-');
-      if (rangeParts.length === 2) {
-        const start = parseInt(rangeParts[0].replace(/\D/g, ''));
-        const end = parseInt(rangeParts[1].replace(/\D/g, ''));
-        seatCount = (end - start + 1).toString();
-        individualPrice = (ticketData.totalAmount || 0) / parseInt(seatCount);
-      }
-    }
     
             // Final format matching the exact user specification with dynamic content
     const lines = [
           '╔═════════════════════╗',
-          '║  SREELEKHA THEATER  ║',
-          '║     Chikmagalur     ║',
-          '║GSTIN:29AAVFS7423E120║',
+          `║  ${getTheaterConfig().name}  ║`,
+          `║     ${getTheaterConfig().location}     ║`,
+          `║GSTIN:${getTheaterConfig().gstin}║`,
           '╚═════════════════════╝',
           `DATE:${ticketDate}`,
           ...this.getShowClass(ticketData.showTime || '02:45PM').split('\n'),
@@ -326,9 +322,9 @@ Test Time: ${new Date().toLocaleString()}
           '└─────────────────────┘',
           ` [NET :${net}]`,
           ` [CGST:${cgst}]┌────────┐`,
-          ` [SGST:${sgst}]│₹${(ticketData.totalAmount || 0).toFixed(2).padEnd(7)}│`,
+          ` [SGST:${sgst}]│₹${individualPrice.toFixed(2).padEnd(7)}│`,
           ` [MC  :${mc}] └────────┘`,
-          ` [TOTAL : ${ticketCost}]`,
+          ` [TICKET COST: ${ticketCost}]`,
           '',
           ` ${ticketId}     ${currentTime.replace(' ', '')}`
     ];
@@ -358,17 +354,14 @@ Test Time: ${new Date().toLocaleString()}
       console.log(`🎬 Found movieName: ${movieName}`);
     }
     
-    if (ticketData.show) {
-      // Convert show key to time format
-      const showMap: { [key: string]: string } = {
-        'MATINEE': '02:45PM',
-        'EVENING': '06:00PM',
-        'NIGHT': '09:30PM'
-      };
-      showTime = showMap[ticketData.show] || ticketData.show;
-      console.log(`🕐 Mapped show '${ticketData.show}' to time '${showTime}'`);
-    } else if (ticketData.showTime) {
+    if (ticketData.showTime) {
+      // Use the actual show time from frontend first
       showTime = ticketData.showTime;
+      console.log(`🕐 Using showTime directly: ${showTime}`);
+    } else if (ticketData.show) {
+      // Use show enum as fallback
+      showTime = ticketData.show;
+      console.log(`🕐 Using show enum as fallback: ${showTime}`);
     }
     
     if (ticketData.date) {
@@ -395,7 +388,7 @@ Test Time: ${new Date().toLocaleString()}
       seats = [{
         row: ticketData.row || 'A',
         number: ticketData.seatRange, // Use the range as number
-        classLabel: ticketData.classLabel || 'STAR'
+        classLabel: ticketData.classLabel
       }];
       
       // Use total price for grouped tickets
@@ -410,14 +403,14 @@ Test Time: ${new Date().toLocaleString()}
       seats = [{
         row: parts[0] || 'A',
         number: parts[1] || '1',
-        classLabel: ticketData.class || 'STAR'
+        classLabel: ticketData.class
       }];
       console.log(`🎫 Extracted seat: ${seatId} -> row: ${parts[0]}, number: ${parts[1]}, class: ${ticketData.class}`);
     } else if (ticketData.tickets && Array.isArray(ticketData.tickets)) {
       seats = ticketData.tickets.map((ticket: any) => ({
         row: ticket.row || 'A',
         number: ticket.number || '1',
-        classLabel: ticket.classLabel || 'STAR'
+        classLabel: ticket.classLabel
       }));
     } else if (ticketData.seats && Array.isArray(ticketData.seats)) {
       seats = ticketData.seats;
@@ -428,15 +421,15 @@ Test Time: ${new Date().toLocaleString()}
     return {
           row: parts[0] || 'A',
           number: parts[1] || '1',
-          classLabel: 'STAR' // Default class
+          classLabel: 'UNKNOWN' // Default class
         };
       });
     }
     
     const formattedData = {
-      theaterName: ticketData.theaterName || 'SREELEKHA THEATER',
-      location: ticketData.location || 'Chickmagalur',
-      gstin: ticketData.gstin || '29AAVFS7423E120',
+      theaterName: ticketData.theaterName || getTheaterConfig().name,
+      location: ticketData.location || getTheaterConfig().location,
+      gstin: ticketData.gstin || getTheaterConfig().gstin,
       movieName: movieName,
       date: date,
       showTime: showTime,

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { getTheaterConfig } from './config/theaterConfig';
 
 // Use require to avoid TypeScript issues
 const escpos = require('escpos');
@@ -54,8 +55,8 @@ export class EscposPrintService {
           .align('ct')
           .style('b')
           .size(1, 1)
-          .text('SREELEKHA THEATER')
-          .text('Chickmagalur')
+          .text(getTheaterConfig().name)
+          .text(getTheaterConfig().location)
           .drawLine()
           .align('lt')
           .style('normal')
@@ -65,7 +66,7 @@ export class EscposPrintService {
           .align('ct')
           .style('b')
           .text('THANK YOU')
-          .text('SREELEKHA THEATER')
+          .text(getTheaterConfig().name)
           .cut()
           .close()
           .then(() => {
@@ -213,8 +214,8 @@ export class EscposPrintService {
     
     // Header - double lines
     ticket += '='.repeat(maxWidth) + '\n';
-    ticket += centerText('SREELEKHA THEATER') + '\n';
-    ticket += centerText('Chickmagalur') + '\n';
+    ticket += centerText(getTheaterConfig().name) + '\n';
+    ticket += centerText(getTheaterConfig().location) + '\n';
     ticket += '='.repeat(maxWidth) + '\n';
     
     // Ticket details
@@ -239,7 +240,7 @@ export class EscposPrintService {
     
     // Footer
     ticket += centerText('THANK YOU FOR VISITING') + '\n';
-    ticket += centerText('SREELEKHA THEATER') + '\n';
+    ticket += centerText(getTheaterConfig().name) + '\n';
     ticket += '='.repeat(maxWidth) + '\n';
     
     return ticket;
@@ -267,11 +268,11 @@ export class EscposPrintService {
     commands.push(0x1B, 0x21, 0x10); // ESC ! 16 (double height & width)
     
     // Add theater name
-    const theaterName = ticketData.theaterName || 'SREELEKHA THEATER';
+    const theaterName = ticketData.theaterName || getTheaterConfig().name;
     commands.push(...Buffer.from(theaterName + '\n', 'ascii'));
     
     // Add location
-    const location = ticketData.location || 'Chickmagalur';
+    const location = ticketData.location || getTheaterConfig().location;
     commands.push(...Buffer.from(location + '\n', 'ascii'));
     
     // Draw line
@@ -339,7 +340,7 @@ export class EscposPrintService {
     const footer = 'THANK YOU FOR VISITING\n';
     commands.push(...Buffer.from(footer, 'ascii'));
     
-    const footer2 = `${ticketData.theaterName || 'SREELEKHA THEATER'}\n`;
+    const footer2 = `${ticketData.theaterName || getTheaterConfig().name}\n`;
     commands.push(...Buffer.from(footer2, 'ascii'));
     
     // Cut paper
@@ -375,8 +376,8 @@ export class EscposPrintService {
     
     // Header with full width - centered and emphasized
     formatted += doubleLine + '\n';
-    formatted += centerText(ticketData.theaterName || 'SREELEKHA THEATER') + '\n';
-    formatted += centerText(ticketData.location || 'Chickmagalur') + '\n';
+    formatted += centerText(ticketData.theaterName || getTheaterConfig().name) + '\n';
+    formatted += centerText(ticketData.location || getTheaterConfig().location) + '\n';
     formatted += doubleLine + '\n';
     
     // Movie and show details with full width formatting
@@ -402,7 +403,7 @@ export class EscposPrintService {
     
     // Footer with full width
     formatted += centerText('THANK YOU FOR VISITING') + '\n';
-    formatted += centerText(ticketData.theaterName || 'SREELEKHA THEATER') + '\n';
+    formatted += centerText(ticketData.theaterName || getTheaterConfig().name) + '\n';
     formatted += doubleLine + '\n';
     
     // Debug: Log the formatted ticket to see what's actually being generated

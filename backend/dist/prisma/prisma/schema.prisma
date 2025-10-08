@@ -159,21 +159,6 @@ model Movie {
   @@index([isActive])
 }
 
-// Show configuration model
-model ShowConfig {
-  id        String   @id @default(uuid())
-  show      Show     @unique
-  startTime String   // e.g., "10:00"
-  endTime   String   // e.g., "12:00"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Indexes
-  @@index([show])
-  @@index([isActive])
-}
-
 // Pricing configuration model
 model PricingConfig {
   id         String   @id @default(uuid())

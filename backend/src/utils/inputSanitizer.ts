@@ -1,4 +1,5 @@
 import { auditLogger } from './auditLogger';
+import { ValidationError } from './errors';
 
 export interface SanitizationResult<T> {
   data: T;
@@ -8,6 +9,52 @@ export interface SanitizationResult<T> {
 }
 
 export class InputSanitizer {
+  /**
+   * Strict validation that rejects invalid input instead of sanitizing
+   */
+  static validateAndReject(input: any, fieldName: string, maxLength: number = 1000): string {
+    if (input === null || input === undefined) {
+      throw new ValidationError(`${fieldName} is required`);
+    }
+
+    const originalValue = input;
+    let sanitizedValue = String(input);
+
+    // Remove null bytes and control characters
+    sanitizedValue = sanitizedValue.replace(/[\x00-\x1F\x7F]/g, '');
+    
+    // Trim whitespace
+    sanitizedValue = sanitizedValue.trim();
+    
+    // Check for empty string after sanitization
+    if (sanitizedValue.length === 0 && originalValue !== '') {
+      throw new ValidationError(`${fieldName} contains invalid characters`);
+    }
+    
+    // Check length
+    if (sanitizedValue.length > maxLength) {
+      throw new ValidationError(`${fieldName} exceeds maximum length of ${maxLength} characters`);
+    }
+
+    // Log if sanitization occurred
+    if (sanitizedValue !== originalValue) {
+      auditLogger.logSecurity(
+        'INPUT_SANITIZED_STRICT',
+        true,
+        'anonymous',
+        undefined,
+        undefined,
+        {
+          field: fieldName,
+          originalLength: originalValue.length,
+          sanitizedLength: sanitizedValue.length,
+          maxLength
+        }
+      );
+    }
+
+    return sanitizedValue;
+  }
   /**
    * Sanitize a string input
    */
@@ -24,6 +71,16 @@ export class InputSanitizer {
     
     // Trim whitespace
     sanitizedValue = sanitizedValue.trim();
+    
+    // Check for empty string after sanitization
+    if (sanitizedValue.length === 0 && originalValue !== '') {
+      return { 
+        data: '', 
+        sanitized: true, 
+        originalValue,
+        sanitizedValue: 'EMPTY_AFTER_SANITIZATION'
+      };
+    }
     
     // Limit length
     if (sanitizedValue.length > maxLength) {
@@ -60,7 +117,7 @@ export class InputSanitizer {
    * Sanitize an email address
    */
   static sanitizeEmail(input: any): SanitizationResult<string> {
-    if (input === null || input === undefined) {
+    if (input === null || input === undefined || input === '') {
       return { data: '', sanitized: false };
     }
 
@@ -70,8 +127,19 @@ export class InputSanitizer {
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(sanitizedValue)) {
-      // If invalid email, return empty string but don't log as sanitized
-      return { data: '', sanitized: false, originalValue };
+      // If invalid email, return empty string and log as sanitized
+      auditLogger.logSecurity(
+        'INVALID_EMAIL_REJECTED',
+        true,
+        'anonymous',
+        undefined,
+        undefined,
+        {
+          originalValue,
+          reason: 'Invalid email format'
+        }
+      );
+      return { data: '', sanitized: true, originalValue, sanitizedValue: 'INVALID_FORMAT' };
     }
 
     // Remove any HTML tags

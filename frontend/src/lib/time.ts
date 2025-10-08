@@ -26,35 +26,61 @@ export function parse12HourToMinutes(timeStr: string): number {
 }
 
 export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date()): string | null {
+  console.log('🕐 getShowKeyFromNow called with shows:', shows);
+  
   const enabled = shows.filter(s => s.enabled);
-  if (enabled.length === 0) return null;
+  console.log('🕐 enabled shows:', enabled);
+  
+  if (enabled.length === 0) {
+    console.log('🕐 No enabled shows, returning null');
+    return null;
+  }
+  
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  console.log('🕐 Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
 
   for (let i = 0; i < enabled.length; i++) {
     const show = enabled[i];
     const start = parse12HourToMinutes(show.startTime);
     const end = parse12HourToMinutes(show.endTime);
-    const next = enabled[i + 1];
-    const nextStart = next ? parse12HourToMinutes(next.startTime) : null;
 
-    let inRange = false;
+    // Simple logic: Is current time within this show's range?
+    let isActive = false;
     if (end < start) {
-      inRange = nowMinutes >= start || nowMinutes < end; // overnight
+      // Overnight show (e.g., 11:30 PM - 2:30 AM)
+      isActive = nowMinutes >= start || nowMinutes < end;
     } else {
-      inRange = nowMinutes >= start && nowMinutes < end;
+      // Normal show (e.g., 2:00 PM - 5:00 PM)
+      isActive = nowMinutes >= start && nowMinutes < end;
     }
 
-    const afterStart = nowMinutes >= start;
-    const beforeNext = nextStart == null || nowMinutes < nextStart;
+    console.log(`🕐 Checking show ${show.key}:`, {
+      startTime: show.startTime,
+      endTime: show.endTime,
+      startMinutes: start,
+      endMinutes: end,
+      currentMinutes: nowMinutes,
+      isActive
+    });
 
-    if (inRange || (afterStart && beforeNext)) return show.key;
+    if (isActive) {
+      console.log(`🕐 Found active show: ${show.key}`);
+      return show.key;
+    }
   }
 
+  console.log('🕐 No active show found, checking fallback logic');
+  
   // Fallback to most recent started show
   for (let i = enabled.length - 1; i >= 0; i--) {
     const start = parse12HourToMinutes(enabled[i].startTime);
-    if ((now.getHours() * 60 + now.getMinutes()) >= start) return enabled[i].key;
+    if ((now.getHours() * 60 + now.getMinutes()) >= start) {
+      console.log(`🕐 Fallback selected show: ${enabled[i].key}`);
+      return enabled[i].key;
+    }
   }
+  
+  console.log(`🕐 Default fallback to first show: ${enabled[0].key}`);
   return enabled[0].key;
 }
 

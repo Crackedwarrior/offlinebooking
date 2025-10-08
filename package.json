@@ -1,7 +1,6 @@
 {
   "name": "offlinebooking",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:web": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
@@ -39,6 +38,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/fontkit": "^2.0.8",
     "@types/node": "^24.0.10"
   }
 }

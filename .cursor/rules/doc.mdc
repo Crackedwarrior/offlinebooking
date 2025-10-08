@@ -1,0 +1,5 @@
+---
+description: always refer official documentations online before making major changes
+globs:
+alwaysApply: true
+---

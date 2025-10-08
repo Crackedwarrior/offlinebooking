@@ -21,6 +21,8 @@ import { useShowManagement } from '@/hooks/useShowManagement';
 import { useTicketOperations } from '@/hooks/useTicketOperations';
 import { CheckoutShowSelector } from '@/components/CheckoutShowSelector';
 import { CheckoutSummary } from '@/components/CheckoutSummary';
+import { SeatGridPreview } from '@/components/SeatGridPreview';
+import { CompactSeatGrid } from '@/components/CompactSeatGrid';
 
 interface CheckoutProps {
   onBookingComplete?: (bookingData: any) => void;
@@ -310,10 +312,10 @@ const Checkout = ({
   
   return (
     <>
-      <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-6 pt-4 pb-4 overflow-x-hidden">
-      <div className="flex-1 lg:flex-[3] flex flex-col mt-8">
-          {/* Removed duplicate "Checkout Summary" header */}
-        <div className="mt-4">
+      <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-2 px-4 lg:px-6 pt-2 pb-4 overflow-x-hidden">
+      <div className="flex-1 lg:flex-[1.4] flex flex-col mt-4">
+          {/* Show cards moved up */}
+        <div className="mt-2">
             <CheckoutShowSelector
               onManualShowSelection={onManualShowSelection}
               createClassInfo={createClassInfo}
@@ -323,14 +325,21 @@ const Checkout = ({
             {/* Total below show card */}
             <div className="w-full max-w-5xl flex justify-start mt-4 ml-0">
               <span className="text-xl font-bold">Total: <span className="text-2xl">₹ {classCounts.reduce((sum, cls: any) => sum + cls.count * cls.price, 0)}</span></span>
-                  </div>
-                              </div>
-                            </div>
+            </div>
+          </div>
+          
+          {/* Seat Grid Preview in the empty space */}
+          {console.log('🎯 Checkout: About to render SeatGridPreview with:', { selectedShow, selectedDate })}
+          <SeatGridPreview 
+            selectedShow={selectedShow}
+            selectedDate={selectedDate}
+          />
+        </div>
                             
         <CheckoutSummary createClassInfo={createClassInfo} />
 
         {/* Ticket Print Component - RESTORED ALL MISSING PROPS */}
-      <div className="flex-[1] flex flex-col h-full">
+      <div className="flex-[1.1] flex flex-col h-full">
         <TicketPrint
           selectedSeats={ticketSeats}
             onDelete={ticketOperations.handleDeleteTickets}

@@ -67,23 +67,20 @@ export const useShowManagement = () => {
         // FIXED: Use parseTimeToMinutes instead of broken manual parsing
         nextShowStartMinutes = parseTimeToMinutes(nextShow.startTime);
       }
-      let isInRange = false;
+      // Simple logic: Is current time within this show's range?
+      let isActive = false;
       if (endMinutes < startMinutes) {
-        isInRange = currentTime >= startMinutes || currentTime < endMinutes;
+        // Overnight show (e.g., 11:30 PM - 2:30 AM)
+        isActive = currentTime >= startMinutes || currentTime < endMinutes;
       } else {
-        isInRange = currentTime >= startMinutes && currentTime < endMinutes;
+        // Normal show (e.g., 2:00 PM - 5:00 PM)
+        isActive = currentTime >= startMinutes && currentTime < endMinutes;
       }
-      const isAfterShowStart = currentTime >= startMinutes;
-      const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
-      const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
       
       console.log(`🎯 Checking show ${show.key}:`, {
         startMinutes,
         endMinutes,
-        nextShowStartMinutes,
-        isInRange,
-        isAfterShowStart,
-        isBeforeNextShow,
+        currentMinutes: currentTime,
         isActive
       });
       

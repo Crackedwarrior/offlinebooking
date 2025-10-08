@@ -140,7 +140,33 @@ export interface HealthCheckResponse {
   status: 'healthy' | 'unhealthy';
   timestamp: string;
   environment: string;
-  database: string;
+  database: 'healthy' | 'unhealthy';
+  databaseDetails?: string;
+  system?: {
+    uptime: number;
+    memory: {
+      used: number;
+      total: number;
+      percentage: number;
+    };
+    requests: {
+      total: number;
+      averageResponseTime: number;
+      errorRate: number;
+    };
+    database: {
+      connectionCount: number;
+      queryCount: number;
+      averageQueryTime: number;
+    };
+  };
+  logging?: {
+    totalFiles: number;
+    totalSize: number;
+    oldestLog: string;
+    newestLog: string;
+  };
+  warnings?: string[];
   error?: string;
 }
 

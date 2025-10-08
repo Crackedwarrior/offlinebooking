@@ -254,11 +254,20 @@ export const useSettingsStore = create<SettingsState>()(
         pricing: { ...state.pricing, [classLabel]: price }
       })),
 
-      updateShowTime: (key, settings) => set((state) => ({
-        showTimes: state.showTimes.map(show => 
-          show.key === key ? { ...show, ...settings } : show
-        )
-      })),
+      updateShowTime: (key, settings) => {
+        console.log('🏪 SETTINGS STORE: updateShowTime called');
+        console.log('🏪 SETTINGS STORE: updating show key:', key);
+        console.log('🏪 SETTINGS STORE: new settings:', settings);
+        
+        set((state) => {
+          const updatedShowTimes = state.showTimes.map(show => 
+            show.key === key ? { ...show, ...settings } : show
+          );
+          
+          console.log('🏪 SETTINGS STORE: updated showTimes:', updatedShowTimes);
+          return { showTimes: updatedShowTimes };
+        });
+      },
 
       deleteShowTime: (key: string) => set((state) => ({
         showTimes: state.showTimes.filter(show => show.key !== key)
@@ -282,13 +291,19 @@ export const useSettingsStore = create<SettingsState>()(
 
       getShowTimes: () => {
         const state = get();
+        console.log('🏪 SETTINGS STORE: getShowTimes called');
+        console.log('🏪 SETTINGS STORE: showTimes from state:', state.showTimes);
         return state.showTimes; // Return all shows, not just enabled ones
       },
 
       // Optimized selectors
       getEnabledShowTimes: () => {
         const state = get();
-        return state.showTimes.filter(show => show.enabled);
+        const enabled = state.showTimes.filter(show => show.enabled);
+        console.log('🏪 SETTINGS STORE: getEnabledShowTimes called');
+        console.log('🏪 SETTINGS STORE: all showTimes:', state.showTimes);
+        console.log('🏪 SETTINGS STORE: enabled showTimes:', enabled);
+        return enabled;
       },
 
       getMovieById: (id: string) => {

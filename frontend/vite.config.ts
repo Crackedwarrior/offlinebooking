@@ -36,11 +36,54 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: mode === 'development',
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+          drop_debugger: mode === 'production',
+        },
+      } as any,
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom'],
-            ui: ['@radix-ui/react-dialog', '@radix-ui/react-popover'],
+            // Core React libraries
+            'react-vendor': ['react', 'react-dom'],
+            
+            // UI Libraries
+            'radix-ui': [
+              '@radix-ui/react-dialog',
+              '@radix-ui/react-popover', 
+              '@radix-ui/react-select',
+              '@radix-ui/react-separator',
+              '@radix-ui/react-slot',
+              '@radix-ui/react-switch',
+              '@radix-ui/react-tabs',
+              '@radix-ui/react-label'
+            ],
+            
+            // Form libraries
+            'forms': ['react-hook-form', 'zod', '@hookform/resolvers'],
+            
+            // Date libraries
+            'date': ['date-fns', 'react-datepicker', 'react-day-picker'],
+            
+            // Charts and visualization
+            'charts': ['recharts'],
+            
+            // State management
+            'state': ['zustand', '@tanstack/react-query'],
+            
+            // Utilities
+            'utils': ['clsx', 'tailwind-merge', 'class-variance-authority'],
+            
+            // Icons
+            'icons': ['lucide-react'],
+            
+            // Router
+            'router': ['react-router-dom'],
+            
+            // Other heavy libraries
+            'heavy': ['@react-thermal-printer/image', 'embla-carousel-react', '@dnd-kit/core']
           },
         },
       },

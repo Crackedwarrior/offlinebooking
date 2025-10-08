@@ -1,5 +1,5 @@
 export const seatsByRow = {
-  // BOX
+  // BOX - Theater style arrangement
   'BOX-A': [1, 2, 3, 4, 5, 6, 7],
   'BOX-B': [1, 2, 3, 4, 5, 6, 7],
   'BOX-C': [1, 2, 3, 4, 5, 6, 7, 8],

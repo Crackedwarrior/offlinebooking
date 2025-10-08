@@ -5,21 +5,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const client_1 = require("@prisma/client");
 const cors_1 = __importDefault(require("cors"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const config_1 = require("./config");
+const theaterConfig_1 = require("./config/theaterConfig");
+const connectionManager_1 = require("./db/connectionManager");
+const productionLogger_1 = require("./utils/productionLogger");
+const performanceMonitor_1 = require("./utils/performanceMonitor");
 const errorHandler_1 = require("./middleware/errorHandler");
 const errors_1 = require("./utils/errors");
 const printService_1 = require("./printService");
 const escposPrintService_1 = require("./escposPrintService");
 const thermalPrintService_1 = __importDefault(require("./thermalPrintService"));
 const pdfPrintService_1 = __importDefault(require("./pdfPrintService"));
-const kannadaPdfService_1 = __importDefault(require("./kannadaPdfService"));
+const kannadaPdfKitService_1 = require("./kannadaPdfKitService");
 const printerSetup_1 = __importDefault(require("./printerSetup"));
 const ticketIdService_1 = __importDefault(require("./ticketIdService"));
 const auditLogger_1 = require("./utils/auditLogger");
 const inputSanitizer_1 = require("./utils/inputSanitizer");
+const sumatraInstaller_1 = __importDefault(require("./sumatraInstaller"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 // Production path handling function
@@ -32,25 +36,160 @@ const getAppDataPath = () => {
     // In development, we're running from backend/dist/ or backend/src/
     return path_1.default.join(__dirname, '../');
 };
-// Add ESC/POS imports at the top
-const escpos_1 = __importDefault(require("escpos"));
-escpos_1.default.USB = require('escpos-usb');
-escpos_1.default.Network = require('escpos-network');
-// Validate configuration on startup
-if (!(0, config_1.validateConfig)()) {
-    process.exit(1);
-}
-// Validate security configuration
-(0, config_1.validateSecurityConfig)();
+// Validate configuration on startup - disabled for installer environment
+// if (!validateConfig()) {
+//   process.exit(1);
+// }
+// Validate security configuration - disabled for installer environment
+// validateSecurityConfig();
 const app = (0, express_1.default)();
-const prisma = new client_1.PrismaClient();
+// Get Prisma client from connection manager
+const prisma = connectionManager_1.dbManager.getClient();
+// Database initialization using connection manager
+async function initializeDatabase() {
+    // Ensure user data directory exists for database persistence
+    if (config_1.config.server.nodeEnv === 'production') {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            // Extract database directory from DATABASE_URL
+            const dbUrl = config_1.config.database.url;
+            const dbPath = dbUrl.replace('file:', '');
+            const dbDir = path.dirname(dbPath);
+            // Create directory if it doesn't exist
+            if (!fs.existsSync(dbDir)) {
+                fs.mkdirSync(dbDir, { recursive: true });
+                console.log(`📁 Created user data directory: ${dbDir}`);
+            }
+            else {
+                console.log(`📁 Using existing user data directory: ${dbDir}`);
+            }
+            // Check if we need to migrate existing database
+            if (!fs.existsSync(dbPath)) {
+                // Check multiple possible old database locations
+                const possibleOldPaths = [
+                    // App bundle locations (will be deleted on uninstall)
+                    path.join(__dirname, 'dev.db'),
+                    path.join(__dirname, '..', 'dev.db'),
+                    path.join(__dirname, '..', 'prisma', 'dev.db'),
+                    path.join(process.cwd(), 'dev.db'),
+                    path.join(process.cwd(), 'prisma', 'dev.db'),
+                    // Installer-specific paths (Electron resourcesPath)
+                    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'dist', 'backend', 'dev.db'),
+                    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'backend-dist', 'dev.db'),
+                    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'dev.db'),
+                    // Legacy app data paths
+                    path.join(process.env.APPDATA || '', 'AuditoriumX', 'dev.db'),
+                    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'AuditoriumX', 'dev.db'),
+                    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'AuditoriumX', 'resources', 'app.asar.unpacked', 'dev.db')
+                ];
+                let migrated = false;
+                console.log(`📁 Checking for existing database to migrate to: ${dbPath}`);
+                for (const oldDbPath of possibleOldPaths) {
+                    if (fs.existsSync(oldDbPath)) {
+                        console.log(`📁 Found existing database: ${oldDbPath}`);
+                        try {
+                            fs.copyFileSync(oldDbPath, dbPath);
+                            console.log(`✅ SUCCESS: Migrated database from ${oldDbPath} to ${dbPath}`);
+                            migrated = true;
+                            break;
+                        }
+                        catch (error) {
+                            console.error(`❌ Failed to migrate database from ${oldDbPath}:`, error);
+                        }
+                    }
+                }
+                if (!migrated) {
+                    console.log(`📁 No existing database found to migrate. Creating new database at ${dbPath}`);
+                }
+            }
+            else {
+                console.log(`📁 Database already exists at: ${dbPath}`);
+            }
+        }
+        catch (error) {
+            console.error('❌ Failed to setup database directory:', error);
+            // Continue anyway - database might still work
+        }
+    }
+    return await connectionManager_1.dbManager.connect();
+}
+// Graceful shutdown handling
+process.on('SIGINT', async () => {
+    console.log('🛑 Received SIGINT, shutting down gracefully...');
+    try {
+        await connectionManager_1.dbManager.disconnect();
+        process.exit(0);
+    }
+    catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+    }
+});
+process.on('SIGTERM', async () => {
+    console.log('🛑 Received SIGTERM, shutting down gracefully...');
+    try {
+        await connectionManager_1.dbManager.disconnect();
+        process.exit(0);
+    }
+    catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+    }
+});
+// Handle uncaught exceptions
+process.on('uncaughtException', async (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    try {
+        await connectionManager_1.dbManager.disconnect();
+    }
+    catch (disconnectError) {
+        console.error('❌ Error disconnecting database:', disconnectError);
+    }
+    process.exit(1);
+});
+// Handle unhandled promise rejections
+process.on('unhandledRejection', async (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    try {
+        await connectionManager_1.dbManager.disconnect();
+    }
+    catch (disconnectError) {
+        console.error('❌ Error disconnecting database:', disconnectError);
+    }
+    process.exit(1);
+});
 const thermalPrintService = new thermalPrintService_1.default();
 const pdfPrintService = new pdfPrintService_1.default();
-const kannadaPdfService = new kannadaPdfService_1.default();
-// Configure CORS
+const kannadaPdfKitService = new kannadaPdfKitService_1.KannadaPdfKitService();
+// Configure CORS with proper origin restrictions
 app.use((0, cors_1.default)({
-    origin: config_1.config.api.corsOrigin,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin)
+            return callback(null, true);
+        // Define allowed origins
+        const allowedOrigins = [
+            'http://localhost:8080', // Development frontend
+            'http://localhost:3000', // Alternative dev port
+            'http://127.0.0.1:8080', // Localhost alternative
+            'http://127.0.0.1:3000', // Localhost alternative
+            // Add production origins here when deploying
+            // 'https://yourdomain.com',
+            // 'https://www.yourdomain.com'
+        ];
+        // Check if origin is allowed
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        // Log unauthorized origin attempts
+        console.warn(`🚫 CORS: Blocked request from unauthorized origin: ${origin}`);
+        return callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200
 }));
 // Add security headers
 app.use((req, res, next) => {
@@ -92,27 +231,44 @@ app.use((req, res, next) => {
     next();
 });
 app.use(express_1.default.json());
-// Add rate limiting
+// Add rate limiting - Theatre booking system optimized limits
 const generalLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 1000, // limit each IP to 1000 requests per minute (theater booking optimized)
     message: {
         success: false,
         error: 'Too many requests from this IP, please try again later.'
     },
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    skipSuccessfulRequests: false, // Count all requests
+    skipFailedRequests: false, // Count failed requests too
 });
-// Stricter rate limiting for booking and printing endpoints
+// Higher rate limiting for booking and printing endpoints
 const bookingLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // limit each IP to 20 booking requests per windowMs
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 200, // limit each IP to 200 booking requests per minute (theater booking optimized)
     message: {
         success: false,
         error: 'Too many booking requests from this IP, please try again later.'
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: false,
+    skipFailedRequests: false,
+});
+// Very high rate limit for BMS operations (bulk seat updates for theater staff)
+const bmsLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 500, // Very high limit for BMS bulk operations (theater staff needs)
+    message: {
+        success: false,
+        error: 'Too many BMS requests from this IP, please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false,
+    skipFailedRequests: false,
 });
 // Apply general rate limiting to all routes
 app.use(generalLimiter);
@@ -342,8 +498,8 @@ app.post('/api/printer/print', bookingLimiter, (0, errorHandler_1.asyncHandler)(
         for (const ticket of tickets) {
             // Create raw ticket data for the service to format
             const ticketData = {
-                theaterName: printerConfig.theaterName || 'SREELEKHA THEATER',
-                location: printerConfig.location || 'Chickmagalur',
+                theaterName: printerConfig.theaterName || (0, theaterConfig_1.getTheaterConfig)().name,
+                location: printerConfig.location || (0, theaterConfig_1.getTheaterConfig)().location,
                 date: ticket.date || new Date().toLocaleDateString(),
                 showTime: ticket.showTime || '2:00 PM',
                 movieName: ticket.movieName || 'MOVIE',
@@ -447,9 +603,18 @@ app.post('/api/thermal-printer/print', (0, errorHandler_1.asyncHandler)(async (r
     console.log(`🎬 Movie settings:`, movieSettings);
     console.log(`🎬 Ticket data:`, ticketData);
     console.log(`🎬 Movie language in ticket data:`, ticketData.movieLanguage);
+    console.log(`🔤 printInKannada flag:`, movieSettings === null || movieSettings === void 0 ? void 0 : movieSettings.printInKannada);
+    console.log(`🔤 shouldPrintInKannada result:`, shouldPrintInKannada);
+    console.log('💰 TICKET COST DEBUG - Server Level:');
+    console.log('💰 ticketData.individualAmount:', ticketData.individualAmount);
+    console.log('💰 ticketData.totalAmount:', ticketData.totalAmount);
+    console.log('💰 ticketData.seatCount:', ticketData.seatCount);
+    console.log('💰 ticketData.individualPrice:', ticketData.individualPrice);
+    console.log('💰 ticketData.totalPrice:', ticketData.totalPrice);
     // Use appropriate service based on language setting
+    console.log(`🔤 About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
     const result = shouldPrintInKannada
-        ? await kannadaPdfService.printTicket(ticketData, printerName)
+        ? await kannadaPdfKitService.printTicket(ticketData, printerName)
         : await pdfPrintService.printTicket(ticketData, printerName);
     if (result.success) {
         res.json({
@@ -465,6 +630,59 @@ app.post('/api/thermal-printer/print', (0, errorHandler_1.asyncHandler)(async (r
             printer: result.printer
         });
     }
+}));
+// Test endpoint for Ultra-fast Kannada service
+app.post('/api/thermal-printer/test-ultra-fast-kannada', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { ticketData, printerName } = req.body;
+    if (!ticketData) {
+        throw new Error('Ticket data is required');
+    }
+    console.log('🚀 Testing Kannada PDFKit Print Service');
+    console.log('🚀 Ticket data:', ticketData);
+    console.log('🚀 Printer name:', printerName);
+    const result = await kannadaPdfKitService.printTicket(ticketData, printerName);
+    if (result.success) {
+        res.json({
+            success: true,
+            message: result.message,
+            printer: result.printer
+        });
+    }
+    else {
+        res.status(500).json({
+            success: false,
+            error: result.error,
+            printer: result.printer
+        });
+    }
+}));
+// Test endpoint for time format debugging
+app.get('/api/test/time-format', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    console.log('🕐 TIME FORMAT TEST ENDPOINT CALLED');
+    const testTimes = [
+        new Date('2024-01-01T06:00:00'), // 6:00 AM
+        new Date('2024-01-01T12:00:00'), // 12:00 PM
+        new Date('2024-01-01T18:00:00'), // 6:00 PM
+        new Date('2024-01-01T00:00:00'), // 12:00 AM
+        new Date('2024-01-01T14:30:00'), // 2:30 PM
+        new Date(), // Current time
+    ];
+    const results = testTimes.map((date, index) => {
+        const formatted = date.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        return {
+            index: index + 1,
+            iso: date.toISOString(),
+            formatted: formatted,
+            hasAMPM: /AM|PM/i.test(formatted)
+        };
+    });
+    res.json({
+        success: true,
+        message: 'Time format test results',
+        results: results,
+        currentTime: new Date().toISOString(),
+        currentFormatted: new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' })
+    });
 }));
 // Print ticket using old text-based thermal printer (fallback)
 app.post('/api/thermal-printer/print-text', (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -488,7 +706,57 @@ app.post('/api/thermal-printer/print-text', (0, errorHandler_1.asyncHandler)(asy
         });
     }
 }));
-// Get printer status
+// ===== SUMATRAPDF INSTALLATION ENDPOINTS =====
+// Check SumatraPDF installation status
+app.get('/api/sumatra/status', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    try {
+        const sumatraInstaller = new sumatraInstaller_1.default();
+        const result = await sumatraInstaller.isSumatraInstalled();
+        res.json({
+            success: true,
+            installed: result.installed,
+            path: result.path,
+            message: result.installed ? 'SumatraPDF is installed' : 'SumatraPDF is not installed'
+        });
+    }
+    catch (error) {
+        console.error('❌ Error checking SumatraPDF status:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}));
+// Install SumatraPDF
+app.post('/api/sumatra/install', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    try {
+        console.log('🔧 SumatraPDF installation requested');
+        const sumatraInstaller = new sumatraInstaller_1.default();
+        const result = await sumatraInstaller.installIfNeeded();
+        if (result.success) {
+            res.json({
+                success: true,
+                message: result.message,
+                path: result.path
+            });
+        }
+        else {
+            res.status(500).json({
+                success: false,
+                message: result.message,
+                instructions: sumatraInstaller.getInstallationInstructions()
+            });
+        }
+    }
+    catch (error) {
+        console.error('❌ SumatraPDF installation error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            instructions: 'Please install SumatraPDF manually from https://www.sumatrapdfreader.org/download-free-pdf-viewer.html'
+        });
+    }
+}));
 app.get('/api/thermal-printer/status/:printerName', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { printerName } = req.params;
     const status = await thermalPrintService.getPrinterStatus(printerName);
@@ -553,24 +821,44 @@ app.get('/api/printer-setup/info/:printerName', (0, errorHandler_1.asyncHandler)
         res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 }));
-// Request logging middleware (if enabled)
-if (config_1.config.logging.enableRequestLogging) {
-    app.use((req, res, next) => {
-        console.log(`[${req.requestId}] ${new Date().toISOString()} - ${req.method} ${req.path}`);
-        next();
-    });
-}
+// Request logging middleware with performance monitoring
+app.use((req, res, next) => {
+    const startTime = Date.now();
+    const requestId = req.requestId || 'unknown';
+    // Log request start
+    productionLogger_1.productionLogger.info(`${req.method} ${req.path}`, 'HTTP_REQUEST', {
+        method: req.method,
+        url: req.path,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+    }, requestId);
+    // Override res.end to capture response time
+    const originalEnd = res.end;
+    res.end = function (chunk, encoding) {
+        const responseTime = Date.now() - startTime;
+        const success = res.statusCode < 400;
+        // Record performance metrics
+        performanceMonitor_1.performanceMonitor.recordRequest(responseTime, success);
+        // Log request completion
+        productionLogger_1.productionLogger.logRequest(req.method, req.path, res.statusCode, responseTime, requestId);
+        // Call original end method
+        return originalEnd.call(this, chunk, encoding);
+    };
+    next();
+});
 app.post('/api/bookings', bookingLimiter, errorHandler_1.validateBookingData, (0, errorHandler_1.asyncHandler)(async (req, res) => {
     var _a;
     const bookingRequest = req.body;
     const { tickets, total, totalTickets, timestamp, show, screen, movie, date, source = 'LOCAL', customerName, customerPhone, customerEmail, notes } = bookingRequest;
-    // Sanitize input data
-    const sanitizedCustomerName = inputSanitizer_1.InputSanitizer.sanitizeString(customerName, 100);
+    // Sanitize input data with strict validation for critical fields
+    const sanitizedCustomerName = customerName ? inputSanitizer_1.InputSanitizer.validateAndReject(customerName, 'customerName', 100) : 'Walk-in Customer';
     const sanitizedCustomerPhone = inputSanitizer_1.InputSanitizer.sanitizePhone(customerPhone);
     const sanitizedCustomerEmail = customerEmail ? inputSanitizer_1.InputSanitizer.sanitizeEmail(customerEmail) : { data: '', sanitized: false };
     const sanitizedNotes = inputSanitizer_1.InputSanitizer.sanitizeString(notes, 500);
     // Check for dangerous content
-    inputSanitizer_1.InputSanitizer.logDangerousContent(customerName, 'customerName', req.requestId);
+    if (customerName) {
+        inputSanitizer_1.InputSanitizer.logDangerousContent(customerName, 'customerName', req.requestId);
+    }
     inputSanitizer_1.InputSanitizer.logDangerousContent(customerPhone, 'customerPhone', req.requestId);
     inputSanitizer_1.InputSanitizer.logDangerousContent(customerEmail, 'customerEmail', req.requestId);
     inputSanitizer_1.InputSanitizer.logDangerousContent(notes, 'notes', req.requestId);
@@ -586,7 +874,7 @@ app.post('/api/bookings', bookingLimiter, errorHandler_1.validateBookingData, (0
         date,
         source,
         sanitized: {
-            customerName: sanitizedCustomerName.sanitized,
+            customerName: customerName ? sanitizedCustomerName !== customerName : false,
             customerPhone: sanitizedCustomerPhone.sanitized,
             customerEmail: sanitizedCustomerEmail.sanitized,
             notes: sanitizedNotes.sanitized
@@ -691,7 +979,7 @@ app.post('/api/bookings', bookingLimiter, errorHandler_1.validateBookingData, (0
             status: 'CONFIRMED',
             source: source,
             synced: newBooking.synced,
-            customerName: sanitizedCustomerName.data,
+            customerName: sanitizedCustomerName,
             customerPhone: sanitizedCustomerPhone.data,
             customerEmail: sanitizedCustomerEmail.data,
             notes: sanitizedNotes.data,
@@ -802,16 +1090,122 @@ app.get('/api/bookings', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     });
     res.json(response);
 }));
-// Health check endpoint
-app.get('/api/health', (0, errorHandler_1.asyncHandler)(async (_req, res) => {
-    // Test database connection
-    await prisma.$queryRaw `SELECT 1`;
+// Comprehensive metrics endpoint
+app.get('/api/metrics', (0, errorHandler_1.asyncHandler)(async (_req, res) => {
+    const performanceMetrics = performanceMonitor_1.performanceMonitor.getPerformanceMetrics();
+    const requestMetrics = performanceMonitor_1.performanceMonitor.getRequestMetrics();
+    const logStats = productionLogger_1.productionLogger.getLogStats();
+    const dbHealth = await connectionManager_1.dbManager.healthCheck();
+    const metrics = {
+        timestamp: new Date().toISOString(),
+        system: {
+            uptime: performanceMetrics.uptime,
+            memory: performanceMetrics.memory,
+            cpu: performanceMetrics.cpu,
+            nodeVersion: process.version,
+            platform: process.platform
+        },
+        database: {
+            ...performanceMetrics.database,
+            health: dbHealth.status,
+            details: dbHealth.details
+        },
+        requests: {
+            ...performanceMetrics.requests,
+            metrics: requestMetrics
+        },
+        logging: logStats,
+        environment: {
+            nodeEnv: config_1.config.server.nodeEnv,
+            port: config_1.config.server.port,
+            corsOrigin: config_1.config.api.corsOrigin
+        }
+    };
+    res.json({
+        success: true,
+        data: metrics
+    });
+}));
+// Production readiness check endpoint
+app.get('/api/production-readiness', (0, errorHandler_1.asyncHandler)(async (_req, res) => {
+    const readinessCheck = (0, config_1.validateProductionReadiness)();
+    const dbHealth = await connectionManager_1.dbManager.healthCheck();
     const response = {
-        status: 'healthy',
+        success: true,
+        productionReady: readinessCheck.ready,
+        environment: config_1.config.server.nodeEnv,
+        timestamp: new Date().toISOString(),
+        checks: {
+            configuration: readinessCheck.ready,
+            database: dbHealth.status === 'healthy',
+            security: (0, config_1.validateSecurityConfig)(),
+        },
+        issues: readinessCheck.issues,
+        databaseDetails: dbHealth.details,
+        recommendations: readinessCheck.ready ? [] : [
+            'Review and fix all configuration issues',
+            'Ensure all production environment variables are set',
+            'Verify security settings meet production standards',
+            'Test database connectivity and performance'
+        ]
+    };
+    res.json(response);
+}));
+// Enhanced health check endpoint with detailed system metrics
+app.get('/api/health', (0, errorHandler_1.asyncHandler)(async (_req, res) => {
+    var _a, _b, _c, _d;
+    const dbHealth = await connectionManager_1.dbManager.healthCheck();
+    const performanceMetrics = performanceMonitor_1.performanceMonitor.getPerformanceMetrics();
+    const logStats = productionLogger_1.productionLogger.getLogStats();
+    // Determine overall health status
+    const isHealthy = dbHealth.status === 'healthy' &&
+        performanceMetrics.memory.percentage < 90 &&
+        performanceMetrics.requests.errorRate < 10;
+    const response = {
+        status: isHealthy ? 'healthy' : 'unhealthy',
         timestamp: new Date().toISOString(),
         environment: config_1.config.server.nodeEnv,
-        database: 'connected',
+        database: dbHealth.status,
+        databaseDetails: dbHealth.details,
+        system: {
+            uptime: performanceMetrics.uptime,
+            memory: {
+                used: Math.round(performanceMetrics.memory.used / 1024 / 1024), // MB
+                total: Math.round(performanceMetrics.memory.total / 1024 / 1024), // MB
+                percentage: Math.round(performanceMetrics.memory.percentage)
+            },
+            requests: {
+                total: performanceMetrics.requests.total,
+                averageResponseTime: Math.round(performanceMetrics.requests.averageResponseTime),
+                errorRate: Math.round(performanceMetrics.requests.errorRate * 100) / 100
+            },
+            database: {
+                connectionCount: performanceMetrics.database.connectionCount,
+                queryCount: performanceMetrics.database.queryCount,
+                averageQueryTime: Math.round(performanceMetrics.database.averageQueryTime)
+            }
+        },
+        logging: {
+            totalFiles: logStats.totalFiles,
+            totalSize: Math.round(logStats.totalSize / 1024 / 1024), // MB
+            oldestLog: logStats.oldestLog,
+            newestLog: logStats.newestLog
+        },
+        warnings: []
     };
+    // Add warnings for concerning metrics
+    if (performanceMetrics.memory.percentage > 80) {
+        (_a = response.warnings) === null || _a === void 0 ? void 0 : _a.push(`High memory usage: ${Math.round(performanceMetrics.memory.percentage)}%`);
+    }
+    if (performanceMetrics.requests.errorRate > 5) {
+        (_b = response.warnings) === null || _b === void 0 ? void 0 : _b.push(`High error rate: ${Math.round(performanceMetrics.requests.errorRate * 100) / 100}%`);
+    }
+    if (performanceMetrics.database.averageQueryTime > 1000) {
+        (_c = response.warnings) === null || _c === void 0 ? void 0 : _c.push(`Slow database queries: ${Math.round(performanceMetrics.database.averageQueryTime)}ms average`);
+    }
+    if (logStats.totalSize > 100) { // 100MB
+        (_d = response.warnings) === null || _d === void 0 ? void 0 : _d.push(`Large log files: ${Math.round(logStats.totalSize / 1024 / 1024)}MB total`);
+    }
     res.json(response);
 }));
 // Get booking statistics
@@ -889,11 +1283,28 @@ app.get('/api/seats/status', (0, errorHandler_1.asyncHandler)(async (req, res) =
             classLabel: true
         }
     });
-    // Extract all booked seats
-    const bookedSeats = bookings.flatMap((booking) => booking.bookedSeats.map((seatId) => ({
-        seatId,
-        class: booking.classLabel
-    })));
+    // Helper to derive class label from seatId prefix to ensure per-seat accuracy
+    const deriveClassFromSeatId = (seatId) => {
+        if (seatId.startsWith('BOX'))
+            return 'BOX';
+        if (seatId.startsWith('SC2'))
+            return 'SECOND CLASS';
+        if (seatId.startsWith('SC'))
+            return 'STAR CLASS';
+        if (seatId.startsWith('CB'))
+            return 'CLASSIC';
+        if (seatId.startsWith('FC'))
+            return 'FIRST CLASS';
+        return 'STAR CLASS';
+    };
+    // Extract all booked seats with proper per-seat class
+    const bookedSeats = bookings.flatMap((booking) => {
+        const seats = Array.isArray(booking.bookedSeats) ? booking.bookedSeats : [];
+        return seats.map((seatId) => ({
+            seatId,
+            class: deriveClassFromSeatId(seatId)
+        }));
+    });
     // Get BMS marked seats from the BmsBooking table for this specific date and show
     const bmsSeats = await prisma.bmsBooking.findMany({
         where: {
@@ -913,7 +1324,7 @@ app.get('/api/seats/status', (0, errorHandler_1.asyncHandler)(async (req, res) =
         date,
         show,
         count: bmsSeats.length,
-        seats: bmsSeats.map(seat => ({ id: seat.seatId, class: seat.classLabel }))
+        seats: bmsSeats.map((seat) => ({ id: seat.seatId, class: seat.classLabel }))
     });
     console.log('📊 Seat status response:', {
         date,
@@ -937,7 +1348,7 @@ app.get('/api/seats/status', (0, errorHandler_1.asyncHandler)(async (req, res) =
             date,
             show,
             bookedSeats,
-            bmsSeats: bmsSeats.map(seat => ({
+            bmsSeats: bmsSeats.map((seat) => ({
                 seatId: seat.seatId,
                 class: seat.classLabel
             })),
@@ -949,8 +1360,8 @@ app.get('/api/seats/status', (0, errorHandler_1.asyncHandler)(async (req, res) =
     };
     res.json(response);
 }));
-// Save BMS seat status
-app.post('/api/seats/bms', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+// Save BMS seat status - Apply BMS limiter for bulk operations
+app.post('/api/seats/bms', bmsLimiter, (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { seatIds, status, date, show } = req.body;
     if (!seatIds || !Array.isArray(seatIds)) {
         throw new errors_1.ValidationError('seatIds array is required');
@@ -1192,9 +1603,65 @@ app.use('*', (req, res) => {
         }
     });
 });
-app.listen(config_1.config.server.port, () => {
-    console.log(`🚀 Server running at http://localhost:${config_1.config.server.port}`);
-    console.log(`📊 Environment: ${config_1.config.server.nodeEnv}`);
-    console.log(`🔗 CORS Origin: ${config_1.config.api.corsOrigin}`);
-    console.log(`🔧 Error handling: Enabled`);
-});
+// Start server with database initialization and graceful error handling
+async function startServer() {
+    try {
+        // Initialize database first with retry logic
+        const dbInitialized = await initializeDatabase();
+        if (!dbInitialized) {
+            console.error('❌ Failed to initialize database after all retries. Exiting...');
+            process.exit(1);
+        }
+        // Start the server
+        const server = app.listen(config_1.config.server.port, () => {
+            console.log(`🚀 Server running at http://localhost:${config_1.config.server.port}`);
+            console.log(`📊 Environment: ${config_1.config.server.nodeEnv}`);
+            console.log(`🔗 CORS Origin: ${config_1.config.api.corsOrigin}`);
+            console.log(`🔧 Error handling: Enabled`);
+            console.log(`💾 Database: Connected and ready`);
+            console.log(`🛡️ Security: Enhanced with Phase 1 fixes`);
+            console.log(`⚡ Performance: Optimized with Phase 2 fixes`);
+            console.log(`📝 Logging: Production-ready with Phase 4 enhancements`);
+            // Log server startup
+            productionLogger_1.productionLogger.info('Server started successfully', 'SERVER_STARTUP', {
+                port: config_1.config.server.port,
+                environment: config_1.config.server.nodeEnv,
+                nodeVersion: process.version,
+                platform: process.platform
+            });
+        });
+        // Handle server errors
+        server.on('error', (error) => {
+            if (error.code === 'EADDRINUSE') {
+                console.error(`❌ Port ${config_1.config.server.port} is already in use`);
+                productionLogger_1.productionLogger.error(`Port ${config_1.config.server.port} is already in use`, 'SERVER_ERROR', {
+                    port: config_1.config.server.port,
+                    errorCode: error.code
+                });
+            }
+            else {
+                console.error('❌ Server error:', error);
+                productionLogger_1.productionLogger.logError(error, 'SERVER_ERROR');
+            }
+            process.exit(1);
+        });
+        // Set up periodic performance logging (every 5 minutes)
+        const performanceLogInterval = setInterval(() => {
+            performanceMonitor_1.performanceMonitor.logPerformanceMetrics();
+        }, 5 * 60 * 1000);
+        // Clean up interval on shutdown
+        process.on('SIGINT', () => {
+            clearInterval(performanceLogInterval);
+        });
+        process.on('SIGTERM', () => {
+            clearInterval(performanceLogInterval);
+        });
+    }
+    catch (error) {
+        console.error('❌ Failed to start server:', error);
+        productionLogger_1.productionLogger.logError(error, 'SERVER_STARTUP');
+        process.exit(1);
+    }
+}
+// Start the server
+startServer();

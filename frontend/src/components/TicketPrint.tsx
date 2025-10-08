@@ -114,11 +114,11 @@ function formatSeatNumbers(seats: number[]): string {
 }
 
 const classColorMap: Record<string, string> = {
-  'BOX': 'bg-cyan-200',
-  'STAR CLASS': 'bg-cyan-400',
-  'CLASSIC': 'bg-yellow-200',
-  'FIRST CLASS': 'bg-pink-300',
-  'SECOND CLASS': 'bg-gray-300',
+  'BOX': 'bg-cyan-200 border-cyan-300 text-cyan-900',
+  'STAR CLASS': 'bg-cyan-400 border-cyan-500 text-white',
+  'CLASSIC': 'bg-yellow-200 border-yellow-300 text-yellow-900',
+  'FIRST CLASS': 'bg-pink-300 border-pink-400 text-pink-900',
+  'SECOND CLASS': 'bg-gray-300 border-gray-400 text-gray-900',
 };
 
 // Save booking to backend
@@ -436,9 +436,9 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
   return (
     <PrintErrorBoundary>
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 w-80 relative flex flex-col h-full" style={{ padding: '8px 8px -8px 8px' }}>
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 relative flex flex-col h-full overflow-hidden" style={{ width: '380px', padding: '5.25px 11px -5.25px 11px' }}>
       
-      <div className="font-semibold text-base px-4 pt-1 pb-2 border-b border-gray-200 mb-2 flex items-center justify-between">
+      <div className="font-semibold text-lg px-4 pt-3 pb-3 border-b border-gray-200 mb-3 flex items-center justify-between bg-gray-50 rounded-t-xl">
         <span className="text-gray-900">Tickets</span>
         <div className="flex items-center gap-2">
           {selectedGroupIdxs.length > 0 && (
@@ -453,12 +453,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
           )}
           {onReset && (
             <button
-              className="text-red-500 hover:text-red-700 flex items-center justify-center ml-2 transition-colors"
+              className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 flex items-center justify-center ml-2 transition-all duration-200 rounded-lg p-2 shadow-sm hover:shadow-md"
               title="Reset all tickets"
               onClick={onReset}
-              style={{ padding: 0 }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 7H3V3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 7a9 9 0 1 1 2.12 9.17" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 7H3V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 7a9 9 0 1 1 2.12 9.17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           )}
         </div>
@@ -467,68 +466,68 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
       
       {/* Scrollable ticket list */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin pr-1 px-2">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-3 pt-2">
         {groups.map((g, idx) => {
           const colorClass = classColorMap[g.classLabel] || 'bg-cyan-300';
           return (
-                          <div
-                key={g.classLabel + g.row + g.seats.join(',')}
-                className={`rounded-lg border border-gray-200 shadow-sm px-3 py-2 mb-2 cursor-pointer relative transition-all duration-200 ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-50 shadow-md scale-[1.02]' : 'hover:shadow-md hover:border-gray-300'} ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
-                onClick={() => toggleGroupSelection(idx)}
-                onDoubleClick={() => handleDoubleClickDecouple(g.seatIds)}
-                title="Click to select for deletion • Double-click to decouple into individual tickets"
-              >
-                {/* Top row: label and checkbox */}
-                <div className="flex items-center justify-between w-full">
-                  <div className="font-semibold text-sm leading-tight text-gray-900">
-                    {g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}
-                    {decoupledSeatIds.some(id => g.seatIds.includes(id)) && (
-                      <span className="ml-2 text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full font-medium">
-                        Individual
-                      </span>
-                    )}
-                    {selectedGroupIdxs.includes(idx) && (
-                      <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium">
-                        Selected
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIdxs.includes(idx)}
-                    onChange={() => toggleGroupSelection(idx)}
-                    className="w-4 h-4 accent-blue-600 cursor-pointer rounded border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
-                    style={{ marginTop: 2 }}
-                    onClick={e => e.stopPropagation()}
-                  />
+            <div
+              key={g.classLabel + g.row + g.seats.join(',')}
+              className={`rounded-lg border border-gray-200 shadow-sm px-3 py-3 mb-2 cursor-pointer relative transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-gray-300 ${colorClass} ${selectedGroupIdxs.includes(idx) ? 'border-blue-500 bg-blue-50 shadow-md scale-[1.02] ring-2 ring-blue-200' : ''} ${decoupledSeatIds.some(id => g.seatIds.includes(id)) ? 'border-orange-400 bg-orange-50' : ''}`}
+              onClick={() => toggleGroupSelection(idx)}
+              onDoubleClick={() => handleDoubleClickDecouple(g.seatIds)}
+              title="Click to select for deletion • Double-click to decouple into individual tickets"
+            >
+              {/* Top row: label and checkbox */}
+              <div className="flex items-center justify-between w-full">
+                <div className="font-bold text-base leading-tight text-gray-900">
+                  {g.classLabel} {g.row.replace(/^[^-]+-/, '')} {formatSeatNumbers(g.seats)}
+                  {decoupledSeatIds.some(id => g.seatIds.includes(id)) && (
+                    <span className="ml-2 text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full font-medium">
+                      Individual
+                    </span>
+                  )}
+                  {selectedGroupIdxs.includes(idx) && (
+                    <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium">
+                      Selected
+                    </span>
+                  )}
                 </div>
-                
-                {/* Bottom row: price and count */}
-                <div className="flex items-end justify-between w-full mt-2">
-                  <div className="text-sm font-medium text-gray-700">Price: <span className="font-bold text-gray-900">₹{g.price}</span></div>
-                  <div className="text-xs font-semibold bg-gray-100 text-gray-700 rounded-full px-2 py-1">{g.seats.length}</div>
-                </div>
+                <input
+                  type="checkbox"
+                  checked={selectedGroupIdxs.includes(idx)}
+                  onChange={() => toggleGroupSelection(idx)}
+                  className="w-4 h-4 accent-blue-600 cursor-pointer rounded border-2 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
+                  style={{ marginTop: 2 }}
+                  onClick={e => e.stopPropagation()}
+                />
               </div>
+              
+              {/* Bottom row: price and count */}
+              <div className="flex items-end justify-between w-full mt-2">
+                <div className="text-sm font-semibold text-gray-800">Price: <span className="font-bold text-lg text-gray-900">₹{g.price}</span></div>
+                <div className="text-xs font-semibold bg-gray-100 text-gray-700 rounded-full px-2 py-1">{g.seats.length}</div>
+              </div>
+            </div>
           );
         })}
         {/* Add spacing below last ticket card */}
-        <div className="mb-2"></div>
+        <div className="mb-0"></div>
       </div>
       
-             {/* Total display - absolutely positioned to align with Delete button */}
-       <div className="absolute left-6 flex items-center gap-3" style={{ top: '460px' }}>
-         <span className="font-semibold text-gray-900">Total:</span>
-         <span className="text-xl font-bold text-gray-900">₹ {total}</span>
-         <span className="text-xs bg-gray-100 text-gray-700 rounded-full px-3 py-1 font-semibold border border-gray-200">
-           {totalTickets} ticket{totalTickets !== 1 ? 's' : ''}
-         </span>
-       </div>
-      
-      {/* Delete button positioned above horizontal line */}
-      <div className="relative w-full">
+      {/* Total and Delete button - integrated naturally */}
+      <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200">
+        {/* Total section */}
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-gray-900">Total:</span>
+          <span className="text-xl font-bold text-gray-900">₹ {total}</span>
+          <span className="text-xs bg-gray-100 text-gray-700 rounded-full px-3 py-1 font-semibold">
+            {totalTickets} ticket{totalTickets !== 1 ? 's' : ''}
+          </span>
+        </div>
+        
+        {/* Delete button */}
         <button
-          className="absolute bg-red-50 text-red-700 hover:bg-red-100 font-medium px-4 py-2 rounded-lg border border-red-200 transition-colors text-sm"
-          style={{ top: '-65px', right: '20px' }}
+          className="bg-red-500 hover:bg-red-600 text-white font-medium px-3 py-2 rounded-lg transition-all duration-200 text-sm"
           onClick={async () => {
             console.log('🗑️ Delete clicked');
             console.log('🗑️ selectedSeats:', selectedSeats);
@@ -569,59 +568,58 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         </button>
       </div>
 
-      {/* Floating split button with full-width lines - outside the padded container */}  
-              <div className="w-full h-40 flex flex-col relative overflow-visible">
-        {/* Full-width horizontal line - extends to edges */}
-        <div className="absolute left-0 h-px bg-gray-300 z-10" style={{ right: '0px', top: '0px' }}></div>
-        
-        {/* Full-height vertical line - extends to edges */}
-        <div className="absolute left-1/2 w-px bg-gray-300 z-10" style={{ transform: 'translateX(-50%)', top: '0px', bottom: '0' }}></div>
-        
-        {/* Container for both buttons to ensure full height coverage */}
-        <div className="w-full h-full flex">
-        
-        {/* Left side - Lightning (Seat Grid) - Clickable */}
-        <button
-          className={`w-1/2 h-full transition-colors cursor-pointer flex items-center justify-center ${
-            selectedSeats.length > 0 
-              ? 'bg-transparent hover:bg-gray-50' 
-              : 'bg-gray-100 cursor-not-allowed'
-          }`}
-          onClick={() => {
-            if (selectedSeats.length === 0) {
-              console.log('❌ No tickets selected - cannot navigate to seat grid');
-              return;
-            }
-            
-            console.log('⚡ Lightning button clicked - navigate to seat grid');
-            if (onNavigateToSeatGrid) {
-              onNavigateToSeatGrid();
-            }
-          }}
-        >
-          <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-          </svg>
-        </button>
-        
-        {/* Right side - Printer (Print) - Clickable */}
-        <button
-          className="w-1/2 h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-center"
-          onClick={() => {
-            console.log('🖨️ Print button clicked');
-            if (selectedSeats.length === 0) {
-              console.log('❌ No tickets to print');
-              return;
-            }
-            
-            handleConfirmPrint();
-          }}
-        >
-          <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
-          </svg>
-        </button>
-      </div>
+      {/* Enhanced action buttons with labels */}
+      <div className="w-full h-44 flex flex-col relative overflow-visible">
+        <div className="flex-1 flex bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          
+          {/* Seat Grid Button */}
+          <button
+            className={`flex-1 flex flex-col items-center justify-center border-r border-gray-200 transition-all duration-200 ${
+              selectedSeats.length > 0 
+                ? 'bg-blue-50 hover:bg-blue-100 text-blue-700' 
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
+            onClick={() => {
+              if (selectedSeats.length === 0) {
+                console.log('❌ No tickets selected - cannot navigate to seat grid');
+                return;
+              }
+              
+              console.log('⚡ Lightning button clicked - navigate to seat grid');
+              if (onNavigateToSeatGrid) {
+                onNavigateToSeatGrid();
+              }
+            }}
+          >
+            <div className="w-6 h-6 mb-2">
+              <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-medium">View Seats</span>
+          </button>
+          
+          {/* Print Button */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 transition-all duration-200"
+            onClick={() => {
+              console.log('🖨️ Print button clicked');
+              if (selectedSeats.length === 0) {
+                console.log('❌ No tickets to print');
+                return;
+              }
+              
+              handleConfirmPrint();
+            }}
+          >
+            <div className="w-6 h-6 mb-2">
+              <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-medium">Print Now</span>
+          </button>
+        </div>
       </div>
       
 

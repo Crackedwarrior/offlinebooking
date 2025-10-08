@@ -9,6 +9,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const ticketIdService_1 = __importDefault(require("./ticketIdService"));
+const theaterConfig_1 = require("./config/theaterConfig");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 class PdfPrintService {
     constructor() {
@@ -94,11 +95,60 @@ class PdfPrintService {
             margins: {
                 top: 5,
                 bottom: 5,
-                left: 55, // Even more left margin to move content further right
-                right: 5 // Minimal right margin
+                left: 0, // Even more left margin to move content further right
+                right: 0 // Minimal right margin
             },
             layout: 'portrait' // Force portrait orientation for vertical printing
         });
+        // Register Kannada fonts for rupee symbol support (copied from Kannada service)
+        let regularFontRegistered = false;
+        let boldFontRegistered = false;
+        // In production, fonts are in the same directory as the service
+        // In development, fonts are in the parent directory
+        const isProduction = process.env.NODE_ENV === 'production';
+        const fontDir = isProduction ? path_1.default.join(__dirname, 'fonts') : path_1.default.join(__dirname, '..', 'fonts');
+        const regularFontPath = path_1.default.join(fontDir, 'NotoSansKannada-Regular.ttf');
+        const boldFontPath = path_1.default.join(fontDir, 'NotoSansKannada-Bold.ttf');
+        if (fs_1.default.existsSync(regularFontPath)) {
+            try {
+                doc.registerFont('NotoSansKannada', regularFontPath);
+                regularFontRegistered = true;
+                console.log('✅ Registered NotoSansKannada font in English service');
+            }
+            catch (error) {
+                console.log('❌ Failed to register NotoSansKannada font:', error.message);
+            }
+        }
+        else {
+            console.log('❌ Regular font not found!');
+        }
+        if (fs_1.default.existsSync(boldFontPath)) {
+            try {
+                doc.registerFont('NotoSansKannada-Bold', boldFontPath);
+                boldFontRegistered = true;
+                console.log('✅ Registered NotoSansKannada-Bold font in English service');
+            }
+            catch (error) {
+                console.log('❌ Failed to register NotoSansKannada-Bold font:', error.message);
+            }
+        }
+        else {
+            console.log('❌ Bold font not found!');
+        }
+        // Safe font function (copied from Kannada service)
+        const getSafeFont = (isBold = false) => {
+            if (isBold && boldFontRegistered) {
+                return 'NotoSansKannada-Bold';
+            }
+            else if (regularFontRegistered) {
+                return 'NotoSansKannada';
+            }
+            else {
+                return isBold ? 'Helvetica-Bold' : 'Helvetica';
+            }
+        };
+        // Rupee symbol
+        const rupeeSymbol = '₹';
         // Pipe the PDF to a file
         const outputPath = path_1.default.join(this.tempDir, `ticket_${Date.now()}.pdf`);
         const stream = fs_1.default.createWriteStream(outputPath);
@@ -107,89 +157,272 @@ class PdfPrintService {
         const titleFontSize = 12;
         const normalFontSize = 10;
         const smallFontSize = 8;
+        // Positioning offsets - change these to move entire ticket
+        const LEFT_OFFSET = 39; // Moved 2mm to left (6 points from 45 to 39)
+        const TEXT_OFFSET = 44; // Moved 2mm to left (6 points from 50 to 44)
+        const RIGHT_OFFSET = 94; // Moved 2mm to left (6 points from 100 to 94)
+        const SNO_OFFSET = 114; // Moved 2mm to left (6 points from 120 to 114)
         let currentY = 10;
         // Header box with theater info
-        doc.rect(55, 5, 170, 65).stroke(); // Moved right and reduced width to ensure right line is visible
+        doc.rect(LEFT_OFFSET, 5, 170, 65).stroke(); // Moved right and reduced width to ensure right line is visible
         // Bold AND italic theater name (flowing, calligraphy-like)
         doc.fontSize(16).font('Times-BoldItalic'); // Bold + Italic for prominence and elegance
-        doc.text(ticketData.theaterName || 'SREELEKHA THEATER', 55, 12, {
+        doc.text(ticketData.theaterName || (0, theaterConfig_1.getTheaterConfig)().name, LEFT_OFFSET, 12, {
             width: 176,
             align: 'center',
             characterSpacing: 1 // Back to original character spacing
         });
         doc.fontSize(normalFontSize).font('Helvetica');
-        doc.text(ticketData.location || 'Chikmagalur', 55, 46, { width: 176, align: 'center' }); // Wider text area, aligned with box
-        doc.text(`GSTIN: ${ticketData.gstin || '29AAVFS7423E120'}`, 55, 58, { width: 176, align: 'center' }); // Wider text area, aligned with box
+        doc.text(ticketData.location || (0, theaterConfig_1.getTheaterConfig)().location, LEFT_OFFSET, 46, { width: 176, align: 'center' }); // Wider text area, aligned with box
+        doc.text(`GSTIN: ${ticketData.gstin || (0, theaterConfig_1.getTheaterConfig)().gstin}`, LEFT_OFFSET, 58, { width: 176, align: 'center' }); // Wider text area, aligned with box
         currentY = 75;
         // Date and Show info - adjusted spacing for larger fonts
         doc.fontSize(normalFontSize).font('Times-Bold'); // Same font family as theater name, no italic
-        doc.text(`DATE: ${ticketData.date || new Date().toLocaleDateString()}`, 60, currentY);
-        doc.fontSize(7).font('Helvetica'); // Slightly reduced font size for S.No
-        // Format time to exclude seconds
-        const formattedTime = (ticketData.currentTime || new Date().toLocaleTimeString()).split(':').slice(0, 2).join(':');
-        doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, 145, currentY + 1); // Moved right for better positioning
+        doc.text(`DATE: ${ticketData.date || new Date().toLocaleDateString()}`, TEXT_OFFSET, currentY);
+        doc.fontSize(6).font('Helvetica'); // Further reduced font size for S.No
+        // Format time with AM/PM
+        const formattedTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        console.log('🔧 SNO_OFFSET DEBUG:', { SNO_OFFSET, currentY, formattedTime });
+        doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, SNO_OFFSET + 12, currentY + 1); // Separate S.No control (moved 4mm to right total: 6 + 6 = 12)
         currentY += 15;
         // Movie name - with word wrapping for longer names
         doc.fontSize(normalFontSize).font('Times-Bold'); // Same font family as theater name, no italic
-        doc.text(`FILM: ${ticketData.movieName || 'Movie Name'}`, 60, currentY, {
+        doc.text(`FILM: ${ticketData.movieName || 'Movie Name'}`, TEXT_OFFSET, currentY, {
             width: 160, // Set width to enable word wrapping
             align: 'left'
         });
         currentY += 25; // More space to accommodate potential wrapping
         doc.fontSize(normalFontSize).font('Helvetica');
-        doc.text(`${ticketData.showClass || 'MATINEE SHOW'} (${ticketData.showTime || '02:45PM'})`, 60, currentY);
+        doc.text(`${ticketData.showClass} (${ticketData.showTime})`, TEXT_OFFSET, currentY);
         currentY += 18;
         // HIGHLIGHT: Seat info box - prominent display like reference ticket
-        doc.rect(55, currentY, 170, 55).stroke(); // Moved right and reduced width to ensure right line is visible
-        doc.fontSize(titleFontSize).font('Times-Bold'); // Keep original font size
-        doc.text(`CLASS : ${ticketData.seatClass || 'STAR'}`, 60, currentY + 10, {
+        doc.rect(LEFT_OFFSET, currentY, 170, 55).stroke(); // Moved right and reduced width to ensure right line is visible
+        doc.fontSize(14).font('Times-Bold'); // Match Kannada print font size for CLASS/SEAT
+        doc.text(`CLASS : ${ticketData.seatClass}`, TEXT_OFFSET, currentY + 10, {
             width: 176,
             characterSpacing: -0.5 // Tighter character spacing for longer text
         }); // Moved right
-        doc.fontSize(titleFontSize).font('Times-Bold'); // Same font family as theater name, no italic
-        doc.text(`SEAT  : ${ticketData.seatInfo || 'A 1'}`, 60, currentY + 32); // Aligned semicolon with CLASS
+        doc.fontSize(14).font('Times-Bold'); // Match Kannada print font size for CLASS/SEAT
+        doc.text(`SEAT  : ${ticketData.seatInfo || 'A 1'}`, TEXT_OFFSET, currentY + 32); // Aligned semicolon with CLASS
         currentY += 60; // Adjusted for taller box
-        // Price breakdown - compact horizontal layout (2x2 format) with better alignment
+        // Price breakdown - compact horizontal layout (2x2 format) with aligned semicolons
         doc.fontSize(smallFontSize).font('Helvetica');
         const priceStartY = currentY;
-        // Align colons by using consistent spacing
-        doc.text(`[NET  : ${(ticketData.net || '125.12').padStart(6)}]  [CGST : ${(ticketData.cgst || '11.44').padStart(7)}]`, 60, currentY);
+        // Calculate widths for proper semicolon alignment
+        const netText = 'NET';
+        const cgstText = 'CGST';
+        const sgstText = 'SGST';
+        const mcText = 'MC';
+        const netTextWidth = doc.widthOfString(netText);
+        const cgstTextWidth = doc.widthOfString(cgstText);
+        const sgstTextWidth = doc.widthOfString(sgstText);
+        const mcTextWidth = doc.widthOfString(mcText);
+        const maxLeftTextWidth = Math.max(netTextWidth, sgstTextWidth);
+        const maxRightTextWidth = Math.max(cgstTextWidth, mcTextWidth);
+        const leftColonX = TEXT_OFFSET + maxLeftTextWidth;
+        const rightColonX = TEXT_OFFSET + maxLeftTextWidth + 50 + maxRightTextWidth; // 50px gap between columns to prevent overlap
+        // First row: NET and CGST
+        doc.text(netText, TEXT_OFFSET, currentY);
+        doc.text(':', leftColonX, currentY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.net || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.net}`, leftColonX + 5, currentY);
+        doc.font('Helvetica').text(cgstText, TEXT_OFFSET + maxLeftTextWidth + 50, currentY);
+        doc.text(':', rightColonX, currentY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.cgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.cgst}`, rightColonX + 5, currentY);
         currentY += 12;
-        doc.text(`[SGST : ${(ticketData.sgst || '11.44').padStart(6)}]  [MC   : ${(ticketData.mc || '2.00').padStart(7)}]`, 60, currentY);
+        // Second row: SGST and MC
+        doc.font('Helvetica').text(sgstText, TEXT_OFFSET, currentY);
+        doc.text(':', leftColonX, currentY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.sgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.sgst}`, leftColonX + 5, currentY);
+        doc.font('Helvetica').text(mcText, TEXT_OFFSET + maxLeftTextWidth + 50, currentY);
+        doc.text(':', rightColonX, currentY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.mc || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.mc}`, rightColonX + 5, currentY);
         currentY += 12;
-        doc.text(`[TICKET COST: Rs.${(ticketData.totalAmount || '150.00').padStart(6)}]`, 60, currentY); // Using Rs. instead of ₹
+        // Use pre-calculated individual ticket price from formatTicket
+        const ticketCostFormatted = ticketData.individualTicketPrice || '0.00';
+        console.log('🖨️ RENDER COST LINE:', {
+            individualTicketPrice: ticketCostFormatted
+        });
+        // Split TICKET COST text: use Times-Bold for label and NotoSansKannada-Bold for amount
+        const ticketCostLabel = "TICKET COST (per seat):";
+        const ticketCostAmount = `${rupeeSymbol}${ticketCostFormatted}`;
+        // Calculate positions for left-aligned text
+        doc.fontSize(normalFontSize).font('Times-Bold');
+        const ticketCostLabelWidth = doc.widthOfString(ticketCostLabel);
+        doc.fontSize(normalFontSize).font(getSafeFont(true));
+        const ticketCostAmountWidth = doc.widthOfString(ticketCostAmount);
+        // Draw "TICKET COST (per seat):" with Times-Bold
+        doc.fontSize(normalFontSize).font('Times-Bold');
+        doc.text(ticketCostLabel, TEXT_OFFSET, currentY);
+        // Draw amount with NotoSansKannada-Bold (supports rupee symbol)
+        doc.fontSize(normalFontSize).font(getSafeFont(true));
+        doc.text(ticketCostAmount, TEXT_OFFSET + ticketCostLabelWidth, currentY);
+        doc.font('Helvetica');
         currentY += 18; // More spacing before total box
         // Total price box - full width, prominent display
-        doc.rect(55, priceStartY + 36, 170, 40).stroke(); // Moved right and reduced width to ensure right line is visible
-        doc.fontSize(titleFontSize).font('Times-Bold'); // Same font family as theater name, no italic
-        doc.text(`TOTAL: Rs.${ticketData.totalAmount || '150.00'}`, 55, priceStartY + 51, { width: 176, align: 'center' }); // Centered, prominent text
+        doc.rect(LEFT_OFFSET, priceStartY + 36, 170, 40).stroke(); // Moved right and reduced width to ensure right line is visible
+        // Split TOTAL text: use Times-Bold for "TOTAL:" and NotoSansKannada-Bold for amount
+        const totalText = "TOTAL:";
+        const totalAmount = `${rupeeSymbol}${ticketData.totalAmount || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.totalAmount}`;
+        // Calculate positions for centered text
+        doc.fontSize(titleFontSize).font('Times-Bold');
+        const totalTextWidth = doc.widthOfString(totalText);
+        doc.fontSize(titleFontSize).font(getSafeFont(true));
+        const totalAmountWidth = doc.widthOfString(totalAmount);
+        const totalCombinedWidth = totalTextWidth + totalAmountWidth;
+        const totalStartX = LEFT_OFFSET + (176 - totalCombinedWidth) / 2;
+        const totalY = priceStartY + 51;
+        // Draw "TOTAL:" with Times-Bold
+        doc.fontSize(titleFontSize).font('Times-Bold');
+        doc.text(totalText, totalStartX, totalY);
+        // Draw amount with NotoSansKannada-Bold (supports rupee symbol) - fallback to Times-Bold if not available
+        try {
+            doc.fontSize(titleFontSize).font(getSafeFont(true));
+        }
+        catch (error) {
+            doc.fontSize(titleFontSize).font('Times-Bold');
+        }
+        doc.text(totalAmount, totalStartX + totalTextWidth, totalY);
+        // === STUB SECTION === (matching Kannada layout)
         currentY = priceStartY + 86; // Move tear-off line closer to total box
-        // Tear-off line (dotted/dashed line) - shorter to fit on one line
-        doc.fontSize(smallFontSize).font('Helvetica');
-        doc.text('- - - - - - - - - - - - - - - - - - - - - - - - - -', 60, currentY, { width: 156, align: 'center' });
-        currentY += 10; // Less space after tear-off line
-        // COMPACT STUB SECTION (for theater staff)
-        // Theater name compact - bold and italic
+        currentY += 4.2; // Move both tear line and theater name down by 1.4mm total (4.2 points)
+        // === TEAR-OFF LINE === (round dots, positioned above theater name)
+        const drawRoundDotsLine = (startX, y, endX, endY) => {
+            const dotSpacing = 3;
+            const dotRadius = 0.5;
+            for (let x = startX; x <= endX; x += dotSpacing) {
+                doc.circle(x, y, dotRadius).fill();
+            }
+        };
+        drawRoundDotsLine(LEFT_OFFSET, currentY, LEFT_OFFSET + 170, currentY);
+        currentY += 5; // Small gap after tear line, close to theater name
+        // Theater name on one line in stub (matching Kannada font size and bold)
         doc.fontSize(normalFontSize).font('Times-BoldItalic');
-        doc.text(ticketData.theaterName || 'SREELEKHA THEATER', 60, currentY, { width: 156, align: 'center' });
-        currentY += 12;
-        // Essential info in compact form
-        doc.fontSize(smallFontSize).font('Helvetica');
-        doc.text(`${ticketData.date || new Date().toLocaleDateString()} ${ticketData.showClass || 'MATINEE SHOW'}`, 60, currentY, { width: 156, align: 'center' });
-        currentY += 12;
-        doc.text(`FILM: ${ticketData.movieName || 'Movie Name'}`, 60, currentY, { width: 156, align: 'center' });
-        currentY += 18; // More space for longer movie names that may wrap
-        // Split CLASS and SEAT into separate lines to handle longer class names
-        doc.text(`CLASS: ${ticketData.seatClass || 'STAR'}`, 60, currentY, { width: 156, align: 'center' });
-        currentY += 10;
-        doc.text(`SEAT: ${ticketData.seatInfo || 'A 1'}`, 60, currentY, { width: 156, align: 'center' });
-        currentY += 12;
-        // Tax breakdown in horizontal format
-        doc.text(`NET:${ticketData.net || '125.12'} CGST:${ticketData.cgst || '11.44'} SGST:${ticketData.sgst || '11.44'} MC:${ticketData.mc || '2.00'}`, 60, currentY, { width: 156, align: 'center' });
-        currentY += 18; // More spacing between MC and TOTAL
-        doc.text(`TOTAL: Rs.${ticketData.totalAmount || '150.00'}`, 60, currentY, { width: 156, align: 'center' });
+        const theaterNameText = ticketData.theaterName || (0, theaterConfig_1.getTheaterConfig)().name;
+        const theaterNameWidth = doc.widthOfString(theaterNameText);
+        const centerX = LEFT_OFFSET + 85; // Center of the ticket
+        const theaterNameX = centerX - (theaterNameWidth / 2);
+        doc.text(theaterNameText, theaterNameX, currentY);
+        currentY += normalFontSize + 6; // Reduced gap from 8 to 6
+        // Movie name with two-line support (matching Kannada layout)
+        doc.fontSize(smallFontSize).font('Times-Bold'); // Use smaller font for stub
+        const stubMovieText = ticketData.movieName || 'Movie Name';
+        const stubMovieTextWidth = doc.widthOfString(stubMovieText);
+        const availableStubWidth = 150; // Available width for stub movie name
+        currentY -= 1.2; // Move movie name up by 0.4mm total (1.2 points)
+        // Check if movie name fits on one line in stub
+        if (stubMovieTextWidth <= availableStubWidth) {
+            // Single line - center the movie name
+            const stubMovieX = centerX - (stubMovieTextWidth / 2);
+            doc.text(stubMovieText, stubMovieX, currentY);
+        }
+        else {
+            // Two lines - split movie name
+            const words = stubMovieText.split(' ');
+            const midPoint = Math.ceil(words.length / 2);
+            const firstLine = words.slice(0, midPoint).join(' ');
+            const secondLine = words.slice(midPoint).join(' ');
+            // Center both lines
+            const firstLineWidth = doc.widthOfString(firstLine);
+            const secondLineWidth = doc.widthOfString(secondLine);
+            const firstLineX = centerX - (firstLineWidth / 2);
+            const secondLineX = centerX - (secondLineWidth / 2);
+            // Draw first line
+            doc.text(firstLine, firstLineX, currentY);
+            // Draw second line
+            doc.text(secondLine, secondLineX, currentY + smallFontSize + 2);
+            currentY += smallFontSize + 2; // Adjust for second line
+        }
+        currentY += normalFontSize + 6; // Reduced gap from 8 to 6
+        // Stub date and time - reduced gap between movie name and date (matching Kannada alignment)
+        currentY -= 3; // Reduce gap by 3px (total reduction of 5px)
+        doc.fontSize(smallFontSize).font('Times-Bold'); // Make DATE label bold
+        const stubDateLabelText = 'DATE: ';
+        const stubDateLabelWidth = doc.widthOfString(stubDateLabelText);
+        const stubDateValueWidth = doc.widthOfString(`${ticketData.date || new Date().toLocaleDateString()}`);
+        const stubDateTextWidth = stubDateLabelWidth + stubDateValueWidth;
+        const stubDateX = centerX - (stubDateTextWidth / 2) - 50;
+        const movedStubDateX = stubDateX + 3; // Moved left by 2mm (6 points) - reduced from 9 to 3
+        doc.text(stubDateLabelText, movedStubDateX, currentY + 0.75); // Moved right by 1mm and down by 0.25mm (0.75 points)
+        doc.font('Times-Bold').text(`${ticketData.date || new Date().toLocaleDateString()}`, movedStubDateX + stubDateLabelWidth + 0.9, currentY + 0.75); // Aligned date value with label Y position
+        const stubDateEndX = movedStubDateX + stubDateLabelWidth + 0.9 + stubDateValueWidth; // Updated end position
+        const stubShowLabelText = `${ticketData.showClass}: `;
+        doc.font('Times-Bold'); // Make show label bold
+        const stubShowLabelWidth = doc.widthOfString(stubShowLabelText);
+        doc.text(stubShowLabelText, stubDateEndX + 10 - 7, currentY); // Moved right by 1mm (3 points) - adjusted positioning
+        doc.font('Helvetica').text(`${ticketData.showTime || '02:45 PM'}`, stubDateEndX + 10 - 7 + stubShowLabelWidth, currentY);
         currentY += 15;
-        doc.text(`${ticketData.ticketId || 'TKT1000000'} ${formattedTime}`, 60, currentY, { width: 156, align: 'center' });
+        currentY -= 0.6; // Move class/seat line up by 0.2mm (0.6 points)
+        // CLASS and SEAT on same line (matching Kannada format)
+        doc.fontSize(8).font('Helvetica'); // Match Kannada print font size for stub CLASS/SEAT
+        const classSeatText = `CLASS: ${ticketData.seatClass} | SEAT: ${ticketData.seatInfo || 'A 1'}`;
+        const classSeatWidth = doc.widthOfString(classSeatText);
+        const classSeatX = centerX - (classSeatWidth / 2);
+        doc.text(classSeatText, classSeatX, currentY);
+        currentY += smallFontSize + 5;
+        // Stub tax breakdown (matching Kannada vertical layout)
+        currentY += 1.5; // Add 0.5mm space between CLASS and GST calculations (1.5 points)
+        const stubTaxY = currentY;
+        const stubTaxStartX = LEFT_OFFSET + 21; // Moved further left by 0.2mm (0.6 points from 24 to 21)
+        const stubTaxSpacing = 35;
+        doc.fontSize(smallFontSize);
+        doc.font('Helvetica').text('NET:', stubTaxStartX, stubTaxY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.net || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.net}`, stubTaxStartX, stubTaxY + 8);
+        doc.font('Helvetica').text('CGST:', stubTaxStartX + stubTaxSpacing, stubTaxY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.cgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.cgst}`, stubTaxStartX + stubTaxSpacing, stubTaxY + 8);
+        doc.font('Helvetica').text('SGST:', stubTaxStartX + (stubTaxSpacing * 2) + 0.3, stubTaxY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.sgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.sgst}`, stubTaxStartX + (stubTaxSpacing * 2) + 0.3, stubTaxY + 8);
+        doc.font('Helvetica').text('MC:', stubTaxStartX + (stubTaxSpacing * 3) + 0.3, stubTaxY);
+        doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.mc || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.mc}`, stubTaxStartX + (stubTaxSpacing * 3) + 0.3, stubTaxY + 8);
+        currentY = stubTaxY + 20;
+        // Stub ticket price (matching Kannada positioning) - split font approach
+        const stubTicketCostLabel = "TICKET COST (per seat):";
+        const stubTicketCostAmount = `${rupeeSymbol}${ticketData.individualTicketPrice || '0.00'}`;
+        // Calculate positions for centered text
+        doc.fontSize(smallFontSize).font('Times-Bold');
+        const stubTicketCostLabelWidth = doc.widthOfString(stubTicketCostLabel);
+        doc.fontSize(smallFontSize).font(getSafeFont(true));
+        const stubTicketCostAmountWidth = doc.widthOfString(stubTicketCostAmount);
+        const stubTicketCostCombinedWidth = stubTicketCostLabelWidth + stubTicketCostAmountWidth;
+        const stubTicketCostStartX = centerX - (stubTicketCostCombinedWidth / 2) - 0.6; // Moved left by 0.2mm (0.6 points)
+        // Draw "TICKET COST (per seat):" with Times-Bold
+        doc.fontSize(smallFontSize).font('Times-Bold');
+        doc.text(stubTicketCostLabel, stubTicketCostStartX, currentY);
+        // Draw amount with NotoSansKannada-Bold (supports rupee symbol)
+        doc.fontSize(smallFontSize).font(getSafeFont(true));
+        doc.text(stubTicketCostAmount, stubTicketCostStartX + stubTicketCostLabelWidth, currentY);
+        currentY += smallFontSize + 5;
+        // Stub total (matching Kannada positioning and font size)
+        const stubTotalFontSize = normalFontSize + 2; // Slightly bigger than normal but not as big as title
+        // Split stub TOTAL text: use Times-Bold for "TOTAL:" and NotoSansKannada-Bold for amount
+        const stubTotalText = "TOTAL:";
+        const stubTotalAmount = `${rupeeSymbol}${ticketData.totalAmount || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.totalAmount}`;
+        // Calculate positions for centered text
+        doc.fontSize(stubTotalFontSize).font('Times-Bold');
+        const stubTotalTextWidth = doc.widthOfString(stubTotalText);
+        doc.fontSize(stubTotalFontSize).font(getSafeFont(true));
+        const stubTotalAmountWidth = doc.widthOfString(stubTotalAmount);
+        const stubTotalCombinedWidth = stubTotalTextWidth + stubTotalAmountWidth;
+        const stubTotalStartX = centerX - (stubTotalCombinedWidth / 2) - 0.6; // Moved left by 0.2mm (0.6 points)
+        // Draw "TOTAL:" with Times-Bold
+        doc.fontSize(stubTotalFontSize).font('Times-Bold');
+        doc.text(stubTotalText, stubTotalStartX, currentY);
+        // Draw amount with NotoSansKannada-Bold (supports rupee symbol) - fallback to Times-Bold if not available
+        try {
+            doc.fontSize(stubTotalFontSize).font(getSafeFont(true));
+        }
+        catch (error) {
+            doc.fontSize(stubTotalFontSize).font('Times-Bold');
+        }
+        doc.text(stubTotalAmount, stubTotalStartX + stubTotalTextWidth, currentY);
+        currentY += stubTotalFontSize + 5;
+        // Stub S.No and print time (matching Kannada corner positioning with font size 6)
+        const stubTicketId = `S.No: ${ticketData.ticketId || 'TKT1000000'}`;
+        const stubPrintTime = formattedTime;
+        doc.fontSize(6).font('Helvetica'); // Font size 6 as requested
+        doc.text(stubTicketId, LEFT_OFFSET - 5, currentY); // Moved more to left corner
+        const stubPrintTimeWidth = doc.widthOfString(stubPrintTime);
+        const stubPrintTimeX = LEFT_OFFSET + 170 - stubPrintTimeWidth + 5; // Moved more to right corner
+        doc.text(stubPrintTime, stubPrintTimeX, currentY);
         // Finalize the PDF
         doc.end();
         return new Promise((resolve, reject) => {
@@ -202,6 +435,9 @@ class PdfPrintService {
     }
     // Print ticket using PDF generation
     async printTicket(ticketData, printerName = null) {
+        console.log('🔤 PdfPrintService.printTicket called! (ENGLISH SERVICE)');
+        console.log('🔤 This should NOT be called for Kannada tickets!');
+        console.log('🔤 Ticket data received:', ticketData);
         try {
             // Auto-detect printer if not specified
             if (!printerName) {
@@ -219,17 +455,38 @@ class PdfPrintService {
             // Generate PDF
             const pdfPath = await this.createPDFTicket(formattedTicket);
             console.log(`💾 PDF file created: ${pdfPath}`);
-            // Print using SumatraPDF
+            // Print using SumatraPDF with enhanced detection
             try {
                 console.log(`🖨️ Printing with SumatraPDF: ${printerName}`);
-                // Try primary SumatraPDF path
-                const primaryPath = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
-                const secondaryPath = 'C:\\Users\\Hi\\AppData\\Local\\SumatraPDF\\SumatraPDF.exe';
-                let sumatraPath = primaryPath;
-                if (!fs_1.default.existsSync(primaryPath)) {
-                    sumatraPath = secondaryPath;
+                // Validate printer name to prevent command injection
+                if (!printerName || printerName.includes('"') || printerName.includes(';') || printerName.includes('|') || printerName.includes('&')) {
+                    throw new Error('Invalid printer name: contains forbidden characters');
                 }
-                const printCommand = `"${sumatraPath}" -print-to-default "${pdfPath}"`;
+                // Enhanced SumatraPDF detection with multiple paths
+                const sumatraPaths = [
+                    'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe',
+                    'C:\\Program Files (x86)\\SumatraPDF\\SumatraPDF.exe',
+                    path_1.default.join(process.env.LOCALAPPDATA || '', 'SumatraPDF\\SumatraPDF.exe'),
+                    path_1.default.join(process.env.USERPROFILE || '', 'AppData\\Local\\SumatraPDF\\SumatraPDF.exe'),
+                    'C:\\Users\\Hi\\AppData\\Local\\SumatraPDF\\SumatraPDF.exe',
+                    path_1.default.join(process.env.PROGRAMFILES || '', 'SumatraPDF\\SumatraPDF.exe'),
+                    path_1.default.join(process.env['PROGRAMFILES(X86)'] || '', 'SumatraPDF\\SumatraPDF.exe')
+                ];
+                let sumatraPath = null;
+                for (const testPath of sumatraPaths) {
+                    console.log(`🔍 Checking SumatraPDF path: ${testPath}`);
+                    if (fs_1.default.existsSync(testPath)) {
+                        sumatraPath = testPath;
+                        console.log(`✅ Found SumatraPDF at: ${testPath}`);
+                        break;
+                    }
+                }
+                if (!sumatraPath) {
+                    throw new Error('SumatraPDF not found. Please install SumatraPDF from https://www.sumatrapdfreader.org/download-free-pdf-viewer.html');
+                }
+                // Use specific printer instead of default
+                const printCommand = `"${sumatraPath}" -print-to "${printerName}" "${pdfPath}"`;
+                console.log(`🖨️ Executing command: ${printCommand}`);
                 await execAsync(printCommand, { windowsHide: true });
                 console.log(`✅ Print command sent successfully via SumatraPDF!`);
                 // Clean up PDF file after a delay
@@ -282,22 +539,50 @@ class PdfPrintService {
             };
         }
     }
+    // Test function for time format - can be called for debugging
+    testTimeFormat() {
+        console.log('🕐 TIME FORMAT TEST - English PDF Service:');
+        const testTimes = [
+            new Date('2024-01-01T06:00:00'), // 6:00 AM
+            new Date('2024-01-01T12:00:00'), // 12:00 PM
+            new Date('2024-01-01T18:00:00'), // 6:00 PM
+            new Date('2024-01-01T00:00:00'), // 12:00 AM
+            new Date('2024-01-01T14:30:00'), // 2:30 PM
+        ];
+        testTimes.forEach((date, index) => {
+            const formatted = date.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+            console.log(`🕐 Test ${index + 1}: ${date.toISOString()} → "${formatted}"`);
+        });
+        // Test current time
+        const now = new Date();
+        const currentFormatted = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        console.log(`🕐 Current time: ${now.toISOString()} → "${currentFormatted}"`);
+    }
     // Format ticket data for printing - Map frontend data to correct format
     formatTicket(ticketData) {
         console.log('🔧 Raw ticket data received:', JSON.stringify(ticketData, null, 2));
         // Handle different data structures from frontend
         let movieName = 'Movie';
         let showTime = '02:45PM';
-        let showClass = 'MATINEE SHOW';
+        let showClass = 'UNKNOWN SHOW';
         let date = new Date().toLocaleDateString();
         let totalAmount = 0;
-        let seatClass = 'STAR';
-        let seatInfo = 'A 1';
-        let net = '125.12';
-        let cgst = '11.44';
-        let sgst = '11.44';
+        let seatClass = 'UNKNOWN'; // FALLBACK - will be overridden if data is properly extracted
+        let seatInfo = 'A 1'; // FALLBACK - will be overridden if data is properly extracted
+        // Use tax values from frontend if available, otherwise use defaults
+        let net = ticketData.net || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.net;
+        let cgst = ticketData.cgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.cgst;
+        let sgst = ticketData.sgst || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.sgst;
         let ticketId = 'TKT1000000';
-        let currentTime = new Date().toLocaleTimeString().split(':').slice(0, 2).join(':');
+        // Test time format first
+        this.testTimeFormat();
+        let currentTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        console.log('🕐 CURRENT TIME DEBUG - English PDF Service:');
+        console.log('🕐 new Date():', new Date());
+        console.log('🕐 new Date().toISOString():', new Date().toISOString());
+        console.log('🕐 toLocaleTimeString result:', currentTime);
+        console.log('🕐 typeof currentTime:', typeof currentTime);
+        console.log('🕐 currentTime length:', currentTime.length);
         // Extract data from frontend format
         if (ticketData.movie) {
             movieName = ticketData.movie;
@@ -309,19 +594,32 @@ class PdfPrintService {
         if (ticketData.movieLanguage) {
             movieName = `${movieName} (${ticketData.movieLanguage})`;
         }
-        if (ticketData.show) {
-            // Convert show key to time format
-            const showMap = {
-                'MATINEE': { time: '02:45PM', class: 'MATINEE SHOW' },
-                'EVENING': { time: '06:00PM', class: 'EVENING SHOW' },
-                'NIGHT': { time: '09:30PM', class: 'NIGHT SHOW' }
-            };
-            const showInfo = showMap[ticketData.show] || { time: '02:45PM', class: 'MATINEE SHOW' };
-            showTime = showInfo.time;
-            showClass = showInfo.class;
-        }
-        else if (ticketData.showTime) {
+        // Prefer provided fields but normalize show label from time if present
+        if (ticketData.showTime) {
             showTime = ticketData.showTime;
+            const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (m) {
+                let hour = parseInt(m[1], 10);
+                const period = m[3].toUpperCase();
+                if (period === 'PM' && hour !== 12)
+                    hour += 12;
+                if (period === 'AM' && hour === 12)
+                    hour = 0;
+                if (hour < 12)
+                    showClass = 'MORNING SHOW';
+                else if (hour < 17)
+                    showClass = 'MATINEE SHOW';
+                else if (hour < 21)
+                    showClass = 'EVENING SHOW';
+                else
+                    showClass = 'NIGHT SHOW';
+            }
+            else if (ticketData.show) {
+                showClass = `${ticketData.show} SHOW`;
+            }
+        }
+        else if (ticketData.show) {
+            showClass = `${ticketData.show} SHOW`;
         }
         if (ticketData.date) {
             // Convert date from YYYY-MM-DD to DD/MM/YYYY format
@@ -342,58 +640,82 @@ class PdfPrintService {
         else if (ticketData.totalAmount) {
             totalAmount = ticketData.totalAmount;
         }
-        // Handle seats data
+        // Handle seats data - check multiple possible field names
+        console.log('🔧 Seat data extraction:', {
+            seatInfo: ticketData.seatInfo,
+            seatClass: ticketData.seatClass,
+            seatRange: ticketData.seatRange,
+            classLabel: ticketData.classLabel,
+            row: ticketData.row
+        });
+        // Prefer structured data (row + seatRange) to enforce range formatting
         if (ticketData.seatRange) {
             // Grouped ticket data
-            seatClass = ticketData.classLabel || 'STAR';
+            seatClass = ticketData.classLabel;
             // Extract row letter from row information (e.g., "BOX-A" -> "A")
             let rowLetter = 'A';
             if (ticketData.row) {
                 const rowParts = ticketData.row.split('-');
                 rowLetter = rowParts[rowParts.length - 1] || 'A'; // Get the last part after dash
             }
-            // Format seat info as "A 5-6 (2)" format
+            // Format seat info - seatRange is already formatted like "1, 2, 3"
             if (ticketData.seatCount && ticketData.seatCount > 1) {
-                // For multiple seats, create range like "A 5-6 (2)"
-                const startSeat = parseInt(ticketData.seatRange);
-                const endSeat = startSeat + ticketData.seatCount - 1;
-                seatInfo = `${rowLetter} ${startSeat}-${endSeat} (${ticketData.seatCount})`;
+                // For multiple seats, show the formatted range
+                seatInfo = `${rowLetter} ${ticketData.seatRange} (${ticketData.seatCount})`;
             }
             else {
-                // For single seat, just show "A 5"
+                // For single seat, just show the seat number
                 seatInfo = `${rowLetter} ${ticketData.seatRange}`;
             }
             if (ticketData.totalPrice) {
                 totalAmount = ticketData.totalPrice;
             }
         }
+        else if (ticketData.seatInfo) {
+            // Direct seat info from Electron (fallback)
+            console.log('🔧 Using direct seatInfo (fallback):', ticketData.seatInfo);
+            seatInfo = ticketData.seatInfo;
+            seatClass = ticketData.seatClass;
+        }
         else if (ticketData.seatId) {
             // Individual ticket data
             const seatId = ticketData.seatId;
             const parts = seatId.split('-');
             seatInfo = `${parts[0] || 'A'} ${parts[1] || '1'}`;
-            seatClass = ticketData.class || 'STAR';
+            seatClass = ticketData.class;
         }
         else if (ticketData.seats && Array.isArray(ticketData.seats) && ticketData.seats.length > 0) {
             // Multiple seats
             const firstSeat = ticketData.seats[0];
             seatInfo = `${firstSeat.row || 'A'} ${firstSeat.number || '1'}`;
-            seatClass = firstSeat.classLabel || 'STAR';
+            seatClass = firstSeat.classLabel;
         }
         else if (ticketData.seat) {
             // Direct seat data
             seatInfo = ticketData.seat;
-            seatClass = ticketData.class || 'STAR';
+            seatClass = ticketData.class;
         }
-        // Calculate tax breakdown with proper formula
-        const mcAmount = 2.00; // Fixed Maintenance Charge
-        const baseAmount = (totalAmount - mcAmount) / 1.18; // Remove MC and divide by 1.18 (1 + 0.18 GST)
+        // Calculate tax breakdown per individual ticket
+        // Use individualAmount if available, otherwise calculate from totalAmount
+        const individualTicketPrice = ticketData.individualAmount || (totalAmount / (ticketData.seatCount || 1));
+        console.log('💰 TICKET COST DEBUG - English PDF Service:');
+        console.log('💰 Raw ticketData.individualAmount:', ticketData.individualAmount);
+        console.log('💰 Raw ticketData.totalAmount:', ticketData.totalAmount);
+        console.log('💰 Raw ticketData.totalPrice:', ticketData.totalPrice);
+        console.log('💰 Raw ticketData.seatCount:', ticketData.seatCount);
+        console.log('💰 Calculated totalAmount variable:', totalAmount);
+        console.log('💰 Calculated individualTicketPrice:', individualTicketPrice);
+        console.log('💰 Fallback calculation (totalAmount / seatCount):', totalAmount / (ticketData.seatCount || 1));
+        console.log('💰 Final value used for TICKET COST:', individualTicketPrice);
+        const mcAmount = ticketData.mc || parseFloat((0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.mc); // Use frontend value or default
+        const baseAmount = (individualTicketPrice - mcAmount) / 1.18; // Remove MC and divide by 1.18 (1 + 0.18 GST)
         net = baseAmount.toFixed(2);
         cgst = (baseAmount * 0.09).toFixed(2); // 9% CGST
         sgst = (baseAmount * 0.09).toFixed(2); // 9% SGST
         const mc = mcAmount.toFixed(2); // Convert to string for display
-        console.log('💰 Tax calculation:', {
+        console.log('💰 Tax calculation (per ticket):', {
             totalAmount,
+            individualTicketPrice,
             mc: mcAmount,
             baseAmount: parseFloat(net),
             cgst: parseFloat(cgst),
@@ -403,9 +725,9 @@ class PdfPrintService {
         // Generate ticket ID using the service
         ticketId = ticketIdService_1.default.getNextTicketId();
         return {
-            theaterName: 'SREELEKHA THEATER',
-            location: 'Chikmagalur',
-            gstin: '29AAVFS7423E120',
+            theaterName: (0, theaterConfig_1.getTheaterConfig)().name,
+            location: (0, theaterConfig_1.getTheaterConfig)().location,
+            gstin: (0, theaterConfig_1.getTheaterConfig)().gstin,
             date,
             showTime,
             showClass,
@@ -417,6 +739,7 @@ class PdfPrintService {
             sgst,
             mc,
             totalAmount: totalAmount.toString(),
+            individualTicketPrice: individualTicketPrice.toFixed(2),
             ticketId,
             currentTime
         };

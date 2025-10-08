@@ -1,6 +1,7 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "1.0.11",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/server.ts",
@@ -44,7 +45,6 @@
     "node-windows": "^1.0.0-beta.8",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.1",
-    "puppeteer": "^24.16.2",
     "serialport": "^13.0.0",
     "sqlite3": "^5.1.7",
     "zod": "^3.25.76"

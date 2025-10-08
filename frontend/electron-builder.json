@@ -5,6 +5,7 @@
     "output": "dist-electron-installer",
     "buildResources": "build"
   },
+  "asar": false,
   "files": [
     "dist/**/*",
     "electron/**/*",
@@ -18,37 +19,9 @@
       "from": "backend-dist",
       "to": "backend",
       "filter": ["**/*"]
-    },
-    {
-      "from": "backend-dist/node_modules",
-      "to": "backend/node_modules",
-      "filter": ["**/*"]
-    },
-    {
-      "from": "../backend/prisma",
-      "to": "backend/prisma",
-      "filter": ["**/*"]
-    },
-    {
-      "from": "../backend/fonts",
-      "to": "backend/fonts",
-      "filter": ["**/*"]
-    },
-    {
-      "from": "../backend/prisma/dev.db",
-      "to": "backend/database/auditoriumx.db"
-    },
-    {
-      "from": "build/dependencies",
-      "to": "installer/dependencies",
-      "filter": ["**/*"]
-    },
-    {
-      "from": "build/fonts",
-      "to": "installer/fonts",
-      "filter": ["**/*"]
     }
   ],
+
   "win": {
     "target": [
       {
@@ -57,7 +30,8 @@
       }
     ],
     "requestedExecutionLevel": "requireAdministrator",
-    "signAndEditExecutable": false
+    "signAndEditExecutable": false,
+    "icon": "build/movie.png"
   },
   "nsis": {
     "oneClick": false,
@@ -65,7 +39,6 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "AuditoriumX",
-    "include": "build/installer.nsh",
     "artifactName": "AuditoriumX-Setup.exe"
   },
   "portable": {
@@ -79,8 +52,5 @@
     "target": "AppImage",
     "category": "Office"
   },
-  "publish": {
-    "provider": "github",
-    "releaseType": "release"
-  }
+  "publish": null
 }

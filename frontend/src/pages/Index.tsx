@@ -93,12 +93,26 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   // Custom hook to get current show label dynamically
   const getCurrentShowLabelDynamic = useCallback(() => {
     try {
+      console.log('🎯 getCurrentShowLabelDynamic called');
+      console.log('🎯 showTimes from store:', showTimes);
+      
       const enabledShowTimes = showTimes.filter(show => show.enabled);
-      if (enabledShowTimes.length === 0) return 'No shows available';
+      console.log('🎯 enabledShowTimes:', enabledShowTimes);
+      
+      if (enabledShowTimes.length === 0) {
+        console.log('🎯 No enabled shows found');
+        return 'No shows available';
+      }
+      
       const key = getShowKeyFromNow(enabledShowTimes as any);
-      return key ? getShowLabelByKey(enabledShowTimes as any, key) : enabledShowTimes[0].label;
+      console.log('🎯 getShowKeyFromNow returned key:', key);
+      
+      const label = key ? getShowLabelByKey(enabledShowTimes as any, key) : enabledShowTimes[0].label;
+      console.log('🎯 Final label returned:', label);
+      
+      return label;
     } catch (error) {
-      console.log('❌ Error in getCurrentShowLabelDynamic, using fallback');
+      console.log('❌ Error in getCurrentShowLabelDynamic, using fallback:', error);
       return getCurrentShowLabel();
     }
   }, [showTimes]);
@@ -151,6 +165,12 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       const now = currentTime; // Use the current time state
       const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
       
+      console.log('🕐 Current time analysis:', {
+        currentTime: now.toLocaleTimeString(),
+        currentTimeMinutes,
+        enabledShows: enabledShowTimes.map(s => ({ key: s.key, start: s.startTime, end: s.endTime }))
+      });
+      
       // Find the current show based on time ranges from settings
       // A show should remain active until the next show starts
       for (let i = 0; i < enabledShowTimes.length; i++) {
@@ -176,36 +196,25 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
           nextShowStartMinutes = parseTime(nextShow.startTime);
         }
         
-        // Check if current time is within this show's active period
-        let isInRange = false;
+        // Simple logic: Is current time within this show's range?
+        let isActive = false;
         if (endMinutes < startMinutes) {
-          // Overnight show (e.g., 23:30 - 02:30)
-          isInRange = currentTimeMinutes >= startMinutes || currentTimeMinutes < endMinutes;
+          // Overnight show (e.g., 11:30 PM - 2:30 AM)
+          isActive = currentTimeMinutes >= startMinutes || currentTimeMinutes < endMinutes;
         } else {
-          // Normal show
-          isInRange = currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
+          // Normal show (e.g., 2:00 PM - 5:00 PM)
+          isActive = currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
         }
         
-        // A show is active if:
-        // 1. Current time is within the show's time range, OR
-        // 2. Current time is after the show started but before the next show starts
-        const isAfterShowStart = currentTimeMinutes >= startMinutes;
-        const isBeforeNextShow = !nextShowStartMinutes || currentTimeMinutes < nextShowStartMinutes;
-        const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
-        
-        // Only log when debugging is needed
-        // console.log(`🔍 Checking show ${show.key}:`, {
-        //   startTime: show.startTime,
-        //   endTime: show.endTime,
-        //   startMinutes,
-        //   endMinutes,
-        //   nextShow: nextShow?.key || 'none',
-        //   nextShowStartMinutes,
-        //   isInRange,
-        //   isAfterShowStart,
-        //   isBeforeNextShow,
-        //   isActive
-        // });
+        // Debug logging to understand show selection
+        console.log(`🔍 Checking show ${show.key}:`, {
+          startTime: show.startTime,
+          endTime: show.endTime,
+          startMinutes,
+          endMinutes,
+          currentTimeMinutes,
+          isActive
+        });
         
         if (isActive) {
           return show.key;
@@ -282,7 +291,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     } else {
       // console.log('✅ No auto-update needed: show already matches current time');
     }
-  }, [currentTime]); // Only depend on currentTime to prevent unnecessary re-runs
+  }, [currentTime, showTimes, getCurrentShowKey, selectedShow, setSelectedShow, userManuallySelectedShow]); // Depend on showTimes to re-run when settings change
 
   // Reset manual selection flag when navigating away from checkout
   // REMOVED: This was causing the flag to reset immediately when navigating between views
@@ -500,7 +509,6 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
           <div className={`flex items-center justify-between text-sm w-full ${collapsed ? 'flex-col gap-1 justify-center items-center' : ''}`}>
             <span className={`text-gray-600 transition-all duration-200 ${collapsed ? 'opacity-0 w-0 h-0 overflow-hidden' : 'opacity-100'}`}>Status:</span>
             <div className="flex items-center justify-center">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
               <span className={`text-green-600 font-medium transition-all duration-200 ${collapsed ? 'opacity-0 w-0 h-0 overflow-hidden' : 'opacity-100'}`}>Online</span>
             </div>
           </div>
