@@ -1,67 +1,209 @@
-.vercel
-
-# Electron build artifacts
-dist-electron*/
-frontend/dist-electron*/
-*.asar
-backend-dist/
-frontend/backend-dist/
-
-# Node modules
+# ==========================================
+# DEPENDENCIES
+# ==========================================
 node_modules/
 */node_modules/
-
-# Build outputs
-dist/
-*/dist/
-build/
-*/build/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
+*/package-lock.json
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-
-# Dependency directories
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# dotenv environment variables file
+# ==========================================
+# ENVIRONMENT & SECRETS
+# ==========================================
 .env
+.env.local
+.env.*.local
+*.env
 
-# IDE files
+# ==========================================
+# BUILD OUTPUTS & ARTIFACTS
+# ==========================================
+# Backend builds
+backend/dist/
+backend/build/
+
+# Frontend builds
+frontend/dist/
+frontend/build/
+frontend/backend-dist/
+
+# Electron builds
+dist-electron*/
+frontend/dist-electron*/
+*.asar
+
+# Installer builds (all versions)
+dist-installer*/
+dist-portable*/
+installer/
+frontend/dist-installer*/
+frontend/dist-installer-v*/
+frontend/dist-portable*/
+win-unpacked/
+*.blockmap
+
+# Build metadata
+builder-*.yml
+builder-*.yaml
+builder-debug.yml
+builder-effective-config.yaml
+
+# ==========================================
+# DATABASE FILES
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+dev.db
+database/
+backend/database/
+backend/prisma/dev.db
+backend/dist/dev.db
+
+# ==========================================
+# LOG FILES
+# ==========================================
+logs/
+*.log
+*.err.log
+*.out.log
+*.wrapper.log
+backend/logs/
+audit.log
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+temp/
+tmp/
+*.tmp
+*.temp
+temp-files/
+backend/temp/
+backend/src/temp/
+
+# ==========================================
+# EXECUTABLES & BINARIES
+# ==========================================
+*.exe
+*.dll
+*.pak
+*.bin
+*.msi
+*.deb
+*.rpm
+*.dmg
+*.pkg
+*.dylib
+*.so
+
+# Daemon executables
+backend/src/daemon/*.exe
+backend/src/daemon/*.config
+backend/src/daemon/*.xml
+
+# ==========================================
+# PRINTER TEST FILES
+# ==========================================
+backend/EPSON*
+backend/ESDPRT*
+backend/Microsoft Print to PDF
+
+# ==========================================
+# FONT FILES (Except Essential)
+# ==========================================
+*.zip
+*.ttf
+*.otf
+*.woff
+*.woff2
+font-base64.txt
+backend/fonts/NotoSansKannada/
+backend/fonts/*.zip
+
+# Essential fonts to keep
+!backend/fonts/NotoSansKannada-Regular.ttf
+!backend/fonts/NotoSansKannada-Bold.ttf
+
+# ==========================================
+# MEDIA FILES
+# ==========================================
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.mp3
+*.wav
+*.flac
+
+# ==========================================
+# ARCHIVE FILES
+# ==========================================
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+
+# ==========================================
+# RUNTIME GENERATED FILES
+# ==========================================
+ticketId.json
+backend/ticketId.json
+tracked-files.txt
+query
+
+# ==========================================
+# OLD/DUPLICATE CONFIG FILES
+# ==========================================
+electron-builder-installer-fixed.json
+electron-builder-installer-limitfixed.json
+electron-builder-installer-v2.json
+electron-builder-seatfix.json
+frontend/electron-builder-debug.json
+frontend/electron-builder-portable.json
+frontend/electron-builder-seatdata-fixed.json
+frontend/electron-builder-seatfix.json
+
+# ==========================================
+# TEST FILES
+# ==========================================
+test-*.js
+test-*.ts
+test-files/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# ==========================================
+# CLEANUP DIRECTORIES
+# ==========================================
+cleanup-bloat-files/
+
+# ==========================================
+# IDE & EDITOR FILES
+# ==========================================
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.sublime-project
+.sublime-workspace
 
-# OS generated files
+# ==========================================
+# OS GENERATED FILES
+# ==========================================
 .DS_Store
 .DS_Store?
 ._*
@@ -69,3 +211,46 @@ jspm_packages/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ==========================================
+# PACKAGE MANAGER
+# ==========================================
+pids
+*.pid
+*.seed
+*.pid.lock
+.npm
+.yarn-integrity
+.pnp
+.pnp.js
+jspm_packages/
+*.tgz
+
+# ==========================================
+# COVERAGE & TESTING
+# ==========================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ==========================================
+# DEPLOYMENT
+# ==========================================
+.vercel
+.netlify
+
+# ==========================================
+# MISCELLANEOUS
+# ==========================================
+.node_repl_history
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
