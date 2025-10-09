@@ -655,6 +655,12 @@ class KannadaPdfKitService {
       movieName = `${movieName} (${ticketData.movieLanguage})`;
     }
     
+    // Extract showTime first (if available)
+    if (ticketData.showTime) {
+      showTime = ticketData.showTime;
+      console.log('🕐 Using showTime from frontend:', showTime);
+    }
+    
     // Use show label from frontend and translate to Kannada
     if (ticketData.show) {
       // Translate English show labels to Kannada
@@ -676,9 +682,8 @@ class KannadaPdfKitService {
       
       showClass = kannadaShow;
       console.log('🎬 Using show from frontend:', ticketData.show, '→', kannadaShow);
-    } else if (ticketData.showTime) {
+    } else if (showTime) {
       // Fallback to hardcoded time ranges only if no show label provided
-      showTime = ticketData.showTime;
       const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (m) {
         let hour = parseInt(m[1], 10);

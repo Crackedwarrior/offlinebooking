@@ -31,39 +31,41 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
     const loadSeatData = async () => {
       if (!selectedShow || !selectedDate) return;
       
-      setLoading(true);
-      try {
+    setLoading(true);
+    try {
         console.log('🔄 SeatGridPreview: Loading seat data for', { selectedShow, selectedDate });
         
         const response = await getSeatStatus({ date: selectedDate, show: selectedShow as any });
-        if (response.success && response.data) {
+      if (response.success && response.data) {
           const { bookedSeats, bmsSeats, selectedSeats } = response.data as any;
-          const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
-          const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
+        const bookedSeatIds = bookedSeats.map((seat: any) => seat.seatId);
+        const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
           const selectedSeatIds = selectedSeats ? selectedSeats.map((seat: any) => seat.seatId) : [];
           
           syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
           console.log('✅ SeatGridPreview: Seat data loaded successfully');
-        }
-      } catch (error) {
-        console.error('❌ SeatGridPreview: Failed to load seat data:', error);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+        console.error('❌ SeatGridPreview: Failed to load seat data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
     loadSeatData();
   }, [selectedShow, selectedDate, syncSeatStatus]);
 
-  // Handle seat click (same as main seat grid)
+  // Simple click handling - just toggle AVAILABLE <-> SELECTED
   const handleSeatClick = useCallback((seatId: string, currentStatus: string) => {
     console.log('🪑 SeatGridPreview: Seat clicked', { seatId, currentStatus });
     
+    // Simple toggle: AVAILABLE <-> SELECTED only
     if (currentStatus === 'AVAILABLE') {
       toggleSeatStatus(seatId, 'SELECTED');
     } else if (currentStatus === 'SELECTED') {
       toggleSeatStatus(seatId, 'AVAILABLE');
     }
+    // BOOKED and BMS_BOOKED seats are disabled in the button, so no action needed
   }, [toggleSeatStatus]);
 
   // Get seats for current show/date (same filtering as main seat grid)
@@ -112,22 +114,25 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
   };
 
   console.log('🎯 SeatGridPreview: About to render with', { seatSegments: seatSegments.length, showSeats: showSeats.length });
-  
+
   return (
-    <div className="mt-4 p-3 bg-white border border-gray-200 rounded-lg shadow-sm w-full flex flex-col min-h-0 overflow-x-hidden">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="font-semibold text-gray-900 text-sm">Seat Map</h4>
+    <div className="mt-4 p-3 bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 w-full flex flex-col flex-1 min-h-0 overflow-x-hidden relative">
+      {/* Header with enhanced styling (toolbar removed) */}
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+          <h4 className="font-bold text-gray-900 text-lg">SEAT MAP</h4>
+              </div>
         {loading && (
-          <div className="flex items-center gap-1 text-blue-600">
+          <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
             <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs">Loading...</span>
-          </div>
-        )}
-      </div>
+            <span className="text-xs font-medium">Loading seats...</span>
+            </div>
+          )}
+        </div>
       
-      {/* Original SeatGrid layout structure */}
-      <div className="bg-gray-50 p-3 rounded border flex-1 min-h-0 flex flex-col max-h-[40vh] md:max-h-[45vh] lg:max-h-[50vh]">
-        <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-auto scrollbar-thin">
+      {/* Enhanced seat grid container */}
+      <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200 shadow-inner flex-1 min-h-0 flex flex-col max-h-[35vh] md:max-h-[40vh] lg:max-h-[45vh]">
+        <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-auto hide-scrollbar">
           <div className="space-y-4 mb-4 w-full">
             {seatSegments.map((segment, segIdx) => (
               <div key={segment.label}>
@@ -213,46 +218,42 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
         </div>
       </div>
       
-      {/* Original SeatGrid legend style */}
-      <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
-        <div className="flex items-center space-x-1">
-          <div className="w-3 h-3 bg-green-500 rounded"></div>
-          <span>Available</span>
-        </div>
-        <div className="flex items-center space-x-1">
-          <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-          <span>Selected</span>
-        </div>
-        <div className="flex items-center space-x-1">
-          <div className="w-3 h-3 bg-red-500 rounded"></div>
-          <span>Booked</span>
-        </div>
-        <div className="flex items-center space-x-1">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span>BMS</span>
+      {/* Enhanced legend */}
+      <div className="mt-3 pt-2 border-t border-gray-100">
+        <div className="grid grid-cols-4 gap-3 text-xs">
+          <div className="flex items-center space-x-2 bg-green-50 px-2 py-1 rounded-lg">
+            <div className="w-3 h-3 bg-green-500 rounded shadow-sm"></div>
+            <span className="font-medium text-green-800">Available</span>
+          </div>
+          <div className="flex items-center space-x-2 bg-yellow-50 px-2 py-1 rounded-lg">
+            <div className="w-3 h-3 bg-yellow-500 rounded shadow-sm"></div>
+            <span className="font-medium text-yellow-800">Selected</span>
+          </div>
+          <div className="flex items-center space-x-2 bg-red-50 px-2 py-1 rounded-lg">
+            <div className="w-3 h-3 bg-red-500 rounded shadow-sm"></div>
+            <span className="font-medium text-red-800">Booked</span>
+          </div>
+          <div className="flex items-center space-x-2 bg-blue-50 px-2 py-1 rounded-lg">
+            <div className="w-3 h-3 bg-blue-500 rounded shadow-sm"></div>
+            <span className="font-medium text-blue-800">BMS</span>
+          </div>
         </div>
       </div>
       
-      {/* Custom scrollbar styles */}
+      {/* Hide scrollbar styles */}
       <style>{`
-        .scrollbar-thin::-webkit-scrollbar {
-          width: 4px;
-          height: 4px;
+        .hide-scrollbar::-webkit-scrollbar {
+          width: 0px;
+          height: 0px;
+          background: transparent;
         }
-        .scrollbar-thin::-webkit-scrollbar-track {
-          background: #f1f5f9;
-          border-radius: 2px;
-        }
-        .scrollbar-thin::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 2px;
-        }
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
+        .hide-scrollbar {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
       `}</style>
     </div>
   );
 };
 
-export default SeatGridPreview;
+export default SeatGridPreview; 

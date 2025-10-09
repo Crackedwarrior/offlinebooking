@@ -436,10 +436,10 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
   return (
     <PrintErrorBoundary>
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 relative flex flex-col h-full overflow-hidden" style={{ width: '380px', padding: '5.25px 11px -5.25px 11px' }}>
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 relative flex flex-col h-full max-h-screen overflow-hidden" style={{ width: '380px', padding: '5.25px 11px -5.25px 11px' }}>
       
       <div className="font-semibold text-lg px-4 pt-3 pb-3 border-b border-gray-200 mb-3 flex items-center justify-between bg-gray-50 rounded-t-xl">
-        <span className="text-gray-900">Tickets</span>
+        <span className="text-gray-900">TICKETS</span>
         <div className="flex items-center gap-2">
           {selectedGroupIdxs.length > 0 && (
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
@@ -466,7 +466,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
       
       {/* Scrollable ticket list */}
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-3 pt-2">
+      <div className="flex-1 min-h-0 max-h-96 overflow-y-auto hide-scrollbar px-3 pt-2">
         {groups.map((g, idx) => {
           const colorClass = classColorMap[g.classLabel] || 'bg-cyan-300';
           return (
@@ -515,7 +515,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       </div>
       
       {/* Total and Delete button - integrated naturally */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200">
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
         {/* Total section */}
         <div className="flex items-center gap-3">
           <span className="font-semibold text-gray-900">Total:</span>
@@ -568,9 +568,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         </button>
       </div>
 
-      {/* Enhanced action buttons with labels */}
-      <div className="w-full h-44 flex flex-col relative overflow-visible">
-        <div className="flex-1 flex bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Enhanced action buttons with labels - full width and height at bottom */}
+      <div className="w-full flex-1 flex bg-gradient-to-r from-gray-50 to-gray-100 rounded-b-xl border-t border-gray-200 shadow-sm overflow-hidden">
           
           {/* Seat Grid Button */}
           <button
@@ -626,16 +625,15 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       
       {/* Hide the vertical scrollbar but keep scrolling */}
       <style>{`
-        .scrollbar-thin::-webkit-scrollbar {
+        .hide-scrollbar::-webkit-scrollbar {
           width: 0px;
           background: transparent;
         }
-        .scrollbar-thin {
+        .hide-scrollbar {
           scrollbar-width: none;
           -ms-overflow-style: none;
         }
       `}</style>
-    </div>
     </PrintErrorBoundary>
   );
 };

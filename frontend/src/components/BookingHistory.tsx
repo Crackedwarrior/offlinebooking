@@ -57,39 +57,39 @@ const ShowCard = memo(({
 }) => (
   <div
     data-show-card
-    className={`p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
+    className={`p-2 md:p-3 rounded-md border transition-all duration-200 cursor-pointer ${
       isSelected 
-        ? 'border-blue-500 bg-blue-50 shadow-md' 
+        ? 'border-blue-500 bg-blue-50 shadow' 
         : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
     }`}
     onClick={() => onSelect(show.key)}
   >
-    <div className="flex items-center justify-between mb-2">
+    <div className="flex items-center justify-between mb-1">
       <h3 
-        className="font-semibold text-gray-900"
+        className="font-semibold text-gray-900 text-sm md:text-base"
       >
         {show.label}
       </h3>
       {isSelected && (
-        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+        <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
       )}
     </div>
-    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-      <div className="text-center">
-        <div className="text-gray-600">Booked</div>
-        <div className="font-semibold text-green-600">{stats.booked}</div>
+    <div className="grid grid-cols-2 gap-1 text-xs md:text-[13px] mb-2">
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-gray-600">Booked:</span>
+        <span className="font-semibold text-green-600">{stats.booked}</span>
       </div>
-      <div className="text-center">
-        <div className="text-gray-600">BMS</div>
-        <div className="font-semibold text-blue-600">{stats.bms}</div>
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-gray-600">BMS:</span>
+        <span className="font-semibold text-blue-600">{stats.bms}</span>
       </div>
-      <div className="text-center">
-        <div className="text-gray-600">Available</div>
-        <div className="font-semibold text-gray-700">{stats.available}</div>
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-gray-600">Available:</span>
+        <span className="font-semibold text-gray-700">{stats.available}</span>
       </div>
-      <div className="text-center">
-        <div className="text-gray-600">Occupancy</div>
-        <div className="font-semibold text-purple-600">{stats.occupancy}%</div>
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-gray-600">Occupancy:</span>
+        <span className="font-semibold text-purple-600">{stats.occupancy}%</span>
       </div>
     </div>
     <button
@@ -97,7 +97,7 @@ const ShowCard = memo(({
         e.stopPropagation();
         onViewSeats(show);
       }}
-      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 px-3 rounded-md transition-colors duration-200"
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium py-1.5 md:py-2 px-2 md:px-3 rounded-md transition-colors duration-200"
     >
       View Seats
     </button>
@@ -788,84 +788,78 @@ const BookingHistory = () => {
 
   // UI
   return (
-    <div className="p-4 space-y-4 max-w-7xl mx-auto">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
-          <p className="text-gray-600">View and manage all bookings</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-700">Date:</label>
-          <div className="relative">
-            <DatePicker
-              selected={new Date(selectedDate)}
-              onChange={handleDateChange}
-              dateFormat="dd/MM/yyyy"
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-0 focus:border-gray-300 hover:border-gray-400 transition-colors w-40"
-              placeholderText="Select date"
-              dayClassName={dayClassName}
-              highlightDates={Array.from(datesWithBookings).map(date => new Date(date))}
-              showYearDropdown
-              showMonthDropdown
-              dropdownMode="select"
-              yearDropdownItemNumber={15}
-              scrollableYearDropdown
-              maxDate={new Date()}
-              popperPlacement="bottom-start"
-              onCalendarOpen={() => {
-                // Prevent positioning errors by ensuring the calendar opens properly
-                setTimeout(() => {
-                  const calendar = document.querySelector('.react-datepicker');
-                  if (calendar) {
-                    calendar.setAttribute('data-popper-placement', 'bottom-start');
-                  }
-                }, 0);
-              }}
-            />
+    <div className="p-4 max-w-[1400px] xl:max-w-[1600px] mx-auto">
+      <div className="flex gap-4">
+        {/* Left Vertical Info Strip (slim, vertical text) */}
+        <div className="w-8 md:w-10 flex-shrink-0">
+          <div className="sticky top-4 h-[calc(100vh-6.5rem)] md:h-[calc(100vh-7rem)]">
+            <div
+              className={`h-full w-full rounded-md border flex flex-col items-center justify-center ${
+                selectedShow ? 'bg-blue-50 border-blue-300' : 'bg-green-50 border-green-300'
+              }`}
+            >
+              <span
+                className={`[writing-mode:vertical-rl] rotate-180 leading-tight text-[11px] font-semibold text-center ${
+                  selectedShow ? 'text-blue-700' : 'text-green-700'
+                }`}
+              >
+                {selectedShow
+                  ? `Showing data for: ${showOrder.find(s => s.key === selectedShow)?.label ?? ''}`
+                  : 'Showing aggregated data for: All Shows'}
+              </span>
+              <button
+                onClick={() => (selectedShow ? setSelectedShow(null) : setSelectedShow(showOrder[0]?.key || null))}
+                className={`mt-2 underline [writing-mode:vertical-rl] rotate-180 text-[10px] font-medium ${
+                  selectedShow ? 'text-blue-600 hover:text-blue-800' : 'text-green-600 hover:text-green-800'
+                }`}
+              >
+                {selectedShow ? 'Clear Filter' : 'Filter by Show'}
+              </button>
+            </div>
           </div>
         </div>
-          </div>
+        
+        {/* Main Content */}
+        <div className="flex-1 space-y-4">
           
-          {/* Show Selection Info */}
-          {selectedShow ? (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium text-blue-800">
-                    Showing data for: <span className="font-bold">{showOrder.find(s => s.key === selectedShow)?.label}</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedShow(null)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-              Clear Filter
-                </button>
-              </div>
-            </div>
-          ) : (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium text-green-800">
-                    Showing aggregated data for: <span className="font-bold">All Shows</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedShow(showOrder[0]?.key || null)}
-                  className="text-xs text-green-600 hover:text-green-800 font-medium"
-                >
-              Filter by Show
-                </button>
-              </div>
-            </div>
-          )}
+          {/* (Info card moved to left sidebar) */}
 
       {/* Show Cards - Interactive */}
-      <div>
-        <div className="font-semibold text-lg mb-3">Shows Overview</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="space-y-2 flex-1">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold text-lg">Shows Overview</div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700">Date:</label>
+            <div className="relative">
+              <DatePicker
+                selected={new Date(selectedDate)}
+                onChange={handleDateChange}
+                dateFormat="dd/MM/yyyy"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-0 focus:border-gray-300 hover:border-gray-400 transition-colors w-40"
+                placeholderText="Select date"
+                dayClassName={dayClassName}
+                highlightDates={Array.from(datesWithBookings).map(date => new Date(date))}
+                showYearDropdown
+                showMonthDropdown
+                dropdownMode="select"
+                yearDropdownItemNumber={15}
+                scrollableYearDropdown
+                maxDate={new Date()}
+                popperPlacement="bottom-start"
+                onCalendarOpen={() => {
+                  // Prevent positioning errors by ensuring the calendar opens properly
+                  setTimeout(() => {
+                    const calendar = document.querySelector('.react-datepicker');
+                    if (calendar) {
+                      calendar.setAttribute('data-popper-placement', 'bottom-start');
+                    }
+                  }, 0);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2">
           {showOrder.map(show => {
             const stats = allStats[show.key] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };
             const isSelected = selectedShow === show.key;
@@ -884,10 +878,10 @@ const BookingHistory = () => {
       </div>
 
       {/* Main Content - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-[2fr_1fr] gap-3">
         {/* Left Column: Seats Table */}
-        <div className="lg:col-span-2">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4 pb-3 shadow-sm">
             <div className="font-semibold mb-3 text-base">
             Seats Booked by Class
             {selectedShow ? (
@@ -900,12 +894,8 @@ const BookingHistory = () => {
               </span>
             )}
           </div>
-          {!selectedShow && (
-              <div className="text-xs text-gray-500 italic mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-              Showing aggregated data for all shows on this date
-            </div>
-          )}
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
+          {/* Aggregated info banner removed as requested */}
+            <div className="border border-gray-300 rounded-b-none overflow-hidden">
               <table className="w-full text-sm">
             <thead>
                   <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
@@ -938,8 +928,8 @@ const BookingHistory = () => {
         </div>
           </div>
 
-          {/* Quick Summary - Moved below table */}
-          <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          {/* Quick Summary - directly below table (no gap) */}
+          <div className="mt-0 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-3 text-base">Quick Summary</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center flex flex-col justify-between h-24">
@@ -1076,14 +1066,14 @@ const BookingHistory = () => {
         />
       )}
 
+        </div>
+      </div>
+      
       {/* SeatGridPreview Modal */}
-      {previewShow && (
+      {previewShow && seatGridPreviewOpen && (
         <SeatGridPreview
-          isOpen={seatGridPreviewOpen}
-          onClose={() => setSeatGridPreviewOpen(false)}
-          date={selectedDate}
-          show={previewShow.key}
-          showLabel={previewShow.label}
+          selectedShow={previewShow.key}
+          selectedDate={selectedDate}
         />
       )}
     </div>

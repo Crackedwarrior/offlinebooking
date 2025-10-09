@@ -519,18 +519,18 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         <div className="flex items-center justify-between w-full">
           <div>
             {activeView === 'booking' ? (
-              <h2 className="text-xl font-semibold">Seat Booking</h2>
+              <h1 className="text-2xl font-bold text-black tracking-wide">SEAT BOOKING</h1>
             ) : activeView === 'checkout' ? (
-              <h2 className="text-xl font-semibold">Checkout</h2>
+              <h1 className="text-2xl font-bold text-black tracking-wide">CHECKOUT</h1>
             ) : activeView === 'confirmation' ? (
-              <h2 className="text-xl font-semibold">Booking Confirmation</h2>
+              <h1 className="text-2xl font-bold text-black tracking-wide">BOOKING CONFIRMATION</h1>
             ) : (
-              <h2 className="text-xl font-semibold">
-                {activeView === 'history' && 'Booking History'}
-                {activeView === 'reports' && 'Reports & Analytics'}
-                {activeView === 'settings' && 'Settings'}
-                
-              </h2>
+              <h1 className="text-2xl font-bold text-black tracking-wide">
+                {activeView === 'history' && 'BOOKING HISTORY'}
+                {activeView === 'reports' && 'REPORTS & ANALYTICS'}
+                {activeView === 'settings' && 'SETTINGS'}
+                {activeView === 'checkout' && 'SEAT BOOKING'}
+              </h1>
             )}
             {activeView === 'booking' && (
               <p className="text-gray-600 mt-1">
