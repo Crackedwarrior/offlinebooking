@@ -422,6 +422,11 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         };
       });
       
+      // Get movie language from settings store
+      const { getMovieForShow } = useSettingsStore.getState();
+      const currentMovie = getMovieForShow(bookingData.show);
+      const movieLanguage = currentMovie?.language || 'HINDI';
+      
       const response = await createBooking({
         tickets: enhancedSeats,
         total: bookingData.totalAmount,
@@ -430,6 +435,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         show: bookingData.show,
         screen: bookingData.screen,
         movie: bookingData.movie,
+        movieLanguage: movieLanguage,
         date: bookingData.date,
         source: 'LOCAL'
       });
@@ -578,6 +584,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                 setActiveView('checkout'); 
                 setIsExchangeMode(false); // Reset exchange mode when proceeding normally
               }} 
+              showRefreshButton={false}
               showExchangeButton={isExchangeMode}
               onExchange={async () => {
                 // Handle exchange button click - print tickets and return to checkout

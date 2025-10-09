@@ -47,6 +47,7 @@ export interface BookingData {
   createdAt: string;
   updatedAt: string;
   bookedAt: string;
+  printedAt?: string;
 }
 
 export type BookingStatus = 'CONFIRMED' | 'CANCELLED' | 'PENDING' | 'REFUNDED';
@@ -60,6 +61,7 @@ export interface CreateBookingRequest {
   show: Show;
   screen: string;
   movie: string;
+  movieLanguage?: string;
   date?: string;
   source?: BookingSource;
   customerName?: string;

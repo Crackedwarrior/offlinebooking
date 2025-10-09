@@ -51,6 +51,7 @@ export interface BookingData {
   createdAt: string;
   updatedAt: string;
   bookedAt: string;
+  printedAt?: string;
 }
 
 export interface CreateBookingRequest {
@@ -61,6 +62,7 @@ export interface CreateBookingRequest {
   show: Show;
   screen: string;
   movie: string;
+  movieLanguage?: string;
   date?: string;
   source?: BookingSource;
   customerName?: string;

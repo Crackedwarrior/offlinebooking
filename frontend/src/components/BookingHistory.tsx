@@ -4,7 +4,7 @@ import { useBookingStore, ShowTime } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { seatSegments } from './SeatGrid';
 import BookingViewerModal from './BookingViewerModal';
-import SeatGridPreview from './SeatGridPreview';
+import SeatGrid from './SeatGrid';
 import { formatSafeDate } from '../utils/formatDate';
 import { SHOW_TIMES, getSeatPrice, SEAT_CLASSES } from '@/lib/config';
 import { getBookings, getSeatStatus } from '@/services/api';
@@ -115,9 +115,9 @@ const BookingHistory = () => {
   const [loading, setLoading] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowTime | null>(null);
   
-  // Seat Grid Preview Modal State
-  const [seatGridPreviewOpen, setSeatGridPreviewOpen] = useState(false);
-  const [previewShow, setPreviewShow] = useState<{ key: ShowTime; label: string } | null>(null);
+  // Seat Grid State - show main SeatGrid when a show is selected
+  const [showSeatGrid, setShowSeatGrid] = useState(false);
+  const [selectedShowForSeats, setSelectedShowForSeats] = useState<{ key: ShowTime; label: string } | null>(null);
 
   // Handle click outside to deselect show cards
   useEffect(() => {
@@ -160,8 +160,8 @@ const BookingHistory = () => {
       databaseBookings: databaseBookings.length,
       datesWithBookings: Array.from(datesWithBookings)
     });
-    setPreviewShow(show);
-    setSeatGridPreviewOpen(true);
+    setSelectedShowForSeats(show);
+    setShowSeatGrid(true);
   }, [selectedDate, databaseBookings, datesWithBookings]);
 
   // Handle date selection
@@ -1069,12 +1069,29 @@ const BookingHistory = () => {
         </div>
       </div>
       
-      {/* SeatGridPreview Modal */}
-      {previewShow && seatGridPreviewOpen && (
-        <SeatGridPreview
-          selectedShow={previewShow.key}
-          selectedDate={selectedDate}
-        />
+      {/* Main SeatGrid - rendered directly like Load Bookings */}
+      {showSeatGrid && selectedShowForSeats && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Seat Grid - {selectedShowForSeats.label}</h3>
+            <button
+              onClick={() => {
+                setShowSeatGrid(false);
+                setSelectedShowForSeats(null);
+              }}
+              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              Close Seat Grid
+            </button>
+          </div>
+          <SeatGrid 
+            hideProceedButton={true} 
+            showRefreshButton={false}
+            hideBMSMarking={true}
+            overrideShow={selectedShowForSeats.key}
+            overrideDate={selectedDate}
+          />
+        </div>
       )}
     </div>
   );

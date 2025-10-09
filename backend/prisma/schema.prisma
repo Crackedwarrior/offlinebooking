@@ -70,6 +70,7 @@ model Booking {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   bookedAt      DateTime      @default(now())
+  printedAt     DateTime?     // Time when ticket was actually printed
   
   // Optional fields for future use
   customerName  String?

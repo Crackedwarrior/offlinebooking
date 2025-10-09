@@ -23,17 +23,24 @@ interface SeatGridProps {
   disableAutoFetch?: boolean;
   showExchangeButton?: boolean;
   onExchange?: () => void;
+  overrideShow?: string;
+  overrideDate?: string;
+  hideBMSMarking?: boolean;
 }
 
-const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false, disableAutoFetch = false, showExchangeButton = false, onExchange }: SeatGridProps) => {
+const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = false, showRefreshButton = false, disableAutoFetch = false, showExchangeButton = false, onExchange, overrideShow, overrideDate, hideBMSMarking = false }: SeatGridProps) => {
   const { 
-    selectedDate, 
-    selectedShow, 
+    selectedDate: globalSelectedDate, 
+    selectedShow: globalSelectedShow, 
     seats, 
     syncSeatStatus, 
     toggleSeatStatus, 
     getBookingStats 
   } = useBookingStore();
+  
+  // Use override values if provided, otherwise use global store values
+  const selectedDate = overrideDate || globalSelectedDate;
+  const selectedShow = (overrideShow as any) || globalSelectedShow;
   const { getPriceForClass } = useSettingsStore();
   const { pricingVersion } = usePricing(); // Add reactive pricing
   // const { toast } = useToast();
@@ -660,7 +667,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
               <RotateCcw className={`w-4 h-4 mr-2 ${loadingSeats ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-          ) : !hideRefreshButton && (
+          ) : !hideRefreshButton && !hideBMSMarking && (
             <Button
               onClick={toggleBmsMode}
               disabled={loadingSeats}
@@ -690,7 +697,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
       </div>
 
       {/* BMS Mode Instructions */}
-      {bmsMode && (
+      {bmsMode && !hideBMSMarking && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="w-5 h-5 text-blue-600" />

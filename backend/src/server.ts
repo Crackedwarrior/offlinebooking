@@ -46,8 +46,71 @@ import ticketIdService from './ticketIdService';
 import { auditLogger } from './utils/auditLogger';
 import { InputSanitizer } from './utils/inputSanitizer';
 import SumatraInstaller from './sumatraInstaller';
+import BackupService from './services/backupService';
 import fs from 'fs';
 import path from 'path';
+
+// Initialize backup service
+const initializeBackupService = () => {
+  const databasePath = process.env.DATABASE_URL?.replace('file:', '') || './dev.db';
+  const backupDir = path.join(require('os').homedir(), 'Documents', 'AuditoriumX_Backups');
+  
+  return new BackupService({
+    sourcePath: databasePath,
+    backupDir,
+    retentionDays: 7,    // Keep daily backups for 7 days
+    retentionWeeks: 4,   // Keep weekly backups for 4 weeks
+    retentionMonths: 12  // Keep monthly backups for 12 months
+  });
+};
+
+const backupService = initializeBackupService();
+
+// Runtime database migration - Add missing columns automatically
+const runDatabaseMigration = async () => {
+  try {
+    console.log('🔍 Checking database schema...');
+    const prisma = dbManager.getClient();
+    
+    // Check if printedAt column exists
+    try {
+      await prisma.$queryRaw`SELECT printedAt FROM Booking LIMIT 1`;
+      console.log('✅ Database schema is up to date');
+    } catch (error: any) {
+      if (error.message && error.message.includes('printedAt')) {
+        console.log('🔧 Running migration: Adding printedAt column...');
+        await prisma.$executeRaw`ALTER TABLE Booking ADD COLUMN printedAt DATETIME`;
+        console.log('✅ Migration completed: printedAt column added');
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Database migration error:', error);
+    throw error; // Re-throw to prevent server start if migration fails
+  }
+};
+
+// Auto-backup on server startup (runs once when server starts)
+const runStartupBackup = async () => {
+  try {
+    console.log('🤖 Running startup backup...');
+    const result = await backupService.createBackup();
+    if (result.success) {
+      console.log('✅ Startup backup completed successfully');
+    } else {
+      console.log('⚠️ Startup backup failed:', result.message);
+    }
+  } catch (error) {
+    console.error('❌ Startup backup error:', error);
+  }
+};
+
+// Run migration first, then backup on server start (non-blocking)
+setTimeout(async () => {
+  await runDatabaseMigration();
+  await runStartupBackup();
+}, 2000); // Wait 2 seconds after server start
 
 // Production path handling function
 const getAppDataPath = () => {
@@ -1040,6 +1103,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
     show, 
     screen, 
     movie, 
+    movieLanguage = 'HINDI',
     date,
     source = 'LOCAL',
     customerName,
@@ -1125,7 +1189,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
         show: existingBooking.show,
         screen: existingBooking.screen,
         movie: existingBooking.movie,
-        movieLanguage: 'HINDI',
+        movieLanguage: existingBooking.movieLanguage,
         bookedSeats: existingBooking.bookedSeats as string[],
         seatCount: existingBooking.seatCount,
         classLabel: existingBooking.classLabel,
@@ -1162,12 +1226,14 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
     
     // Create a single booking record instead of multiple class-based bookings
     // This prevents duplicate bookings for the same seats
+    const now = new Date();
     const newBooking = await prisma.booking.create({
       data: {
         date: date ? new Date(date) : new Date(timestamp),
         show: show as any,
         screen,
         movie,
+        movieLanguage,
         bookedSeats: tickets.map((t: any) => t.id),
         classLabel: tickets[0]?.classLabel || 'MIXED', // Use first ticket's class or 'MIXED' for multiple classes
         seatCount: tickets.length,
@@ -1175,6 +1241,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
         totalPrice: total,
         source: source as BookingSource, // Save the source to the database
         synced: false,
+        printedAt: now, // Set printedAt to current time (same as booking time)
       }
     });
     
@@ -1187,7 +1254,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
       show: newBooking.show,
       screen: newBooking.screen,
       movie: newBooking.movie,
-      movieLanguage: 'HINDI', // Default value
+      movieLanguage: newBooking.movieLanguage,
       bookedSeats: newBooking.bookedSeats as string[],
       seatCount: tickets.length,
       classLabel: newBooking.classLabel,
@@ -1207,6 +1274,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       bookedAt: newBooking.bookedAt.toISOString(),
+      printedAt: newBooking.printedAt?.toISOString(),
     };
 
     const response: CreateBookingResponse = {
@@ -1302,7 +1370,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     show: booking.show,
     screen: booking.screen,
     movie: booking.movie,
-    movieLanguage: 'HINDI',
+    movieLanguage: booking.movieLanguage,
     bookedSeats: booking.bookedSeats as string[],
     seatCount: (booking.bookedSeats as string[]).length,
             classLabel: booking.classLabel,
@@ -1318,6 +1386,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     bookedAt: booking.bookedAt.toISOString(),
+    printedAt: booking.printedAt?.toISOString(),
   }));
   
   const response: ApiResponse<BookingData[]> = {
@@ -1800,12 +1869,20 @@ app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Reque
   const response: ApiResponse<BookingData> = {
     success: true,
     data: {
-      ...updatedBooking,
+      id: updatedBooking.id,
       date: updatedBooking.date.toISOString(),
-      createdAt: updatedBooking.createdAt.toISOString(),
-      updatedAt: updatedBooking.updatedAt.toISOString(),
-      bookedAt: updatedBooking.bookedAt.toISOString(),
+      show: updatedBooking.show,
+      screen: updatedBooking.screen,
+      movie: updatedBooking.movie,
+      movieLanguage: updatedBooking.movieLanguage,
       bookedSeats: Array.isArray(updatedBooking.bookedSeats) ? (updatedBooking.bookedSeats as string[]) : [],
+      seatCount: updatedBooking.seatCount,
+      classLabel: updatedBooking.classLabel,
+      pricePerSeat: updatedBooking.pricePerSeat,
+      totalPrice: updatedBooking.totalPrice,
+      status: updatedBooking.status,
+      source: updatedBooking.source,
+      synced: updatedBooking.synced,
       customerName: updatedBooking.customerName || undefined,
       customerPhone: updatedBooking.customerPhone || undefined,
       customerEmail: updatedBooking.customerEmail || undefined,
@@ -1813,12 +1890,122 @@ app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Reque
       totalIncome: updatedBooking.totalIncome || undefined,
       localIncome: updatedBooking.localIncome || undefined,
       bmsIncome: updatedBooking.bmsIncome || undefined,
-      vipIncome: updatedBooking.vipIncome || undefined
+      vipIncome: updatedBooking.vipIncome || undefined,
+      createdAt: updatedBooking.createdAt.toISOString(),
+      updatedAt: updatedBooking.updatedAt.toISOString(),
+      bookedAt: updatedBooking.bookedAt.toISOString(),
+      printedAt: updatedBooking.printedAt?.toISOString()
     },
     message: 'Booking updated successfully'
   };
   
   res.json(response);
+}));
+
+// Update booking with printed time
+app.patch('/api/bookings/:id/printed', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  console.log('🖨️ Updating booking printed time:', { id });
+  
+  // Validate booking exists
+  const existingBooking = await prisma.booking.findUnique({
+    where: { id }
+  });
+  
+  if (!existingBooking) {
+    throw new NotFoundError(`Booking with ID ${id} not found`);
+  }
+  
+  // Update the booking with printed time
+  const updatedBooking = await prisma.booking.update({
+    where: { id },
+    data: {
+      printedAt: new Date(),
+      updatedAt: new Date()
+    }
+  });
+  
+  console.log('✅ Booking printed time updated successfully:', { id, printedAt: updatedBooking.printedAt });
+  
+  const response: ApiResponse<BookingData> = {
+    success: true,
+    data: {
+      id: updatedBooking.id,
+      date: updatedBooking.date.toISOString(),
+      show: updatedBooking.show,
+      screen: updatedBooking.screen,
+      movie: updatedBooking.movie,
+      movieLanguage: updatedBooking.movieLanguage,
+      bookedSeats: Array.isArray(updatedBooking.bookedSeats) ? (updatedBooking.bookedSeats as string[]) : [],
+      seatCount: updatedBooking.seatCount,
+      classLabel: updatedBooking.classLabel,
+      pricePerSeat: updatedBooking.pricePerSeat,
+      totalPrice: updatedBooking.totalPrice,
+      status: updatedBooking.status,
+      source: updatedBooking.source,
+      synced: updatedBooking.synced,
+      customerName: updatedBooking.customerName || undefined,
+      customerPhone: updatedBooking.customerPhone || undefined,
+      customerEmail: updatedBooking.customerEmail || undefined,
+      notes: updatedBooking.notes || undefined,
+      totalIncome: updatedBooking.totalIncome || undefined,
+      localIncome: updatedBooking.localIncome || undefined,
+      bmsIncome: updatedBooking.bmsIncome || undefined,
+      vipIncome: updatedBooking.vipIncome || undefined,
+      createdAt: updatedBooking.createdAt.toISOString(),
+      updatedAt: updatedBooking.updatedAt.toISOString(),
+      bookedAt: updatedBooking.bookedAt.toISOString(),
+      printedAt: updatedBooking.printedAt?.toISOString()
+    },
+    message: 'Booking printed time updated successfully'
+  };
+  
+  res.json(response);
+}));
+
+// Backup Management Endpoints
+app.post('/api/backup/create', asyncHandler(async (req: Request, res: Response) => {
+  console.log('💾 Creating manual backup...');
+  
+  const result = await backupService.createBackup();
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      message: result.message,
+      backupPath: result.backupPath
+    });
+  } else {
+    res.status(500).json({
+      success: false,
+      message: result.message
+    });
+  }
+}));
+
+app.get('/api/backup/stats', asyncHandler(async (req: Request, res: Response) => {
+  console.log('📊 Getting backup statistics...');
+  
+  const stats = await backupService.getBackupStats();
+  
+  res.json({
+    success: true,
+    data: stats
+  });
+}));
+
+// Auto-backup on server start (daily backup)
+app.post('/api/backup/auto', asyncHandler(async (req: Request, res: Response) => {
+  console.log('🤖 Running automatic backup...');
+  
+  const result = await backupService.createBackup();
+  
+  res.json({
+    success: result.success,
+    message: result.message,
+    backupPath: result.backupPath
+  });
 }));
 
 // Delete a booking

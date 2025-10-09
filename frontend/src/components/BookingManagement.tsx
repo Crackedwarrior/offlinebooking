@@ -33,6 +33,7 @@ interface BookingData {
   createdAt: string;
   updatedAt: string;
   bookedAt: string;
+  printedAt?: string;
 }
 
 const BookingManagement = () => {
@@ -43,11 +44,14 @@ const BookingManagement = () => {
   const [ticketIdLoading, setTicketIdLoading] = useState(false);
   const [resetTicketIdValue, setResetTicketIdValue] = useState<string>('');
   const [resettingTicketId, setResettingTicketId] = useState(false);
+  // Use local state for booking management to avoid auto-update interference
+  const [localSelectedDate, setLocalSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [localSelectedShow, setLocalSelectedShow] = useState<string>('MORNING');
+  
+  // Get global store for other operations but don't use its selectedShow/selectedDate
   const { 
-    selectedDate, 
-    selectedShow, 
-    setSelectedDate: setBookingDate, 
-    setSelectedShow: setBookingShow 
+    selectedDate: globalSelectedDate, 
+    selectedShow: globalSelectedShow
   } = useBookingStore();
   
   // Add custom styles for date picker highlighting
@@ -77,7 +81,7 @@ const BookingManagement = () => {
   }, []);
 
   // Memoize the store state to prevent unnecessary re-renders
-  const storeState = useMemo(() => ({ selectedDate, selectedShow }), [selectedDate, selectedShow]);
+  const storeState = useMemo(() => ({ selectedDate: localSelectedDate, selectedShow: localSelectedShow }), [localSelectedDate, localSelectedShow]);
 
   // Load bookings for selected date and show
   const loadBookings = useCallback(async () => {
@@ -85,8 +89,8 @@ const BookingManagement = () => {
     try {
       
       const response = await getBookings({ 
-        date: selectedDate, 
-        show: selectedShow 
+        date: localSelectedDate, 
+        show: localSelectedShow 
       });
       
       if (response.success) {
@@ -109,7 +113,7 @@ const BookingManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, selectedShow, storeState]);
+  }, [localSelectedDate, localSelectedShow, storeState]);
 
   // Delete a booking
   const handleDelete = useCallback(async (booking: BookingData) => {
@@ -125,8 +129,9 @@ const BookingManagement = () => {
         // Force refresh the seat grid to update seat status
         setTimeout(() => {
           // Trigger a re-fetch of seat status by updating the booking store
-          setBookingDate(selectedDate);
-          setBookingShow(selectedShow as any);
+          // Use global store methods but with local values
+          useBookingStore.getState().setSelectedDate(localSelectedDate);
+          useBookingStore.getState().setSelectedShow(localSelectedShow as any);
         }, 100);
         
         // toast({
@@ -144,12 +149,12 @@ const BookingManagement = () => {
       //   variant: 'destructive',
       // });
     }
-  }, [selectedDate, selectedShow, setBookingDate, setBookingShow]);
+  }, [localSelectedDate, localSelectedShow]);
 
   // Handle show selection change
   const handleShowChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newShow = e.target.value as 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
-    setBookingShow(newShow);
+    setLocalSelectedShow(newShow);
   };
 
   // Handle date selection
@@ -158,7 +163,7 @@ const BookingManagement = () => {
     if (date) {
       const dateString = date.toISOString().split('T')[0];
       console.log('📅 Date picker - setting date to:', dateString);
-      setBookingDate(dateString);
+      setLocalSelectedDate(dateString);
     }
   };
 
@@ -168,9 +173,9 @@ const BookingManagement = () => {
     return ''; // No highlighting for now, can be added later
   };
 
-  // Monitor selectedShow changes
+  // Monitor localSelectedShow changes
   useEffect(() => {
-  }, [selectedShow]);
+  }, [localSelectedShow]);
 
   // Load current ticket ID on component mount
   const loadCurrentTicketId = useCallback(async () => {
@@ -242,7 +247,7 @@ const BookingManagement = () => {
               </Label>
               <DatePicker
                 id="date"
-                selected={new Date(selectedDate)}
+                selected={new Date(localSelectedDate)}
                 onChange={handleDateChange}
                 dateFormat="dd/MM/yyyy"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
@@ -269,7 +274,7 @@ const BookingManagement = () => {
               </Label>
               <select
                 id="show"
-                value={selectedShow}
+                value={localSelectedShow}
                 onChange={handleShowChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 bg-white shadow-sm"
               >
@@ -412,8 +417,14 @@ const BookingManagement = () => {
             {/* Booking Summary */}
             <BookingSummary bookings={bookings} onDelete={handleDelete} />
             
-            {/* Seat Grid */}
-            <SeatGrid hideProceedButton={true} showRefreshButton={true} />
+            {/* Seat Grid - Pass local show/date to override global state */}
+            <SeatGrid 
+              hideProceedButton={true} 
+              showRefreshButton={true}
+              hideBMSMarking={true}
+              overrideShow={localSelectedShow}
+              overrideDate={localSelectedDate}
+            />
           </>
         )}
         
@@ -469,14 +480,16 @@ const BookingSummary = ({
                   <span className="font-medium">{booking.movie}</span>
                   <span className="text-sm text-gray-600">({booking.movieLanguage})</span>
                 </div>
-              <p className="text-sm text-gray-600 mb-2">
-                {booking.customerName || 'No Name'} • {booking.customerPhone || 'No Phone'}
-              </p>
               <p className="text-sm text-gray-600">
                 Seats: <span className="font-medium">{booking.bookedSeats.join(', ')}</span> • 
                 Class: <span className="font-medium">{booking.classLabel}</span> • 
                 Total: <span className="font-medium">₹{booking.totalPrice}</span>
               </p>
+              {booking.printedAt && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Printed: <span className="font-medium">{new Date(booking.printedAt).toLocaleString()}</span>
+                </p>
+              )}
             </div>
             
             <div className="flex gap-2 ml-4">
