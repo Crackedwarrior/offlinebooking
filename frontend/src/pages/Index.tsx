@@ -151,104 +151,22 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   }, [isFirstLoad]);
 
 
-  // Helper: get current show key based on time (using dynamic settings)
+  // Helper: get current show key based on time (same logic as header)
   const getCurrentShowKey = useCallback(() => {
     try {
-      // Get enabled show times from the hook
       const enabledShowTimes = showTimes.filter(show => show.enabled);
-      
       if (enabledShowTimes.length === 0) {
         console.log('⚠️ No shows available in settings, using fallback: EVENING');
-        return 'EVENING'; // Default fallback
+        return 'EVENING';
       }
-      
-      const now = currentTime; // Use the current time state
-      const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-      
-      console.log('🕐 Current time analysis:', {
-        currentTime: now.toLocaleTimeString(),
-        currentTimeMinutes,
-        enabledShows: enabledShowTimes.map(s => ({ key: s.key, start: s.startTime, end: s.endTime }))
-      });
-      
-      // Find the current show based on time ranges from settings
-      // A show should remain active until the next show starts
-      for (let i = 0; i < enabledShowTimes.length; i++) {
-        const show = enabledShowTimes[i];
-        
-        // Parse 12-hour format times
-        const parseTime = (timeStr: string) => {
-          const [timePart, period] = timeStr.split(' ');
-          const [hour, min] = timePart.split(':').map(Number);
-          let hour24 = hour;
-          if (period === 'PM' && hour !== 12) hour24 += 12;
-          if (period === 'AM' && hour === 12) hour24 = 0;
-          return hour24 * 60 + min;
-        };
-        
-        const startMinutes = parseTime(show.startTime);
-        const endMinutes = parseTime(show.endTime);
-        
-        // Find the next show's start time
-        const nextShow = enabledShowTimes[i + 1];
-        let nextShowStartMinutes = null;
-        if (nextShow) {
-          nextShowStartMinutes = parseTime(nextShow.startTime);
-        }
-        
-        // Simple logic: Is current time within this show's range?
-        let isActive = false;
-        if (endMinutes < startMinutes) {
-          // Overnight show (e.g., 11:30 PM - 2:30 AM)
-          isActive = currentTimeMinutes >= startMinutes || currentTimeMinutes < endMinutes;
-        } else {
-          // Normal show (e.g., 2:00 PM - 5:00 PM)
-          isActive = currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
-        }
-        
-        // Debug logging to understand show selection
-        console.log(`🔍 Checking show ${show.key}:`, {
-          startTime: show.startTime,
-          endTime: show.endTime,
-          startMinutes,
-          endMinutes,
-          currentTimeMinutes,
-          isActive
-        });
-        
-        if (isActive) {
-          return show.key;
-        }
-      }
-      
-      // If no show is active, find the most recent show that has ended
-      for (let i = enabledShowTimes.length - 1; i >= 0; i--) {
-        const show = enabledShowTimes[i];
-        
-        // Parse 12-hour format times
-        const parseTime = (timeStr: string) => {
-          const [timePart, period] = timeStr.split(' ');
-          const [hour, min] = timePart.split(':').map(Number);
-          let hour24 = hour;
-          if (period === 'PM' && hour !== 12) hour24 += 12;
-          if (period === 'AM' && hour === 12) hour24 = 0;
-          return hour24 * 60 + min;
-        };
-        
-        const startMinutes = parseTime(show.startTime);
-        
-        if (currentTimeMinutes >= startMinutes) {
-          return show.key;
-        }
-      }
-      
-      // Default to first show if no match
-      return enabledShowTimes[0]?.key || 'EVENING';
+      // Use the same utility used by header subtitle
+      const key = getShowKeyFromNow(enabledShowTimes as any);
+      return key || enabledShowTimes[0].key || 'EVENING';
     } catch (error) {
       console.error('❌ Error in getCurrentShowKey:', error);
-      return 'EVENING'; // Simple fallback without hardcoded timings
+      return 'EVENING';
     }
-  }, [showTimes]); // Add showTimes as dependency
+  }, [showTimes, currentTime]);
 
   // State to track if user has manually selected a show
   const [userManuallySelectedShow, setUserManuallySelectedShow] = useState(false);
@@ -268,20 +186,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
   // Dynamic show selection based on current time and settings store
   useEffect(() => {
-    // console.log('🔄 Auto-update effect running:', {
-    //   userManuallySelectedShow,
-    //   selectedShow,
-    //   currentTime: currentTime.toLocaleTimeString(),
-    //   activeView
-    // });
-    
-    // Don't auto-update if user has manually selected a show
-    if (userManuallySelectedShow) {
-      // console.log('🚫 Auto-update blocked: User manually selected show');
-      return;
-    }
-    
-    // Get the current show based on time and settings store
+    // Get the current show based on time and settings store (same as header)
     const currentShowKey = getCurrentShowKey();
     
     // Only update if the selected show doesn't match the current time show
@@ -291,7 +196,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     } else {
       // console.log('✅ No auto-update needed: show already matches current time');
     }
-  }, [currentTime, showTimes, getCurrentShowKey, selectedShow, setSelectedShow, userManuallySelectedShow]); // Depend on showTimes to re-run when settings change
+  }, [currentTime, showTimes, getCurrentShowKey, selectedShow, setSelectedShow]); // Depend on showTimes to re-run when settings change
 
   // Reset manual selection flag when navigating away from checkout
   // REMOVED: This was causing the flag to reset immediately when navigating between views

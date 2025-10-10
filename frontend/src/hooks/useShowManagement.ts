@@ -109,23 +109,26 @@ export const useShowManagement = () => {
     const currentTime = getCurrentTimeMinutes();
     const show = showTimes.find(s => s.key === showKey);
     if (!show) return false;
-    const [startHour, startMin] = show.startTime.split(':').map(Number);
-    const [endHour, endMin] = show.endTime.split(':').map(Number);
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
+
+    // Use robust parser that supports both 12-hour (e.g., "2:00 PM") and 24-hour formats
+    const startMinutes = parseTimeToMinutes(show.startTime);
+    const endMinutes = parseTimeToMinutes(show.endTime);
+
     const currentIndex = showTimes.findIndex(s => s.key === showKey);
     const nextShow = showTimes[currentIndex + 1];
     const nextShowStartMinutes = nextShow ? parseTimeToMinutes(nextShow.startTime) : null;
+
     let isInRange = false;
     if (endMinutes < startMinutes) {
+      // Overnight window
       isInRange = currentTime >= startMinutes || currentTime < endMinutes;
     } else {
       isInRange = currentTime >= startMinutes && currentTime < endMinutes;
     }
+
     const isAfterShowStart = currentTime >= startMinutes;
     const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
-    const isActive = isInRange || (isAfterShowStart && isBeforeNextShow);
-    return isActive;
+    return isInRange || (isAfterShowStart && isBeforeNextShow);
   }, [showTimes]);
 
   /**

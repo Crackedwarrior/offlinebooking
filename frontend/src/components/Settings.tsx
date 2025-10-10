@@ -39,6 +39,7 @@ const Settings = () => {
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [overlapErrors, setOverlapErrors] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const hasChangesRef = useRef(false);
 
@@ -66,6 +67,62 @@ const Settings = () => {
       hasChangesRef.current = true;
     }
   }, [isDirty, localShowTimes, showTimes]);
+
+  // --- Overlap Validation ---
+  const parseToMinutes = useCallback((raw: string) => {
+    // Accept formats like "H:MM", "HH:MM", and "H:MM AM/PM"
+    if (!raw) return 0;
+    const parts = raw.trim().split(' ');
+    const timePart = parts[0];
+    const ampm = (parts[1] || '').toUpperCase();
+    const [hStr, mStr] = timePart.split(':');
+    let h = parseInt(hStr || '0', 10);
+    const m = parseInt(mStr || '0', 10);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+  }, []);
+
+  const expandIntervals = useCallback((startMin: number, endMin: number): Array<{ from: number; to: number }> => {
+    // If end < start, treat as overnight by splitting into [start, 1440) and [0, end)
+    if (endMin < startMin) {
+      return [
+        { from: startMin, to: 1440 },
+        { from: 0, to: endMin }
+      ];
+    }
+    return [{ from: startMin, to: endMin }];
+  }, []);
+
+  const computeOverlapErrors = useCallback((shows: ShowTimeSettings[]) => {
+    const enabled = shows.filter(s => s.enabled);
+    const intervals: Array<{ key: string; label: string; span: { from: number; to: number } } > = [];
+    enabled.forEach(s => {
+      const start = parseToMinutes(s.startTime);
+      const end = parseToMinutes(s.endTime);
+      const spans = expandIntervals(start, end);
+      spans.forEach(span => intervals.push({ key: s.key, label: s.label, span }));
+    });
+
+    const conflicts: string[] = [];
+    for (let i = 0; i < intervals.length; i++) {
+      for (let j = i + 1; j < intervals.length; j++) {
+        const a = intervals[i];
+        const b = intervals[j];
+        const overlap = Math.max(0, Math.min(a.span.to, b.span.to) - Math.max(a.span.from, b.span.from));
+        if (overlap > 0) conflicts.push(`${a.label} overlaps ${b.label}`);
+      }
+    }
+    return Array.from(new Set(conflicts));
+  }, [parseToMinutes, expandIntervals]);
+
+  const recomputeOverlaps = useCallback(() => {
+    setOverlapErrors(computeOverlapErrors(localShowTimes));
+  }, [localShowTimes, computeOverlapErrors]);
+
+  useEffect(() => {
+    recomputeOverlaps();
+  }, [recomputeOverlaps]);
 
   // Memoize seat counts calculation
   const seatCounts = useMemo(() => {
@@ -112,14 +169,15 @@ const Settings = () => {
 
   // Handle show time changes
   const handleShowTimeChange = useCallback((key: string, field: keyof ShowTimeSettings, value: string | boolean) => {
-    setLocalShowTimes(prev => prev.map(show => 
-      show.key === key ? { ...show, [field]: value } : show
-    ));
-    
-    // Track changes and show save button
+    setLocalShowTimes(prev => {
+      const next = prev.map(show => show.key === key ? { ...show, [field]: value } : show);
+      // Immediate validation using updated array to avoid stale state timing
+      setOverlapErrors(computeOverlapErrors(next));
+      return next;
+    });
     hasChangesRef.current = true;
     setShowSaveButton(true);
-  }, []);
+  }, [computeOverlapErrors]);
 
 
   // Handle deleting show time
@@ -130,16 +188,24 @@ const Settings = () => {
     }
 
     deleteShowTime(key);
-    setLocalShowTimes(prev => prev.filter(show => show.key !== key));
+    setLocalShowTimes(prev => {
+      const next = prev.filter(show => show.key !== key);
+      setOverlapErrors(computeOverlapErrors(next));
+      return next;
+    });
     
     // Track changes and show save button
     hasChangesRef.current = true;
     setShowSaveButton(true);
-  }, [localShowTimes, deleteShowTime]);
+  }, [localShowTimes, deleteShowTime, computeOverlapErrors]);
 
   // Save all changes
   const handleSave = useCallback(() => {
     try {
+      if (overlapErrors.length > 0) {
+        setError('Please resolve overlapping show times before saving.');
+        return;
+      }
       // Get current form values
       const formValues = watchedPricing;
       
@@ -170,7 +236,7 @@ const Settings = () => {
       console.error('❌ Error saving settings:', error);
       setError('Failed to save settings. Please try again.');
     }
-  }, [watchedPricing, localShowTimes, updatePricing, updateShowTime]);
+  }, [watchedPricing, localShowTimes, updatePricing, updateShowTime, overlapErrors]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
@@ -370,6 +436,17 @@ const Settings = () => {
             <h3 className="font-semibold">Show Times ({localShowTimes.length})</h3>
           </div>
 
+          {overlapErrors.length > 0 && (
+            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              <div className="font-semibold mb-1">Overlapping show times detected</div>
+              <ul className="list-disc pl-5 space-y-1">
+                {overlapErrors.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Existing Show Times */}
           <div className="space-y-6">
             {localShowTimes.map(show => (
@@ -491,13 +568,20 @@ const Settings = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Per-show conflict hint */}
+                {overlapErrors.some(e => e.includes(show.label)) && (
+                  <div className="mt-2 text-xs text-red-700">
+                    This show overlaps another enabled show. Adjust its time range.
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
     </div>
-  ), [localShowTimes, handleShowTimeChange, handleDeleteShowTime]);
+  ), [localShowTimes, handleShowTimeChange, handleDeleteShowTime, overlapErrors]);
 
   const MoviesTab = useMemo(() => () => (
     <div className="space-y-6">
@@ -592,10 +676,11 @@ const Settings = () => {
           <div className="fixed bottom-6 right-6 z-50">
             <Button
               onClick={handleSave}
-              className="bg-green-600 hover:bg-green-700 shadow-lg"
+              className={`shadow-lg ${overlapErrors.length ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+              disabled={overlapErrors.length > 0}
             >
               <Save className="w-4 h-4 mr-2" />
-              Save Changes
+              {overlapErrors.length ? 'Resolve Overlaps to Save' : 'Save Changes'}
             </Button>
           </div>
         )}

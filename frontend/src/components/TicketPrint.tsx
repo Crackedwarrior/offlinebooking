@@ -211,6 +211,15 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const toggleSeatStatus = useBookingStore(state => state.toggleSeatStatus);
   const { getMovieForShow } = useSettingsStore();
 
+  // Determine print availability and reason
+  const movieForCurrentShow = getMovieForShow(selectedShow);
+  const hasMovieAssigned = !!movieForCurrentShow;
+  const hasTicketsSelected = selectedSeats.length > 0;
+  const canPrint = hasMovieAssigned && hasTicketsSelected;
+  const printButtonLabel = hasMovieAssigned
+    ? (hasTicketsSelected ? 'Print Now' : 'Select Seats to Print')
+    : 'Assign Movie to Print';
+
     const toggleGroupSelection = (idx: number) => {
     setSelectedGroupIdxs(prev => {
       const newSelection = prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx];
@@ -601,23 +610,24 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         
           {/* Print Button */}
         <button
-            className="flex-1 flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 transition-all duration-200"
+            className={`flex-1 flex flex-col items-center justify-center transition-all duration-200 ${canPrint ? 'bg-green-50 hover:bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           onClick={() => {
             console.log('🖨️ Print button clicked');
-            if (selectedSeats.length === 0) {
-              console.log('❌ No tickets to print');
+            if (!canPrint) {
+              if (!hasMovieAssigned) console.log('❌ Cannot print: No movie assigned to the current show');
+              else if (!hasTicketsSelected) console.log('❌ No tickets to print');
               return;
             }
-            
             handleConfirmPrint();
           }}
+          disabled={!canPrint}
         >
             <div className="w-6 h-6 mb-2">
               <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
             <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
           </svg>
             </div>
-            <span className="text-xs font-medium">Print Now</span>
+            <span className="text-xs font-medium">{printButtonLabel}</span>
         </button>
       </div>
       </div>

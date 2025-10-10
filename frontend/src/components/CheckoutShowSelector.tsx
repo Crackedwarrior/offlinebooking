@@ -35,11 +35,7 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
   } = useShowManagement();
 
   const showTimes = useSettingsStore(state => state.showTimes);
-  const currentMovie = getMovieForShow(selectedShow) || {
-    name: 'KALANK',
-    language: 'HINDI',
-    screen: 'Screen 1'
-  };
+  const currentMovie = getMovieForShow(selectedShow);
 
   const showDetails = getShowDetails;
   const currentShowDetails = showDetails?.[selectedShow];
@@ -55,13 +51,13 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
           className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md cursor-pointer hover:bg-gray-50"
           onClick={handleShowCardClick}
         >
-          <div className="font-bold text-base mb-1 leading-tight break-words">{currentMovie.name}</div>
-          <div className="text-sm text-gray-600 mb-1">({currentMovie.language})</div>
+          <div className="font-bold text-base mb-1 leading-tight break-words">{currentMovie?.name || 'No show assigned'}</div>
+          <div className="text-sm text-gray-600 mb-1">({currentMovie?.language || 'N/A'})</div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-semibold text-blue-600">{showDetails?.[selectedShow]?.label || selectedShow}</span>
             {currentShowStatus?.[selectedShow] && (
               <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                Current Time
+                Current Show
               </span>
             )}
           </div>
@@ -141,7 +137,7 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
                           )}
                           {currentShowStatus?.[show.key] && (
                             <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                              Current Time
+                              Current Show
                             </span>
                           )}
                           {isAccessible && !isSelected && (
@@ -156,8 +152,8 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
                       <div className="flex flex-row w-full">
                         {/* Show Box */}
                         <div className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md">
-                          <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'KALANK'}</div>
-                          <div className="text-sm text-gray-600 mb-1">({getMovieForShow(show.key)?.language || 'HINDI'})</div>
+                          <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'No show assigned'}</div>
+                          <div className="text-sm text-gray-600 mb-1">({getMovieForShow(show.key)?.language || 'N/A'})</div>
                           <span className="text-sm font-semibold text-blue-600 mb-1">{show.label}</span>
                           <div className="flex justify-between items-center mt-auto">
                             <span className="text-sm whitespace-nowrap">{convertTo12Hour(show.startTime)} - {convertTo12Hour(show.endTime)}</span>
