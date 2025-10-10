@@ -114,10 +114,7 @@ export const useShowManagement = () => {
     const startMinutes = parseTimeToMinutes(show.startTime);
     const endMinutes = parseTimeToMinutes(show.endTime);
 
-    const currentIndex = showTimes.findIndex(s => s.key === showKey);
-    const nextShow = showTimes[currentIndex + 1];
-    const nextShowStartMinutes = nextShow ? parseTimeToMinutes(nextShow.startTime) : null;
-
+    // Check if this show is currently running
     let isInRange = false;
     if (endMinutes < startMinutes) {
       // Overnight window
@@ -126,9 +123,34 @@ export const useShowManagement = () => {
       isInRange = currentTime >= startMinutes && currentTime < endMinutes;
     }
 
-    const isAfterShowStart = currentTime >= startMinutes;
-    const isBeforeNextShow = !nextShowStartMinutes || currentTime < nextShowStartMinutes;
-    return isInRange || (isAfterShowStart && isBeforeNextShow);
+    if (isInRange) {
+      return true; // Show is currently running
+    }
+
+    // Check if this is the next show and current show has ended
+    const currentIndex = showTimes.findIndex(s => s.key === showKey);
+    const prevShow = showTimes[currentIndex - 1];
+    
+    if (prevShow) {
+      const prevShowEndMinutes = parseTimeToMinutes(prevShow.endTime);
+      const prevShowStartMinutes = parseTimeToMinutes(prevShow.startTime);
+      
+      let prevShowHasEnded = false;
+      if (prevShowEndMinutes < prevShowStartMinutes) {
+        // Previous show was overnight
+        prevShowHasEnded = currentTime >= prevShowEndMinutes;
+      } else {
+        // Previous show was normal
+        prevShowHasEnded = currentTime >= prevShowEndMinutes;
+      }
+      
+      // If previous show has ended and this show hasn't started yet, show "Current Show"
+      if (prevShowHasEnded && currentTime < startMinutes) {
+        return true;
+      }
+    }
+
+    return false;
   }, [showTimes]);
 
   /**

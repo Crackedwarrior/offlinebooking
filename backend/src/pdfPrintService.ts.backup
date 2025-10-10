@@ -737,18 +737,9 @@ class PdfPrintService {
       movieName = `${movieName} (${ticketData.movieLanguage})`;
     }
     
-    // Extract showTime first (if available)
+    // Prefer provided fields but normalize show label from time if present
     if (ticketData.showTime) {
       showTime = ticketData.showTime;
-      console.log('🕐 Using showTime from frontend:', showTime);
-    }
-    
-    // Use show label from frontend FIRST (matches Kannada service logic)
-    if (ticketData.show) {
-      showClass = `${ticketData.show} SHOW`;
-      console.log('🎬 Using show from frontend:', ticketData.show, '→', showClass);
-    } else if (showTime) {
-      // Fallback to hardcoded time ranges ONLY if no show label provided
       const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (m) {
         let hour = parseInt(m[1], 10);
@@ -759,8 +750,11 @@ class PdfPrintService {
         else if (hour < 17) showClass = 'MATINEE SHOW';
         else if (hour < 21) showClass = 'EVENING SHOW';
         else showClass = 'NIGHT SHOW';
-        console.log('🕐 Using hardcoded time range for hour:', hour, '→', showClass);
+      } else if (ticketData.show) {
+        showClass = `${ticketData.show} SHOW`;
       }
+    } else if (ticketData.show) {
+      showClass = `${ticketData.show} SHOW`;
     }
     
     if (ticketData.date) {

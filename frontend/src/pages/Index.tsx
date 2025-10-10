@@ -9,7 +9,7 @@ import SeatGrid from '@/components/SeatGrid';
 import Checkout from '@/pages/Checkout';
 import DateSelector from '@/components/DateSelector';
 import { getTheaterConfig } from '@/config/theaterConfig';
-import { getShowKeyFromNow, getShowLabelByKey, formatTo12Hour } from '@/lib/time';
+import { getShowKeyFromNow, getShowLabelByKey, formatTo12Hour, parse12HourToMinutes } from '@/lib/time';
 import ShowSelector from '@/components/ShowSelector';
 
 // Lazy load heavy components
@@ -89,6 +89,12 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   
   // Add state to track if this is the first app load
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  
+  // State to track if user has manually selected a show
+  const [userManuallySelectedShow, setUserManuallySelectedShow] = useState(false);
+  
+  // State to track the previous current show (for detecting show transitions)
+  const [previousCurrentShow, setPreviousCurrentShow] = useState<string | null>(null);
 
   // Custom hook to get current show label dynamically
   const getCurrentShowLabelDynamic = useCallback(() => {
@@ -117,19 +123,83 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     }
   }, [showTimes]);
 
-  // Update current time every 5 minutes (less frequent to reduce unnecessary re-renders)
+  // Smart timer system - only sets timer for exact show transition moments
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newTime = new Date();
-      const oldTime = currentTime;
+    const scheduleNextTransition = () => {
+      const now = new Date();
+      const enabledShowTimes = showTimes.filter(show => show.enabled);
       
-      // Only update if the minute has changed (to prevent unnecessary re-renders)
-      if (newTime.getMinutes() !== oldTime.getMinutes()) {
-        setCurrentTime(newTime);
+      if (enabledShowTimes.length === 0) return;
+      
+      // Find the next show transition time
+      let nextTransitionTime = null;
+      let nextTransitionShow = null;
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      for (const show of enabledShowTimes) {
+        // Use existing utility function for time parsing
+        const startMinutes = parse12HourToMinutes(show.startTime);
+        
+        // If show hasn't started yet, it's a future transition
+        if (startMinutes > nowMinutes) {
+          if (!nextTransitionTime || startMinutes < nextTransitionTime) {
+            nextTransitionTime = startMinutes;
+            nextTransitionShow = show.key;
+          }
+        }
       }
-    }, 60000); // Check every minute instead of every 5 minutes
-    return () => clearInterval(interval);
-  }, [currentTime]);
+      
+      if (nextTransitionTime) {
+        // Calculate milliseconds until next transition
+        const msUntilTransition = (nextTransitionTime - nowMinutes) * 60 * 1000;
+        
+        console.log(`⏰ Next transition: ${nextTransitionShow} in ${Math.round(msUntilTransition / 1000)}s`);
+        
+        // Set single timer for exact transition moment
+        const timerId = setTimeout(() => {
+          console.log(`🔄 Transition time reached for ${nextTransitionShow}`);
+          
+          // Directly trigger the transition logic instead of relying on state update
+          if (!userManuallySelectedShow) {
+            console.log(`🔄 Auto-updating show to: ${nextTransitionShow}`);
+            setSelectedShow(nextTransitionShow as any);
+            
+            // Navigate to seat grid to refresh seat data for the new show
+            console.log('🔄 Navigating to seat grid to load fresh data for new show...');
+            setActiveView('booking');
+            setIsExchangeMode(true);
+            
+            // After a short delay, navigate back to checkout
+            setTimeout(() => {
+              console.log('🔄 Auto-navigating back to checkout after seat data load...');
+              setIsExchangeMode(false);
+              setActiveView('checkout');
+            }, 1000); // 1 second delay
+          } else {
+            console.log('⏸️ Skipping auto-update: user manually selected show');
+          }
+          
+          setCurrentTime(new Date()); // Update time state for other components
+          scheduleNextTransition(); // Schedule the next one
+        }, msUntilTransition);
+        
+        // Return cleanup function
+        return () => clearTimeout(timerId);
+      } else {
+        // No more transitions today, check again in 1 hour
+        console.log('⏰ No more transitions today, checking again in 1 hour');
+        const timerId = setTimeout(() => {
+          setCurrentTime(new Date());
+          scheduleNextTransition();
+        }, 60 * 60 * 1000);
+        
+        return () => clearTimeout(timerId);
+      }
+    };
+    
+    const cleanup = scheduleNextTransition();
+    return cleanup;
+  }, [showTimes, userManuallySelectedShow, setSelectedShow]);
 
   // ✅ AUTO-NAVIGATE TO SEAT GRID ON FIRST LOAD - Trigger seat data loading
   useEffect(() => {
@@ -168,9 +238,6 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     }
   }, [showTimes, currentTime]);
 
-  // State to track if user has manually selected a show
-  const [userManuallySelectedShow, setUserManuallySelectedShow] = useState(false);
-
   // Handler for manual show selection
   const handleManualShowSelection = useCallback((showKey: string) => {
     // console.log(`🎯 Manual show selection: ${showKey}`);
@@ -185,18 +252,51 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   }, [setSelectedShow]);
 
   // Dynamic show selection based on current time and settings store
+  // Only auto-updates ONCE when the show actually transitions (not every minute)
   useEffect(() => {
     // Get the current show based on time and settings store (same as header)
     const currentShowKey = getCurrentShowKey();
     
-    // Only update if the selected show doesn't match the current time show
-    if (selectedShow !== currentShowKey) {
-      console.log(`🔄 Auto-updating show: ${selectedShow} → ${currentShowKey}`);
-      setSelectedShow(currentShowKey as ShowTime);
-    } else {
-      // console.log('✅ No auto-update needed: show already matches current time');
+    console.log('🎯 Show transition check:', {
+      currentShowKey,
+      previousCurrentShow,
+      userManuallySelectedShow,
+      currentTime: currentTime.toLocaleTimeString()
+    });
+    
+    // Only update if the CURRENT SHOW has CHANGED from the previous current show
+    // This ensures we only auto-update ONCE when the show transitions
+    if (currentShowKey !== previousCurrentShow && previousCurrentShow !== null) {
+      console.log(`🔄 Show transition detected: ${previousCurrentShow} → ${currentShowKey}`);
+      
+      // Don't auto-update if user has manually selected a show
+      if (!userManuallySelectedShow) {
+        console.log(`🔄 Auto-updating show to: ${currentShowKey}`);
+        setSelectedShow(currentShowKey as ShowTime);
+        
+        // Navigate to seat grid to refresh seat data for the new show
+        console.log('🔄 Navigating to seat grid to load fresh data for new show...');
+        setActiveView('booking');
+        setIsExchangeMode(true);
+        
+        // After a short delay, navigate back to checkout
+        setTimeout(() => {
+          console.log('🔄 Auto-navigating back to checkout after seat data load...');
+          setIsExchangeMode(false);
+          setActiveView('checkout');
+        }, 1000); // 1 second delay
+      } else {
+        console.log('⏸️ Skipping auto-update: user manually selected show');
+      }
+      
+      // Update the previous current show tracker
+      setPreviousCurrentShow(currentShowKey);
+    } else if (previousCurrentShow === null) {
+      // Initialize the tracker on first run (don't trigger navigation on initial load)
+      console.log(`🎯 Initializing current show tracker: ${currentShowKey}`);
+      setPreviousCurrentShow(currentShowKey);
     }
-  }, [currentTime, showTimes, getCurrentShowKey, selectedShow, setSelectedShow]); // Depend on showTimes to re-run when settings change
+  }, [currentTime, showTimes, getCurrentShowKey, userManuallySelectedShow, previousCurrentShow, setSelectedShow]); // Depend on showTimes to re-run when settings change
 
   // Reset manual selection flag when navigating away from checkout
   // REMOVED: This was causing the flag to reset immediately when navigating between views
