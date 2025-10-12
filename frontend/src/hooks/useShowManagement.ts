@@ -5,7 +5,7 @@ import { getSeatStatus } from '@/services/api';
 import { convertTo12Hour, parseTimeToMinutes, getCurrentTimeMinutes } from '@/utils/timeUtils';
 import type { Show } from '@/types/api';
 
-export const useShowManagement = () => {
+export const useShowManagement = (onManualShowSelection?: (showKey: string) => void) => {
   const { selectedShow, setSelectedShow, selectedDate, loadBookingForDate, syncSeatStatus, toggleSeatStatus } = useBookingStore();
   const { getMovieForShow } = useSettingsStore();
   const showTimes = useSettingsStore(state => state.showTimes);
@@ -282,12 +282,12 @@ export const useShowManagement = () => {
       
       if (currentShowKey && currentShowKey !== selectedShow) {
         console.log('🎯 TRIPLE-CLICK: About to call handleShowSelect with:', currentShowKey);
-        handleShowSelect(currentShowKey);
+        handleShowSelect(currentShowKey, onManualShowSelection);
       } else {
         console.log('🎯 TRIPLE-CLICK: No action needed - same show or no current show');
       }
     }
-  }, [selectedShow, getCurrentShowByTime, handleShowSelect, showDropdownOpen]);
+  }, [selectedShow, getCurrentShowByTime, handleShowSelect, showDropdownOpen, onManualShowSelection]);
 
   /**
    * Handle clicks outside dropdown

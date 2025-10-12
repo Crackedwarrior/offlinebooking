@@ -34,7 +34,6 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "!backend-dist/node_modules/**/*",
       "!backend-dist/**/*.ts",
       "!backend-dist/**/*.map",
       "!backend-dist/temp/**/*",
@@ -45,7 +44,6 @@
         "from": "backend-dist",
         "to": "backend",
         "filter": [
-          "!node_modules/**/*",
           "!**/*.ts",
           "!**/*.map",
           "!temp/**/*",

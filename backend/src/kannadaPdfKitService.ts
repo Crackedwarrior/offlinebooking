@@ -330,7 +330,14 @@ class KannadaPdfKitService {
       doc.font('Times-Bold').text(`${formattedTicket.date}`, dateX + dateLabelWidth, currentY + 1); // Moved date value down by 1 point to align with Kannada baseline
       
       const dateEndX = dateX + dateLabelWidth + doc.widthOfString(`${formattedTicket.date}`);
-      const formattedTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+      // Manual 12-hour format to ensure consistency across all systems
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = now.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // 0 should be 12
+      const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
       const snoText = `S.No: ${formattedTicket.ticketId} / ${formattedTime}`;
       
       doc.fontSize(snoFontSize + 1).font('Helvetica'); // Increased font size by +1 and use same font as English ticket
@@ -635,7 +642,14 @@ class KannadaPdfKitService {
     let sgst = ticketData.sgst || getTheaterConfig().defaultTaxValues.sgst;
     let ticketId = 'TKT1000000';
     
-    let currentTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+    // Manual 12-hour format to ensure consistency across all systems
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 should be 12
+    let currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
     console.log('🕐 CURRENT TIME DEBUG - Kannada PDF Service:');
     console.log('🕐 new Date():', new Date());
     console.log('🕐 new Date().toISOString():', new Date().toISOString());
@@ -670,11 +684,11 @@ class KannadaPdfKitService {
       if (showLabel.includes('MORNING')) {
         kannadaShow = 'ಮಾರ್ನಿಂಗ್ ಶೋ';
       } else if (showLabel.includes('MATINEE') || showLabel.includes('AFTERNOON')) {
-        kannadaShow = 'ಮಧ್ಯಾಹ್ನ ಶೋ';
+        kannadaShow = 'ಮ್ಯಾಟಿನೀ ಶೋ';
       } else if (showLabel.includes('EVENING')) {
-        kannadaShow = 'ಸಂಜೆ ಶೋ';
+        kannadaShow = 'ಈವ್ನಿಂಗ್ ಶೋ';
       } else if (showLabel.includes('NIGHT')) {
-        kannadaShow = 'ರಾತ್ರಿ ಶೋ';
+        kannadaShow = 'ನೈಟ್ ಶೋ';
       } else {
         // If it's already in Kannada or unknown, use as is
         kannadaShow = showLabel.includes('ಶೋ') ? ticketData.show : `${ticketData.show} ಶೋ`;
@@ -691,9 +705,9 @@ class KannadaPdfKitService {
         if (period === 'PM' && hour !== 12) hour += 12;
         if (period === 'AM' && hour === 12) hour = 0;
         if (hour < 12) showClass = 'ಮಾರ್ನಿಂಗ್ ಶೋ';
-        else if (hour < 17) showClass = 'ಮಧ್ಯಾಹ್ನ ಶೋ';
-        else if (hour < 21) showClass = 'ಸಂಜೆ ಶೋ';
-        else showClass = 'ರಾತ್ರಿ ಶೋ';
+        else if (hour < 17) showClass = 'ಮ್ಯಾಟಿನೀ ಶೋ';
+        else if (hour < 21) showClass = 'ಈವ್ನಿಂಗ್ ಶೋ';
+        else showClass = 'ನೈಟ್ ಶೋ';
         console.log('🕐 Using hardcoded time range for hour:', hour, '→', showClass);
       }
     }

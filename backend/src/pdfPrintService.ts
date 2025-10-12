@@ -245,8 +245,14 @@ class PdfPrintService {
     doc.fontSize(normalFontSize).font('Times-Bold'); // Same font family as theater name, no italic
     doc.text(`DATE: ${ticketData.date || new Date().toLocaleDateString()}`, TEXT_OFFSET, currentY);
     doc.fontSize(6).font('Helvetica'); // Further reduced font size for S.No
-    // Format time with AM/PM
-    const formattedTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+    // Manual 12-hour format to ensure consistency across all systems
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 should be 12
+    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
     console.log('🔧 SNO_OFFSET DEBUG:', { SNO_OFFSET, currentY, formattedTime });
     doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, SNO_OFFSET + 12, currentY + 1); // Separate S.No control (moved 4mm to right total: 6 + 6 = 12)
     currentY += 15;
@@ -717,7 +723,14 @@ class PdfPrintService {
     // Test time format first
     this.testTimeFormat();
     
-    let currentTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+    // Manual 12-hour format to ensure consistency across all systems
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 should be 12
+    let currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
     console.log('🕐 CURRENT TIME DEBUG - English PDF Service:');
     console.log('🕐 new Date():', new Date());
     console.log('🕐 new Date().toISOString():', new Date().toISOString());

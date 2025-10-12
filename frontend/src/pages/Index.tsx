@@ -123,28 +123,61 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     }
   }, [showTimes]);
 
-  // Smart timer system - only sets timer for exact show transition moments
+  // Smart timer system - immediately updates store and schedules future transitions
   useEffect(() => {
+    console.log('🔄 Smart timer effect triggered - showTimes:', showTimes.length, 'userManuallySelectedShow:', userManuallySelectedShow);
+    
     const scheduleNextTransition = () => {
       const now = new Date();
       const enabledShowTimes = showTimes.filter(show => show.enabled);
       
-      if (enabledShowTimes.length === 0) return;
+      if (enabledShowTimes.length === 0) {
+        console.log('⏰ No enabled shows found');
+        return;
+      }
       
-      // Find the next show transition time
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      console.log('⏰ Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
+      
+      // FIRST: Check if current show differs from stored show and update immediately
+      const currentShow = getCurrentShowKey();
+      const storedShow = useBookingStore.getState().selectedShow;
+      
+      console.log('🔍 Current show check:', { currentShow, storedShow, userManuallySelectedShow });
+      
+      if (currentShow && currentShow !== storedShow && !userManuallySelectedShow) {
+        console.log(`🔄 IMMEDIATE UPDATE: Current show ${currentShow} differs from stored ${storedShow}, updating now!`);
+        setSelectedShow(currentShow as any);
+        
+        // Navigate to seat grid to refresh data
+        console.log('🔄 Navigating to seat grid to refresh data for current show...');
+        setActiveView('booking');
+        setIsExchangeMode(true);
+        
+        setTimeout(() => {
+          console.log('🔄 Auto-navigating back to checkout after seat data load...');
+          setIsExchangeMode(false);
+          setActiveView('checkout');
+        }, 1000);
+      }
+      
+      // THEN: Find the next show transition time
       let nextTransitionTime = null;
       let nextTransitionShow = null;
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
       
       for (const show of enabledShowTimes) {
         // Use existing utility function for time parsing
         const startMinutes = parse12HourToMinutes(show.startTime);
+        
+        console.log(`⏰ Checking show ${show.key}: starts at ${show.startTime} (${startMinutes} minutes)`);
         
         // If show hasn't started yet, it's a future transition
         if (startMinutes > nowMinutes) {
           if (!nextTransitionTime || startMinutes < nextTransitionTime) {
             nextTransitionTime = startMinutes;
             nextTransitionShow = show.key;
+            console.log(`⏰ Found future transition: ${show.key} at ${show.startTime}`);
           }
         }
       }
@@ -153,7 +186,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         // Calculate milliseconds until next transition
         const msUntilTransition = (nextTransitionTime - nowMinutes) * 60 * 1000;
         
-        console.log(`⏰ Next transition: ${nextTransitionShow} in ${Math.round(msUntilTransition / 1000)}s`);
+        console.log(`⏰ Next transition: ${nextTransitionShow} in ${Math.round(msUntilTransition / 1000)}s (${Math.round(msUntilTransition / 1000 / 60)} minutes)`);
         
         // Set single timer for exact transition moment
         const timerId = setTimeout(() => {
@@ -184,16 +217,23 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         }, msUntilTransition);
         
         // Return cleanup function
-        return () => clearTimeout(timerId);
+        return () => {
+          console.log('🧹 Cleaning up smart timer');
+          clearTimeout(timerId);
+        };
       } else {
         // No more transitions today, check again in 1 hour
         console.log('⏰ No more transitions today, checking again in 1 hour');
         const timerId = setTimeout(() => {
+          console.log('⏰ Hourly check - updating time and rescheduling');
           setCurrentTime(new Date());
           scheduleNextTransition();
         }, 60 * 60 * 1000);
         
-        return () => clearTimeout(timerId);
+        return () => {
+          console.log('🧹 Cleaning up hourly timer');
+          clearTimeout(timerId);
+        };
       }
     };
     
@@ -240,13 +280,26 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
   // Handler for manual show selection
   const handleManualShowSelection = useCallback((showKey: string) => {
-    // console.log(`🎯 Manual show selection: ${showKey}`);
-    // console.log('🎯 Setting userManuallySelectedShow to true');
+    console.log(`🎯 Manual show selection: ${showKey}`);
+    console.log('🎯 Setting userManuallySelectedShow to true');
     setUserManuallySelectedShow(true);
-    // console.log('🎯 Calling setSelectedShow with:', showKey);
+    console.log('🎯 Calling setSelectedShow with:', showKey);
     setSelectedShow(showKey as ShowTime);
+    
+    // Navigate to seat grid to refresh seat data for the new show (same as auto transition)
+    console.log('🔄 Manual show selection - navigating to seat grid to load fresh data...');
+    setActiveView('booking');
+    setIsExchangeMode(true);
+    
+    // After a short delay, navigate back to checkout
     setTimeout(() => {
-      // console.log('🔄 Resetting manual selection flag after 10 minutes');
+      console.log('🔄 Manual show selection - auto-navigating back to checkout after seat data load...');
+      setIsExchangeMode(false);
+      setActiveView('checkout');
+    }, 1000); // 1 second delay
+    
+    setTimeout(() => {
+      console.log('🔄 Resetting manual selection flag after 10 minutes');
       setUserManuallySelectedShow(false);
     }, 10 * 60 * 1000); // 10 minutes
   }, [setSelectedShow]);
@@ -272,7 +325,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       // Don't auto-update if user has manually selected a show
       if (!userManuallySelectedShow) {
         console.log(`🔄 Auto-updating show to: ${currentShowKey}`);
-        setSelectedShow(currentShowKey as ShowTime);
+      setSelectedShow(currentShowKey as ShowTime);
         
         // Navigate to seat grid to refresh seat data for the new show
         console.log('🔄 Navigating to seat grid to load fresh data for new show...');
@@ -285,7 +338,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
           setIsExchangeMode(false);
           setActiveView('checkout');
         }, 1000); // 1 second delay
-      } else {
+    } else {
         console.log('⏸️ Skipping auto-update: user manually selected show');
       }
       

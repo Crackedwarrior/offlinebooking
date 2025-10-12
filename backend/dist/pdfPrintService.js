@@ -180,8 +180,14 @@ class PdfPrintService {
         doc.fontSize(normalFontSize).font('Times-Bold'); // Same font family as theater name, no italic
         doc.text(`DATE: ${ticketData.date || new Date().toLocaleDateString()}`, TEXT_OFFSET, currentY);
         doc.fontSize(6).font('Helvetica'); // Further reduced font size for S.No
-        // Format time with AM/PM
-        const formattedTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        // Manual 12-hour format to ensure consistency across all systems
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 should be 12
+        const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
         console.log('🔧 SNO_OFFSET DEBUG:', { SNO_OFFSET, currentY, formattedTime });
         doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, SNO_OFFSET + 12, currentY + 1); // Separate S.No control (moved 4mm to right total: 6 + 6 = 12)
         currentY += 15;
@@ -576,7 +582,14 @@ class PdfPrintService {
         let ticketId = 'TKT1000000';
         // Test time format first
         this.testTimeFormat();
-        let currentTime = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        // Manual 12-hour format to ensure consistency across all systems
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 should be 12
+        let currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
         console.log('🕐 CURRENT TIME DEBUG - English PDF Service:');
         console.log('🕐 new Date():', new Date());
         console.log('🕐 new Date().toISOString():', new Date().toISOString());
@@ -594,9 +607,18 @@ class PdfPrintService {
         if (ticketData.movieLanguage) {
             movieName = `${movieName} (${ticketData.movieLanguage})`;
         }
-        // Prefer provided fields but normalize show label from time if present
+        // Extract showTime first (if available)
         if (ticketData.showTime) {
             showTime = ticketData.showTime;
+            console.log('🕐 Using showTime from frontend:', showTime);
+        }
+        // Use show label from frontend FIRST (matches Kannada service logic)
+        if (ticketData.show) {
+            showClass = `${ticketData.show} SHOW`;
+            console.log('🎬 Using show from frontend:', ticketData.show, '→', showClass);
+        }
+        else if (showTime) {
+            // Fallback to hardcoded time ranges ONLY if no show label provided
             const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
             if (m) {
                 let hour = parseInt(m[1], 10);
@@ -613,13 +635,8 @@ class PdfPrintService {
                     showClass = 'EVENING SHOW';
                 else
                     showClass = 'NIGHT SHOW';
+                console.log('🕐 Using hardcoded time range for hour:', hour, '→', showClass);
             }
-            else if (ticketData.show) {
-                showClass = `${ticketData.show} SHOW`;
-            }
-        }
-        else if (ticketData.show) {
-            showClass = `${ticketData.show} SHOW`;
         }
         if (ticketData.date) {
             // Convert date from YYYY-MM-DD to DD/MM/YYYY format

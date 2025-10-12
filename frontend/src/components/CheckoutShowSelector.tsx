@@ -32,7 +32,7 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
     currentShowStatus,
     convertTo12Hour,
     isShowAccessible
-  } = useShowManagement();
+  } = useShowManagement(onManualShowSelection);
 
   const showTimes = useSettingsStore(state => state.showTimes);
   const currentMovie = getMovieForShow(selectedShow);

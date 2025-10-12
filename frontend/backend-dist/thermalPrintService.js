@@ -195,11 +195,14 @@ Test Time: ${new Date().toLocaleString()}
         const mc = ticketData.mc || (0, theaterConfig_1.getTheaterConfig)().defaultTaxValues.mc;
         // Format date and time - use the ticket date, not current date
         const ticketDate = ticketData.date || new Date().toLocaleDateString('en-GB');
-        const currentTime = new Date().toLocaleTimeString('en-US', {
-            hour12: true,
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        // Manual 12-hour format to ensure consistency across all systems
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 should be 12
+        const currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
         // Generate ticket ID using the service
         const ticketId = ticketIdService_1.default.getNextTicketId();
         // Helper function to pad text within box width (19 characters)

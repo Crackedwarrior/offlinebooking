@@ -46,7 +46,7 @@ const Checkout = ({
 
   // Custom hooks
   const seatSelection = useSeatSelection();
-  const showManagement = useShowManagement();
+  const showManagement = useShowManagement(onManualShowSelection);
   const ticketOperations = useTicketOperations();
   
   // 🎯 Track component mounting

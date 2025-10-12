@@ -71,11 +71,30 @@ export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date(
 
   console.log('🕐 No active show found, checking fallback logic');
   
-  // Fallback to most recent started show
+  // Fallback: Find the next upcoming show (closest future start time)
+  let nextShow = null;
+  let minDiff = Infinity;
+  
+  for (const show of enabled) {
+    const start = parse12HourToMinutes(show.startTime);
+    const diff = start - nowMinutes;
+    
+    if (diff > 0 && diff < minDiff) {
+      minDiff = diff;
+      nextShow = show;
+    }
+  }
+  
+  if (nextShow) {
+    console.log(`🕐 Fallback: Next upcoming show is ${nextShow.key} (starts in ${minDiff} minutes)`);
+    return nextShow.key;
+  }
+  
+  // If no upcoming show today, fallback to most recent started show
   for (let i = enabled.length - 1; i >= 0; i--) {
     const start = parse12HourToMinutes(enabled[i].startTime);
-    if ((now.getHours() * 60 + now.getMinutes()) >= start) {
-      console.log(`🕐 Fallback selected show: ${enabled[i].key}`);
+    if (nowMinutes >= start) {
+      console.log(`🕐 Fallback: Most recent show is ${enabled[i].key}`);
       return enabled[i].key;
     }
   }

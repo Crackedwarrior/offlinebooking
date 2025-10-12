@@ -270,11 +270,14 @@ Test Time: ${new Date().toLocaleString()}
     
     // Format date and time - use the ticket date, not current date
     const ticketDate = ticketData.date || new Date().toLocaleDateString('en-GB');
-    const currentTime = new Date().toLocaleTimeString('en-US', { 
-      hour12: true, 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // Manual 12-hour format to ensure consistency across all systems
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 should be 12
+    const currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
     
     // Generate ticket ID using the service
     const ticketId = ticketIdService.getNextTicketId();
