@@ -154,7 +154,7 @@ const BookingHistory = () => {
 
   // Handle view seats for a specific show
   const handleViewSeats = useCallback((show: { key: ShowTime; label: string }) => {
-    console.log('🔍 View Seats clicked:', {
+    console.log('[HISTORY] View Seats clicked:', {
       show,
       selectedDate,
       databaseBookings: databaseBookings.length,
@@ -241,7 +241,7 @@ const BookingHistory = () => {
       setSeatStatusData(seatStatusMap);
 
     } catch (error) {
-      console.error('❌ Error fetching data:', error);
+      console.error('[ERROR] Error fetching data:', error);
       // toast({
       //   title: 'Error',
       //   description: 'Failed to connect to database.',
@@ -469,10 +469,10 @@ const BookingHistory = () => {
   // Gross income (sum of all bookings for the date and selected show, or all shows if none selected)
   // Calculate income breakdown for the selected date and show
   const incomeBreakdown = useMemo(() => {
-    console.log('💰 Recalculating income breakdown with pricingVersion:', pricingVersion);
+    console.log('[PRICE] Recalculating income breakdown with pricingVersion:', pricingVersion);
     // Get the latest pricing values directly from the store
     const currentPricing = useSettingsStore.getState().pricing;
-    console.log('Current pricing values:', currentPricing);
+    console.log('[PRICE] Current pricing values:', currentPricing);
     const dateISO = selectedDate;
     
     let onlineIncome = 0;
@@ -490,7 +490,7 @@ const BookingHistory = () => {
       }
     });
     
-    console.log('💰 Income from database bookings:', {
+    console.log('[PRICE] Income from database bookings:', {
       date: selectedDate,
       show: selectedShow || 'All Shows',
       onlineIncome
@@ -519,12 +519,12 @@ const BookingHistory = () => {
             // Use dynamic pricing from settings store (same as regular seats)
             // Get price directly from the store to ensure we have the latest value
             const price = currentPricing[classLabel] || getPriceForClass(classLabel);
-            console.log(`BMS seat ${seatId} class ${classLabel} price: ${price}`);
+            console.log('[PRICE] BMS seat price:', { seatId, classLabel, price });
             bmsIncome += price;
           }
         });
         
-        console.log('💰 BMS Income Calculation for specific show:', {
+        console.log('[PRICE] BMS Income Calculation for specific show:', {
           show: selectedShow,
           bmsSeats: showSeatStatus.bmsSeats.length,
           bmsIncome,
@@ -532,7 +532,7 @@ const BookingHistory = () => {
         });
         
         // Debug log the BMS seats by class with more details
-        console.log('🔍 BMS seats by class for income calculation:', {
+        console.log('[PRICE] BMS seats by class for income calculation:', {
           bmsSeatsByClass,
           totalBmsSeats: showSeatStatus.bmsSeats.length,
           totalBmsIncome: showSeatStatus.bmsSeats.reduce((sum, bmsSeat) => {
@@ -544,7 +544,7 @@ const BookingHistory = () => {
         });
         
         // Debug log the BMS seats by class
-        console.log('🔍 BMS seats by class for income calculation:', bmsSeatsByClass);
+        console.log('[PRICE] BMS seats by class for income calculation:', bmsSeatsByClass);
       }
     } else {
       // For all shows, aggregate BMS income from all shows
@@ -576,7 +576,7 @@ const BookingHistory = () => {
               // Use dynamic pricing from settings store (same as regular seats)
             // Get price directly from the store to ensure we have the latest value
             const price = currentPricing[classLabel] || getPriceForClass(classLabel);
-            console.log(`All shows - BMS seat ${seatId} class ${classLabel} price: ${price}`);
+            console.log('[PRICE] All shows - BMS seat price:', { seatId, classLabel, price });
             bmsIncome += price;
             }
           });
@@ -599,7 +599,7 @@ const BookingHistory = () => {
       });
       
       // Debug log the BMS seats by class for all shows with detailed breakdown
-      console.log('🔍 BMS seats by class for all shows:', {
+      console.log('[PRICE] BMS seats by class for all shows:', {
         showBreakdown: allBmsSeatsByClass,
         totalBmsSeats: Object.values(allBmsSeatsByClass).reduce((sum: number, showData) => sum + (typeof showData.count === 'number' ? showData.count : 0), 0),
         totalBmsIncome: Object.values(allBmsSeatsByClass).reduce((sum: number, showData) => sum + (typeof showData.income === 'number' ? showData.income : 0), 0),
@@ -622,7 +622,7 @@ const BookingHistory = () => {
     
     // Debug logging for BMS income calculation
     if (bmsIncome > 0) {
-      console.log('💰 BMS Income Calculation:', {
+      console.log('[PRICE] BMS Income Calculation:', {
         date: selectedDate,
         show: selectedShow || 'All Shows',
         bmsIncome,
@@ -815,7 +815,7 @@ const BookingHistory = () => {
               >
                 {selectedShow ? 'Clear Filter' : 'Filter by Show'}
               </button>
-            </div>
+        </div>
           </div>
         </div>
         
@@ -828,37 +828,37 @@ const BookingHistory = () => {
       <div className="space-y-2 flex-1">
         <div className="flex items-center justify-between mb-3">
           <div className="font-semibold text-lg">Shows Overview</div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Date:</label>
-            <div className="relative">
-              <DatePicker
-                selected={new Date(selectedDate)}
-                onChange={handleDateChange}
-                dateFormat="dd/MM/yyyy"
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-0 focus:border-gray-300 hover:border-gray-400 transition-colors w-40"
-                placeholderText="Select date"
-                dayClassName={dayClassName}
-                highlightDates={Array.from(datesWithBookings).map(date => new Date(date))}
-                showYearDropdown
-                showMonthDropdown
-                dropdownMode="select"
-                yearDropdownItemNumber={15}
-                scrollableYearDropdown
-                maxDate={new Date()}
-                popperPlacement="bottom-start"
-                onCalendarOpen={() => {
-                  // Prevent positioning errors by ensuring the calendar opens properly
-                  setTimeout(() => {
-                    const calendar = document.querySelector('.react-datepicker');
-                    if (calendar) {
-                      calendar.setAttribute('data-popper-placement', 'bottom-start');
-                    }
-                  }, 0);
-                }}
-              />
-            </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Date:</label>
+          <div className="relative">
+            <DatePicker
+              selected={new Date(selectedDate)}
+              onChange={handleDateChange}
+              dateFormat="dd/MM/yyyy"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-0 focus:border-gray-300 hover:border-gray-400 transition-colors w-40"
+              placeholderText="Select date"
+              dayClassName={dayClassName}
+              highlightDates={Array.from(datesWithBookings).map(date => new Date(date))}
+              showYearDropdown
+              showMonthDropdown
+              dropdownMode="select"
+              yearDropdownItemNumber={15}
+              scrollableYearDropdown
+              maxDate={new Date()}
+              popperPlacement="bottom-start"
+              onCalendarOpen={() => {
+                // Prevent positioning errors by ensuring the calendar opens properly
+                setTimeout(() => {
+                  const calendar = document.querySelector('.react-datepicker');
+                  if (calendar) {
+                    calendar.setAttribute('data-popper-placement', 'bottom-start');
+                  }
+                }, 0);
+              }}
+            />
           </div>
         </div>
+          </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2">
           {showOrder.map(show => {
             const stats = allStats[show.key] || { total: 590, available: 590, booked: 0, bms: 0, blocked: 0, occupancy: '0.0' };

@@ -76,14 +76,14 @@ class PdfPrintService {
           const printers = JSON.parse(stdout);
           const printerList = Array.isArray(printers) ? printers : [printers];
           
-          console.log('🔍 Found printers:', printerList.map(p => p.Name));
+          console.log('[PRINT] Found printers:', printerList.map(p => p.Name));
           return printerList.map(p => ({
             name: p.Name,
             port: p.Port || 'Unknown',
             status: p.PrinterStatus || 'Unknown'
           }));
         } catch (parseError) {
-          console.error('❌ Failed to parse printer list:', parseError);
+          console.error('[ERROR] Failed to parse printer list:', parseError);
           return [];
         }
       } else {
@@ -91,7 +91,7 @@ class PdfPrintService {
         return [];
       }
     } catch (error) {
-      console.error('❌ Error getting printers:', error);
+      console.error('[ERROR] Error getting printers:', error);
       return [];
     }
   }
@@ -111,7 +111,7 @@ class PdfPrintService {
   // Test printer connection using Windows print command
   async testPrinter(printerName: string): Promise<TestResult> {
     try {
-      console.log(`🧪 Testing printer: ${printerName}`);
+      console.log(`[PRINT] Testing printer: ${printerName}`);
       
       // Create a simple test file
       const testFile = path.join(this.tempDir, `test_${Date.now()}.txt`);
@@ -134,7 +134,7 @@ class PdfPrintService {
         message: `Test print sent to ${printerName}`
       };
     } catch (error) {
-      console.error(`❌ Test print failed for ${printerName}:`, error);
+      console.error(`[ERROR] Test print failed for ${printerName}:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -172,24 +172,24 @@ class PdfPrintService {
       try {
         doc.registerFont('NotoSansKannada', regularFontPath);
         regularFontRegistered = true;
-        console.log('✅ Registered NotoSansKannada font in English service');
+        console.log('[PRINT] Registered NotoSansKannada font in English service');
       } catch (error) {
-        console.log('❌ Failed to register NotoSansKannada font:', (error as Error).message);
+        console.log('[ERROR] Failed to register NotoSansKannada font:', (error as Error).message);
       }
     } else {
-      console.log('❌ Regular font not found!');
+      console.log('[ERROR] Regular font not found!');
     }
     
     if (fs.existsSync(boldFontPath)) {
       try {
         doc.registerFont('NotoSansKannada-Bold', boldFontPath);
         boldFontRegistered = true;
-        console.log('✅ Registered NotoSansKannada-Bold font in English service');
+        console.log('[PRINT] Registered NotoSansKannada-Bold font in English service');
       } catch (error) {
-        console.log('❌ Failed to register NotoSansKannada-Bold font:', (error as Error).message);
+        console.log('[ERROR] Failed to register NotoSansKannada-Bold font:', (error as Error).message);
       }
     } else {
-      console.log('❌ Bold font not found!');
+      console.log('[ERROR] Bold font not found!');
     }
 
     // Safe font function (copied from Kannada service)
@@ -253,7 +253,7 @@ class PdfPrintService {
     hours = hours % 12;
     hours = hours ? hours : 12; // 0 should be 12
     const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    console.log('🔧 SNO_OFFSET DEBUG:', { SNO_OFFSET, currentY, formattedTime });
+    console.log('[PRINT] SNO_OFFSET DEBUG:', { SNO_OFFSET, currentY, formattedTime });
     doc.text(`S.No:${ticketData.ticketId || 'TKT1000000'}/${formattedTime}`, SNO_OFFSET + 12, currentY + 1); // Separate S.No control (moved 4mm to right total: 6 + 6 = 12)
     currentY += 15;
 
@@ -552,7 +552,7 @@ class PdfPrintService {
 
     return new Promise((resolve, reject) => {
       stream.on('finish', () => {
-        console.log(`✅ PDF generated: ${outputPath}`);
+        console.log(`[PRINT] PDF generated: ${outputPath}`);
         resolve(outputPath);
       });
       stream.on('error', reject);
@@ -561,9 +561,9 @@ class PdfPrintService {
 
   // Print ticket using PDF generation
   async printTicket(ticketData: TicketData, printerName: string | null = null): Promise<PrintResult> {
-    console.log('🔤 PdfPrintService.printTicket called! (ENGLISH SERVICE)');
-    console.log('🔤 This should NOT be called for Kannada tickets!');
-    console.log('🔤 Ticket data received:', ticketData);
+    console.log('[PRINT] PdfPrintService.printTicket called! (ENGLISH SERVICE)');
+    console.log('[PRINT] This should NOT be called for Kannada tickets!');
+    console.log('[PRINT] Ticket data received:', ticketData);
     
     try {
       // Auto-detect printer if not specified
@@ -571,7 +571,7 @@ class PdfPrintService {
         const thermalPrinters = await this.getThermalPrinters();
         if (thermalPrinters.length > 0) {
           printerName = thermalPrinters[0].name;
-          console.log(`🖨️ Auto-selected printer: ${printerName}`);
+          console.log(`[PRINT] Auto-selected printer: ${printerName}`);
         } else {
           throw new Error('No thermal printers found');
         }
@@ -583,11 +583,11 @@ class PdfPrintService {
       // Generate PDF
       const pdfPath = await this.createPDFTicket(formattedTicket);
       
-      console.log(`💾 PDF file created: ${pdfPath}`);
+      console.log(`[PRINT] PDF file created: ${pdfPath}`);
       
       // Print using SumatraPDF with enhanced detection
       try {
-        console.log(`🖨️ Printing with SumatraPDF: ${printerName}`);
+        console.log(`[PRINT] Printing with SumatraPDF: ${printerName}`);
         
         // Validate printer name to prevent command injection
         if (!printerName || printerName.includes('"') || printerName.includes(';') || printerName.includes('|') || printerName.includes('&')) {
@@ -607,10 +607,10 @@ class PdfPrintService {
         
         let sumatraPath = null;
         for (const testPath of sumatraPaths) {
-          console.log(`🔍 Checking SumatraPDF path: ${testPath}`);
+          console.log(`[PRINT] Checking SumatraPDF path: ${testPath}`);
           if (fs.existsSync(testPath)) {
             sumatraPath = testPath;
-            console.log(`✅ Found SumatraPDF at: ${testPath}`);
+            console.log(`[PRINT] Found SumatraPDF at: ${testPath}`);
             break;
           }
         }
@@ -621,16 +621,16 @@ class PdfPrintService {
         
         // Use specific printer instead of default
         const printCommand = `"${sumatraPath}" -print-to "${printerName}" "${pdfPath}"`;
-        console.log(`🖨️ Executing command: ${printCommand}`);
+        console.log(`[PRINT] Executing command: ${printCommand}`);
         await execAsync(printCommand, { windowsHide: true });
         
-        console.log(`✅ Print command sent successfully via SumatraPDF!`);
+        console.log(`[PRINT] Print command sent successfully via SumatraPDF!`);
         
         // Clean up PDF file after a delay
         setTimeout(() => {
           if (fs.existsSync(pdfPath)) {
             fs.unlinkSync(pdfPath);
-            console.log('🧹 PDF file cleaned up');
+            console.log('[PRINT] PDF file cleaned up');
           }
         }, 30000); // 30 second delay
       
@@ -640,15 +640,15 @@ class PdfPrintService {
           message: 'Ticket printed successfully via PDF'
         };
       } catch (pdfError) {
-        console.log(`❌ PDF print failed: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
+        console.log(`[ERROR] PDF print failed: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
         
         // Fallback to opening PDF for manual printing
         try {
-          console.log(`🖨️ Fallback: Opening PDF for manual print: ${printerName}`);
+          console.log(`[PRINT] Fallback: Opening PDF for manual print: ${printerName}`);
           const openCommand = `start "" "${pdfPath}"`;
           await execAsync(openCommand, { windowsHide: true });
           
-          console.log('✅ PDF opened! User can now press Ctrl+P to print');
+          console.log('[PRINT] PDF opened! User can now press Ctrl+P to print');
           
           return {
             success: true,
@@ -656,7 +656,7 @@ class PdfPrintService {
             message: 'PDF opened for manual printing (fallback method)'
           };
         } catch (openError) {
-          console.log(`❌ PDF open failed: ${openError instanceof Error ? openError.message : 'Unknown error'}`);
+          console.log(`[ERROR] PDF open failed: ${openError instanceof Error ? openError.message : 'Unknown error'}`);
         }
       }
       
@@ -671,7 +671,7 @@ class PdfPrintService {
         printer: printerName || undefined
       };
     } catch (error) {
-      console.error('❌ PDF print error:', error);
+      console.error('[ERROR] PDF print error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -682,7 +682,7 @@ class PdfPrintService {
 
   // Test function for time format - can be called for debugging
   testTimeFormat(): void {
-    console.log('🕐 TIME FORMAT TEST - English PDF Service:');
+    console.log('[TIME] TIME FORMAT TEST - English PDF Service:');
     
     const testTimes = [
       new Date('2024-01-01T06:00:00'), // 6:00 AM
@@ -694,18 +694,18 @@ class PdfPrintService {
     
     testTimes.forEach((date, index) => {
       const formatted = date.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-      console.log(`🕐 Test ${index + 1}: ${date.toISOString()} → "${formatted}"`);
+      console.log(`[TIME] Test ${index + 1}: ${date.toISOString()} -> "${formatted}"`);
     });
     
     // Test current time
     const now = new Date();
     const currentFormatted = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-    console.log(`🕐 Current time: ${now.toISOString()} → "${currentFormatted}"`);
+    console.log(`[TIME] Current time: ${now.toISOString()} -> "${currentFormatted}"`);
   }
 
   // Format ticket data for printing - Map frontend data to correct format
   formatTicket(ticketData: any): any {
-    console.log('🔧 Raw ticket data received:', JSON.stringify(ticketData, null, 2));
+    console.log('[PRINT] Raw ticket data received:', JSON.stringify(ticketData, null, 2));
     
     // Handle different data structures from frontend
     let movieName = 'Movie';
@@ -753,13 +753,13 @@ class PdfPrintService {
     // Extract showTime first (if available)
     if (ticketData.showTime) {
       showTime = ticketData.showTime;
-      console.log('🕐 Using showTime from frontend:', showTime);
+      console.log('[TIME] Using showTime from frontend:', showTime);
     }
     
     // Use show label from frontend FIRST (matches Kannada service logic)
     if (ticketData.show) {
       showClass = `${ticketData.show} SHOW`;
-      console.log('🎬 Using show from frontend:', ticketData.show, '→', showClass);
+      console.log('[PRINT] Using show from frontend:', ticketData.show, '->', showClass);
     } else if (showTime) {
       // Fallback to hardcoded time ranges ONLY if no show label provided
       const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
@@ -772,7 +772,7 @@ class PdfPrintService {
         else if (hour < 17) showClass = 'MATINEE SHOW';
         else if (hour < 21) showClass = 'EVENING SHOW';
         else showClass = 'NIGHT SHOW';
-        console.log('🕐 Using hardcoded time range for hour:', hour, '→', showClass);
+        console.log('[TIME] Using hardcoded time range for hour:', hour, '->', showClass);
       }
     }
     
@@ -795,7 +795,7 @@ class PdfPrintService {
     }
     
     // Handle seats data - check multiple possible field names
-    console.log('🔧 Seat data extraction:', {
+    console.log('[PRINT] Seat data extraction:', {
       seatInfo: ticketData.seatInfo,
       seatClass: ticketData.seatClass,
       seatRange: ticketData.seatRange,
@@ -828,7 +828,7 @@ class PdfPrintService {
       }
     } else if (ticketData.seatInfo) {
       // Direct seat info from Electron (fallback)
-      console.log('🔧 Using direct seatInfo (fallback):', ticketData.seatInfo);
+      console.log('[PRINT] Using direct seatInfo (fallback):', ticketData.seatInfo);
       seatInfo = ticketData.seatInfo;
       seatClass = ticketData.seatClass;
     } else if (ticketData.seatId) {
@@ -852,15 +852,15 @@ class PdfPrintService {
     // Use individualAmount if available, otherwise calculate from totalAmount
     const individualTicketPrice = ticketData.individualAmount || (totalAmount / (ticketData.seatCount || 1));
     
-    console.log('💰 TICKET COST DEBUG - English PDF Service:');
-    console.log('💰 Raw ticketData.individualAmount:', ticketData.individualAmount);
-    console.log('💰 Raw ticketData.totalAmount:', ticketData.totalAmount);
-    console.log('💰 Raw ticketData.totalPrice:', ticketData.totalPrice);
-    console.log('💰 Raw ticketData.seatCount:', ticketData.seatCount);
-    console.log('💰 Calculated totalAmount variable:', totalAmount);
-    console.log('💰 Calculated individualTicketPrice:', individualTicketPrice);
-    console.log('💰 Fallback calculation (totalAmount / seatCount):', totalAmount / (ticketData.seatCount || 1));
-    console.log('💰 Final value used for TICKET COST:', individualTicketPrice);
+    console.log('[PRICE] TICKET COST DEBUG - English PDF Service:');
+    console.log('[PRICE] Raw ticketData.individualAmount:', ticketData.individualAmount);
+    console.log('[PRICE] Raw ticketData.totalAmount:', ticketData.totalAmount);
+    console.log('[PRICE] Raw ticketData.totalPrice:', ticketData.totalPrice);
+    console.log('[PRICE] Raw ticketData.seatCount:', ticketData.seatCount);
+    console.log('[PRICE] Calculated totalAmount variable:', totalAmount);
+    console.log('[PRICE] Calculated individualTicketPrice:', individualTicketPrice);
+    console.log('[PRICE] Fallback calculation (totalAmount / seatCount):', totalAmount / (ticketData.seatCount || 1));
+    console.log('[PRICE] Final value used for TICKET COST:', individualTicketPrice);
     
     const mcAmount = ticketData.mc || parseFloat(getTheaterConfig().defaultTaxValues.mc); // Use frontend value or default
     const baseAmount = (individualTicketPrice - mcAmount) / 1.18; // Remove MC and divide by 1.18 (1 + 0.18 GST)
@@ -869,7 +869,7 @@ class PdfPrintService {
     sgst = (baseAmount * 0.09).toFixed(2); // 9% SGST
     const mc = mcAmount.toFixed(2); // Convert to string for display
     
-    console.log('💰 Tax calculation (per ticket):', {
+    console.log('[PRICE] Tax calculation (per ticket):', {
       totalAmount,
       individualTicketPrice,
       mc: mcAmount,

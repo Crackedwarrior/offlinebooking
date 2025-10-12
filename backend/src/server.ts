@@ -69,24 +69,24 @@ const backupService = initializeBackupService();
 // Runtime database migration - Add missing columns automatically
 const runDatabaseMigration = async () => {
   try {
-    console.log('🔍 Checking database schema...');
+    console.log('[DB] Checking database schema...');
     const prisma = dbManager.getClient();
     
     // Check if printedAt column exists
     try {
       await prisma.$queryRaw`SELECT printedAt FROM Booking LIMIT 1`;
-      console.log('✅ Database schema is up to date');
+      console.log('[DB] Database schema is up to date');
     } catch (error: any) {
       if (error.message && error.message.includes('printedAt')) {
-        console.log('🔧 Running migration: Adding printedAt column...');
+        console.log('[DB] Running migration: Adding printedAt column...');
         await prisma.$executeRaw`ALTER TABLE Booking ADD COLUMN printedAt DATETIME`;
-        console.log('✅ Migration completed: printedAt column added');
+        console.log('[DB] Migration completed: printedAt column added');
       } else {
         throw error;
       }
     }
   } catch (error) {
-    console.error('❌ Database migration error:', error);
+    console.error('[ERROR] Database migration error:', error);
     throw error; // Re-throw to prevent server start if migration fails
   }
 };
@@ -94,15 +94,15 @@ const runDatabaseMigration = async () => {
 // Auto-backup on server startup (runs once when server starts)
 const runStartupBackup = async () => {
   try {
-    console.log('🤖 Running startup backup...');
+    console.log('[BACKUP] Running startup backup...');
     const result = await backupService.createBackup();
     if (result.success) {
-      console.log('✅ Startup backup completed successfully');
+      console.log('[BACKUP] Startup backup completed successfully');
     } else {
-      console.log('⚠️ Startup backup failed:', result.message);
+      console.log('[BACKUP] Startup backup failed:', result.message);
     }
   } catch (error) {
-    console.error('❌ Startup backup error:', error);
+    console.error('[ERROR] Startup backup error:', error);
   }
 };
 
@@ -154,9 +154,9 @@ async function initializeDatabase(): Promise<boolean> {
       // Create directory if it doesn't exist
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
-        console.log(`📁 Created user data directory: ${dbDir}`);
+        console.log(`[DB] Created user data directory: ${dbDir}`);
       } else {
-        console.log(`📁 Using existing user data directory: ${dbDir}`);
+        console.log(`[DB] Using existing user data directory: ${dbDir}`);
       }
       
       // Check if we need to migrate existing database
@@ -182,30 +182,30 @@ async function initializeDatabase(): Promise<boolean> {
         ];
         
         let migrated = false;
-        console.log(`📁 Checking for existing database to migrate to: ${dbPath}`);
+        console.log(`[DB] Checking for existing database to migrate to: ${dbPath}`);
         
         for (const oldDbPath of possibleOldPaths) {
           if (fs.existsSync(oldDbPath)) {
-            console.log(`📁 Found existing database: ${oldDbPath}`);
+            console.log(`[DB] Found existing database: ${oldDbPath}`);
             try {
               fs.copyFileSync(oldDbPath, dbPath);
-              console.log(`✅ SUCCESS: Migrated database from ${oldDbPath} to ${dbPath}`);
+              console.log(`[DB] SUCCESS: Migrated database from ${oldDbPath} to ${dbPath}`);
               migrated = true;
               break;
 } catch (error) {
-              console.error(`❌ Failed to migrate database from ${oldDbPath}:`, error);
+              console.error(`[ERROR] Failed to migrate database from ${oldDbPath}:`, error);
             }
           }
         }
         
         if (!migrated) {
-          console.log(`📁 No existing database found to migrate. Creating new database at ${dbPath}`);
+          console.log(`[DB] No existing database found to migrate. Creating new database at ${dbPath}`);
         }
       } else {
-        console.log(`📁 Database already exists at: ${dbPath}`);
+        console.log(`[DB] Database already exists at: ${dbPath}`);
       }
     } catch (error) {
-      console.error('❌ Failed to setup database directory:', error);
+      console.error('[ERROR] Failed to setup database directory:', error);
       // Continue anyway - database might still work
     }
   }
@@ -215,45 +215,45 @@ async function initializeDatabase(): Promise<boolean> {
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
-  console.log('🛑 Received SIGINT, shutting down gracefully...');
+  console.log('[STARTUP] Received SIGINT, shutting down gracefully...');
   try {
     await dbManager.disconnect();
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    console.error('[ERROR] Error during shutdown:', error);
     process.exit(1);
   }
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🛑 Received SIGTERM, shutting down gracefully...');
+  console.log('[STARTUP] Received SIGTERM, shutting down gracefully...');
   try {
     await dbManager.disconnect();
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    console.error('[ERROR] Error during shutdown:', error);
     process.exit(1);
   }
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', async (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  console.error('[ERROR] Uncaught Exception:', error);
   try {
     await dbManager.disconnect();
   } catch (disconnectError) {
-    console.error('❌ Error disconnecting database:', disconnectError);
+    console.error('[ERROR] Error disconnecting database:', disconnectError);
   }
   process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', async (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('[ERROR] Unhandled Rejection at:', promise, 'reason:', reason);
   try {
     await dbManager.disconnect();
   } catch (disconnectError) {
-    console.error('❌ Error disconnecting database:', disconnectError);
+    console.error('[ERROR] Error disconnecting database:', disconnectError);
   }
   process.exit(1);
 });
@@ -285,7 +285,7 @@ app.use(cors({
     }
     
     // Log unauthorized origin attempts
-    console.warn(`🚫 CORS: Blocked request from unauthorized origin: ${origin}`);
+    console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`);
     return callback(new Error('Not allowed by CORS'), false);
   },
   credentials: true,
@@ -544,7 +544,7 @@ app.get('/api/admin/audit-logs', asyncHandler(async (req: Request, res: Response
 // Add printer list endpoint
 app.get('/api/printer/list', async (req, res) => {
   try {
-    console.log('🔍 Getting list of available printers...');
+    console.log('[PRINT] Getting list of available printers...');
     
     if (process.platform === 'win32') {
       const { exec } = require('child_process');
@@ -559,17 +559,17 @@ app.get('/api/printer/list', async (req, res) => {
           ? printers.map((p: any) => p.Name).filter(Boolean)
           : [];
         
-        console.log('✅ Found printers:', printerNames);
+        console.log('[PRINT] Found printers:', printerNames);
         res.json({ success: true, printers: printerNames });
         } catch (parseError) {
-        console.error('❌ Failed to parse printer list:', parseError);
+        console.error('[ERROR] Failed to parse printer list:', parseError);
         res.json({ success: true, printers: [] });
         }
       } else {
       res.json({ success: true, printers: [] });
     }
   } catch (error) {
-    console.error('❌ Failed to get printer list:', error);
+    console.error('[ERROR] Failed to get printer list:', error);
     res.status(500).json({ success: false, error: 'Failed to get printer list' });
   }
 });
@@ -577,11 +577,11 @@ app.get('/api/printer/list', async (req, res) => {
 // Printer test endpoint
 app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) => {
   try {
-    console.log('🖨️ Testing printer connection...');
+    console.log('[PRINT] Testing printer connection...');
     const { printerConfig } = req.body;
     
     // Log the printer configuration
-    console.log('🖨️ Printer configuration:', printerConfig);
+    console.log('[PRINT] Printer configuration:', printerConfig);
     
     // Actually try to connect to the printer
     // For now we'll simulate success, but in a real implementation
@@ -589,7 +589,7 @@ app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) =
     const connected = true;
     
     if (connected) {
-      console.log('✅ Printer connection successful');
+      console.log('[PRINT] Printer connection successful');
       res.json({
         success: true,
         message: 'Printer connection test successful',
@@ -604,7 +604,7 @@ app.post('/api/printer/test', asyncHandler(async (req: Request, res: Response) =
       throw new Error('Could not connect to printer');
     }
   } catch (error) {
-    console.error('❌ Printer test failed:', error);
+    console.error('[ERROR] Printer test failed:', error);
     res.status(500).json({
       success: false,
       message: 'Printer connection test failed',
@@ -650,7 +650,7 @@ let isPrinting = false;
 app.post('/api/printer/print', bookingLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { tickets, printerConfig } = req.body;
     
-    console.log('🖨️ Printing tickets:', {
+    console.log('[PRINT] Printing tickets:', {
       ticketCount: tickets?.length || 0,
       printerConfig,
       rawBody: req.body
@@ -676,7 +676,7 @@ app.post('/api/printer/print', bookingLimiter, asyncHandler(async (req: Request,
     }
 
   try {
-    console.log('🖨️ Using ESC/POS service for thermal printing...');
+    console.log('[PRINT] Using ESC/POS service for thermal printing...');
     
     // Process each ticket
     for (const ticket of tickets) {
@@ -697,11 +697,11 @@ app.post('/api/printer/print', bookingLimiter, asyncHandler(async (req: Request,
         transactionId: ticket.transactionId || 'TXN' + Date.now()
       };
       
-      console.log('🖨️ Printing ticket data:', ticketData);
+      console.log('[PRINT] Printing ticket data:', ticketData);
       await EscposPrintService.printSilently(ticketData, printerConfig.name);
     }
 
-    console.log('✅ All tickets printed successfully via ESC/POS');
+    console.log('[PRINT] All tickets printed successfully via ESC/POS');
     
     // Log successful print
     auditLogger.logPrint(
@@ -730,7 +730,7 @@ app.post('/api/printer/print', bookingLimiter, asyncHandler(async (req: Request,
     });
 
   } catch (error) {
-    console.error('❌ ESC/POS printing failed:', error);
+    console.error('[ERROR] ESC/POS printing failed:', error);
     
     // Log failed print
     auditLogger.logPrint(
@@ -814,22 +814,22 @@ app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Re
   // Check if movie should be printed in Kannada
   const shouldPrintInKannada = movieSettings?.printInKannada === true;
   
-  console.log(`🖨️ Printing ticket - Language: ${shouldPrintInKannada ? 'Kannada' : 'English'}`);
-  console.log(`🎬 Movie settings:`, movieSettings);
-  console.log(`🎬 Ticket data:`, ticketData);
-  console.log(`🎬 Movie language in ticket data:`, ticketData.movieLanguage);
-  console.log(`🔤 printInKannada flag:`, movieSettings?.printInKannada);
-  console.log(`🔤 shouldPrintInKannada result:`, shouldPrintInKannada);
-  
-  console.log('💰 TICKET COST DEBUG - Server Level:');
-  console.log('💰 ticketData.individualAmount:', ticketData.individualAmount);
-  console.log('💰 ticketData.totalAmount:', ticketData.totalAmount);
-  console.log('💰 ticketData.seatCount:', ticketData.seatCount);
-  console.log('💰 ticketData.individualPrice:', ticketData.individualPrice);
-  console.log('💰 ticketData.totalPrice:', ticketData.totalPrice);
+  console.log(`[PRINT] Printing ticket - Language: ${shouldPrintInKannada ? 'Kannada' : 'English'}`);
+  console.log('[PRINT] Movie settings:', movieSettings);
+  console.log('[PRINT] Ticket data:', ticketData);
+  console.log('[PRINT] Movie language in ticket data:', ticketData.movieLanguage);
+  console.log('[PRINT] printInKannada flag:', movieSettings?.printInKannada);
+  console.log('[PRINT] shouldPrintInKannada result:', shouldPrintInKannada);
+
+  console.log('[PRICE] TICKET COST DEBUG - Server Level:');
+  console.log('[PRICE] ticketData.individualAmount:', ticketData.individualAmount);
+  console.log('[PRICE] ticketData.totalAmount:', ticketData.totalAmount);
+  console.log('[PRICE] ticketData.seatCount:', ticketData.seatCount);
+  console.log('[PRICE] ticketData.individualPrice:', ticketData.individualPrice);
+  console.log('[PRICE] ticketData.totalPrice:', ticketData.totalPrice);
 
   // Use appropriate service based on language setting
-  console.log(`🔤 About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
+  console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
   
   const result = shouldPrintInKannada 
     ? await kannadaPdfKitService.printTicket(ticketData, printerName)
@@ -881,7 +881,7 @@ app.post('/api/thermal-printer/test-ultra-fast-kannada', asyncHandler(async (req
 
 // Test endpoint for time format debugging
 app.get('/api/test/time-format', asyncHandler(async (req: Request, res: Response) => {
-  console.log('🕐 TIME FORMAT TEST ENDPOINT CALLED');
+  console.log('[TIME] TIME FORMAT TEST ENDPOINT CALLED');
   
   const testTimes = [
     new Date('2024-01-01T06:00:00'), // 6:00 AM
@@ -1151,7 +1151,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
     req.requestId
   );
 
-  console.log('📝 Creating booking with data:', {
+  console.log('[BOOKING] Creating booking with data:', {
     tickets: tickets.length,
     total,
     show,
@@ -1180,7 +1180,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
     });
 
     if (existingBooking) {
-      console.log('⚠️ Booking already exists for these seats:', existingBooking.id);
+      console.log('[BOOKING] Booking already exists for these seats:', existingBooking.id);
       
       // Return the existing booking instead of creating a duplicate
       const existingBookingData: BookingData = {
@@ -1222,7 +1222,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
 
     // Get source from request or default to LOCAL
     const source = bookingRequest.source || 'LOCAL';
-    console.log('📝 Booking source:', source);
+    console.log('[BOOKING] Booking source:', source);
     
     // Create a single booking record instead of multiple class-based bookings
     // This prevents duplicate bookings for the same seats
@@ -1245,7 +1245,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
       }
     });
     
-    console.log('✅ Booking created successfully:', newBooking.id);
+    console.log('[BOOKING] Booking created successfully:', newBooking.id);
     
     // Transform Prisma result to API type
     const bookingData: BookingData = {
@@ -1303,7 +1303,7 @@ app.post('/api/bookings', bookingLimiter, validateBookingData, asyncHandler(asyn
     
     res.status(201).json(response);
   } catch (error) {
-    console.error('❌ Error creating booking:', error);
+    console.error('[ERROR] Error creating booking:', error);
     
     // Log failed booking
     auditLogger.logBooking(
@@ -1330,7 +1330,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
   const queryParams: BookingQueryParams = req.query as any;
   const { date, show, status } = queryParams;
   
-  console.log('🔍 GET /api/bookings called with params:', { date, show, status });
+  console.log('[DB] GET /api/bookings called with params:', { date, show, status });
   
   // Build filter conditions
   const where: any = {};
@@ -1346,7 +1346,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
       gte: startOfDay,
       lt: endOfDay
     };
-    console.log('📅 Date filter:', { 
+    console.log('[DB] Date filter:', { 
       inputDate: date, 
       startOfDay: startOfDay.toISOString(), 
       endOfDay: endOfDay.toISOString() 
@@ -1360,8 +1360,8 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     orderBy: { bookedAt: 'desc' },
   });
   
-  console.log('📊 Found bookings:', bookings.length);
-  console.log('📊 Where clause:', JSON.stringify(where, null, 2));
+  console.log('[DB] Found bookings:', bookings.length);
+  console.log('[DB] Where clause:', JSON.stringify(where, null, 2));
   
   // Transform to API response format
   const bookingData: BookingData[] = bookings.map((booking: any) => ({
@@ -1394,7 +1394,7 @@ app.get('/api/bookings', asyncHandler(async (req: Request, res: Response) => {
     data: bookingData,
   };
   
-  console.log('📤 Sending response:', {
+  console.log('[DB] Sending response:', {
     success: response.success,
     dataLength: response.data?.length || 0,
     sampleBooking: response.data?.[0]
@@ -1654,14 +1654,14 @@ app.get('/api/seats/status', asyncHandler(async (req: Request, res: Response) =>
     }
   });
   
-  console.log('🔍 BMS seats found:', {
+  console.log('[DB] BMS seats found:', {
     date,
     show,
     count: bmsSeats.length,
     seats: bmsSeats.map((seat: any) => ({ id: seat.seatId, class: seat.classLabel }))
   });
   
-  console.log('📊 Seat status response:', {
+  console.log('[DB] Seat status response:', {
     date,
     show,
     bookingsFound: bookings.length,
@@ -1715,7 +1715,7 @@ app.post('/api/seats/bms', bmsLimiter, asyncHandler(async (req: Request, res: Re
     throw new ValidationError('date and show are required');
   }
   
-  console.log('📝 Saving BMS seat status:', { seatIds, status, date, show });
+  console.log('[DB] Saving BMS seat status:', { seatIds, status, date, show });
   
   // Update or create BMS booking records
   const results = await Promise.all(
@@ -1765,7 +1765,7 @@ app.post('/api/seats/bms', bmsLimiter, asyncHandler(async (req: Request, res: Re
     })
   );
   
-  console.log(`✅ Updated ${results.length} BMS bookings to status: ${status}`);
+  console.log(`[DB] Updated ${results.length} BMS bookings to status: ${status}`);
   
   const response = {
     success: true,
@@ -1794,7 +1794,7 @@ app.post('/api/seats/status', asyncHandler(async (req: Request, res: Response) =
     throw new ValidationError('date and show are required');
   }
   
-  console.log('📝 Updating seat status:', { seatUpdates, date, show });
+  console.log('[DB] Updating seat status:', { seatUpdates, date, show });
   
   const storageKey = getStorageKey(date, show);
   if (!selectedSeatsStorage.has(storageKey)) {
@@ -1818,13 +1818,13 @@ app.post('/api/seats/status', asyncHandler(async (req: Request, res: Response) =
         selectedSeats.delete(seatId);
       }
       
-      console.log(`🔄 Seat ${seatId} status updated to ${status} for ${date} ${show}`);
+      console.log(`[DB] Seat ${seatId} status updated to ${status} for ${date} ${show}`);
       
       return { seatId, status, success: true };
     })
   );
   
-  console.log(`✅ Updated ${results.length} seat statuses. Current selected seats for ${storageKey}:`, Array.from(selectedSeats));
+  console.log(`[DB] Updated ${results.length} seat statuses. Current selected seats for ${storageKey}:`, Array.from(selectedSeats));
   
   const response = {
     success: true,
@@ -1840,7 +1840,7 @@ app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Reque
   const { id } = req.params;
   const updateData = req.body;
   
-  console.log('📝 Updating booking:', { id, updateData });
+  console.log('[BOOKING] Updating booking:', { id, updateData });
   
   // Validate booking exists
   const existingBooking = await prisma.booking.findUnique({
@@ -1864,7 +1864,7 @@ app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Reque
     }
   });
   
-  console.log('✅ Booking updated successfully:', { id, updatedBooking });
+  console.log('[BOOKING] Booking updated successfully:', { id, updatedBooking });
   
   const response: ApiResponse<BookingData> = {
     success: true,
@@ -1906,7 +1906,7 @@ app.put('/api/bookings/:id', validateBookingData, asyncHandler(async (req: Reque
 app.patch('/api/bookings/:id/printed', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   
-  console.log('🖨️ Updating booking printed time:', { id });
+  console.log('[BOOKING] Updating booking printed time:', { id });
   
   // Validate booking exists
   const existingBooking = await prisma.booking.findUnique({
@@ -1926,7 +1926,7 @@ app.patch('/api/bookings/:id/printed', asyncHandler(async (req: Request, res: Re
     }
   });
   
-  console.log('✅ Booking printed time updated successfully:', { id, printedAt: updatedBooking.printedAt });
+  console.log('[BOOKING] Booking printed time updated successfully:', { id, printedAt: updatedBooking.printedAt });
   
   const response: ApiResponse<BookingData> = {
     success: true,
@@ -1966,7 +1966,7 @@ app.patch('/api/bookings/:id/printed', asyncHandler(async (req: Request, res: Re
 
 // Backup Management Endpoints
 app.post('/api/backup/create', asyncHandler(async (req: Request, res: Response) => {
-  console.log('💾 Creating manual backup...');
+  console.log('[BACKUP] Creating manual backup...');
   
   const result = await backupService.createBackup();
   
@@ -1985,7 +1985,7 @@ app.post('/api/backup/create', asyncHandler(async (req: Request, res: Response) 
 }));
 
 app.get('/api/backup/stats', asyncHandler(async (req: Request, res: Response) => {
-  console.log('📊 Getting backup statistics...');
+  console.log('[BACKUP] Getting backup statistics...');
   
   const stats = await backupService.getBackupStats();
   
@@ -1997,7 +1997,7 @@ app.get('/api/backup/stats', asyncHandler(async (req: Request, res: Response) =>
 
 // Auto-backup on server start (daily backup)
 app.post('/api/backup/auto', asyncHandler(async (req: Request, res: Response) => {
-  console.log('🤖 Running automatic backup...');
+  console.log('[BACKUP] Running automatic backup...');
   
   const result = await backupService.createBackup();
   
@@ -2012,7 +2012,7 @@ app.post('/api/backup/auto', asyncHandler(async (req: Request, res: Response) =>
 app.delete('/api/bookings/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   
-  console.log('🗑️ Deleting booking:', { id });
+  console.log('[BOOKING] Deleting booking:', { id });
   
   // Validate booking exists
   const existingBooking = await prisma.booking.findUnique({
@@ -2028,7 +2028,7 @@ app.delete('/api/bookings/:id', asyncHandler(async (req: Request, res: Response)
     where: { id }
   });
   
-  console.log('✅ Booking deleted successfully:', { id });
+  console.log('[BOOKING] Booking deleted successfully:', { id });
   
   const response: ApiResponse<null> = {
     success: true,
@@ -2117,20 +2117,20 @@ async function startServer() {
     // Initialize database first with retry logic
     const dbInitialized = await initializeDatabase();
     if (!dbInitialized) {
-      console.error('❌ Failed to initialize database after all retries. Exiting...');
+      console.error('[ERROR] Failed to initialize database after all retries. Exiting...');
       process.exit(1);
     }
     
     // Start the server
     const server = app.listen(config.server.port, () => {
-      console.log(`🚀 Server running at http://localhost:${config.server.port}`);
-      console.log(`📊 Environment: ${config.server.nodeEnv}`);
-      console.log(`🔗 CORS Origin: ${config.api.corsOrigin}`);
-      console.log(`🔧 Error handling: Enabled`);
-      console.log(`💾 Database: Connected and ready`);
-      console.log(`🛡️ Security: Enhanced with Phase 1 fixes`);
-      console.log(`⚡ Performance: Optimized with Phase 2 fixes`);
-      console.log(`📝 Logging: Production-ready with Phase 4 enhancements`);
+      console.log(`[STARTUP] Server running at http://localhost:${config.server.port}`);
+      console.log(`[STARTUP] Environment: ${config.server.nodeEnv}`);
+      console.log(`[STARTUP] CORS Origin: ${config.api.corsOrigin}`);
+      console.log(`[STARTUP] Error handling: Enabled`);
+      console.log(`[STARTUP] Database: Connected and ready`);
+      console.log(`[STARTUP] Security: Enhanced with Phase 1 fixes`);
+      console.log(`[STARTUP] Performance: Optimized with Phase 2 fixes`);
+      console.log(`[STARTUP] Logging: Production-ready with Phase 4 enhancements`);
       
       // Log server startup
       productionLogger.info('Server started successfully', 'SERVER_STARTUP', {
@@ -2144,13 +2144,13 @@ async function startServer() {
     // Handle server errors
     server.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${config.server.port} is already in use`);
+        console.error(`[ERROR] Port ${config.server.port} is already in use`);
         productionLogger.error(`Port ${config.server.port} is already in use`, 'SERVER_ERROR', {
           port: config.server.port,
           errorCode: error.code
         });
       } else {
-        console.error('❌ Server error:', error);
+        console.error('[ERROR] Server error:', error);
         productionLogger.logError(error, 'SERVER_ERROR');
       }
       process.exit(1);
@@ -2171,7 +2171,7 @@ async function startServer() {
     });
     
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('[ERROR] Failed to start server:', error);
     productionLogger.logError(error as Error, 'SERVER_STARTUP');
     process.exit(1);
   }

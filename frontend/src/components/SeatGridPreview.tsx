@@ -18,13 +18,13 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
   selectedShow,
   selectedDate
 }) => {
-  console.log('🎯 SeatGridPreview component rendered!');
-  console.log('🎯 Props:', { selectedShow, selectedDate });
+  console.log('[SEAT] SeatGridPreview component rendered!');
+  console.log('[SEAT] Props:', { selectedShow, selectedDate });
   
   const { seats, syncSeatStatus, toggleSeatStatus } = useBookingStore();
   const [loading, setLoading] = useState(false);
   
-  console.log('🎯 SeatGridPreview: seats count:', seats.length);
+  console.log('[SEAT] SeatGridPreview: seats count:', seats.length);
 
   // Load seat data when show or date changes (same as main seat grid)
   useEffect(() => {
@@ -33,7 +33,7 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
       
     setLoading(true);
     try {
-        console.log('🔄 SeatGridPreview: Loading seat data for', { selectedShow, selectedDate });
+        console.log('[SEAT] Loading seat data for', { selectedShow, selectedDate });
         
         const response = await getSeatStatus({ date: selectedDate, show: selectedShow as any });
       if (response.success && response.data) {
@@ -43,10 +43,10 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
           const selectedSeatIds = selectedSeats ? selectedSeats.map((seat: any) => seat.seatId) : [];
           
           syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
-          console.log('✅ SeatGridPreview: Seat data loaded successfully');
+          console.log('[SEAT] Seat data loaded successfully');
       }
     } catch (error) {
-        console.error('❌ SeatGridPreview: Failed to load seat data:', error);
+        console.error('[ERROR] SeatGridPreview: Failed to load seat data:', error);
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
 
   // Simple click handling - just toggle AVAILABLE <-> SELECTED
   const handleSeatClick = useCallback((seatId: string, currentStatus: string) => {
-    console.log('🪑 SeatGridPreview: Seat clicked', { seatId, currentStatus });
+    console.log('[SEAT] Seat clicked', { seatId, currentStatus });
     
     // Simple toggle: AVAILABLE <-> SELECTED only
     if (currentStatus === 'AVAILABLE') {
@@ -113,7 +113,7 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
     }
   };
 
-  console.log('🎯 SeatGridPreview: About to render with', { seatSegments: seatSegments.length, showSeats: showSeats.length });
+  console.log('[SEAT] About to render with', { seatSegments: seatSegments.length, showSeats: showSeats.length });
 
   return (
     <div className="mt-4 p-3 bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 w-full flex flex-col flex-1 min-h-0 overflow-x-hidden relative">

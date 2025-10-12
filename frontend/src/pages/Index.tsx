@@ -99,64 +99,64 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   // Custom hook to get current show label dynamically
   const getCurrentShowLabelDynamic = useCallback(() => {
     try {
-      console.log('🎯 getCurrentShowLabelDynamic called');
-      console.log('🎯 showTimes from store:', showTimes);
+      console.log('[SHOW] getCurrentShowLabelDynamic called');
+      console.log('[SHOW] showTimes from store:', showTimes);
       
       const enabledShowTimes = showTimes.filter(show => show.enabled);
-      console.log('🎯 enabledShowTimes:', enabledShowTimes);
+      console.log('[SHOW] enabledShowTimes:', enabledShowTimes);
       
       if (enabledShowTimes.length === 0) {
-        console.log('🎯 No enabled shows found');
+        console.log('[SHOW] No enabled shows found');
         return 'No shows available';
       }
       
       const key = getShowKeyFromNow(enabledShowTimes as any);
-      console.log('🎯 getShowKeyFromNow returned key:', key);
+      console.log('[SHOW] getShowKeyFromNow returned key:', key);
       
       const label = key ? getShowLabelByKey(enabledShowTimes as any, key) : enabledShowTimes[0].label;
-      console.log('🎯 Final label returned:', label);
+      console.log('[SHOW] Final label returned:', label);
       
       return label;
     } catch (error) {
-      console.log('❌ Error in getCurrentShowLabelDynamic, using fallback:', error);
+      console.log('[ERROR] Error in getCurrentShowLabelDynamic, using fallback:', error);
       return getCurrentShowLabel();
     }
   }, [showTimes]);
 
   // Smart timer system - immediately updates store and schedules future transitions
   useEffect(() => {
-    console.log('🔄 Smart timer effect triggered - showTimes:', showTimes.length, 'userManuallySelectedShow:', userManuallySelectedShow);
+    console.log('[TIMER] Smart timer effect triggered - showTimes:', showTimes.length, 'userManuallySelectedShow:', userManuallySelectedShow);
     
     const scheduleNextTransition = () => {
       const now = new Date();
       const enabledShowTimes = showTimes.filter(show => show.enabled);
       
       if (enabledShowTimes.length === 0) {
-        console.log('⏰ No enabled shows found');
+        console.log('[TIMER] No enabled shows found');
         return;
       }
       
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
       
-      console.log('⏰ Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
+      console.log('[TIMER] Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
       
       // FIRST: Check if current show differs from stored show and update immediately
       const currentShow = getCurrentShowKey();
       const storedShow = useBookingStore.getState().selectedShow;
       
-      console.log('🔍 Current show check:', { currentShow, storedShow, userManuallySelectedShow });
+      console.log('[SHOW] Current show check:', { currentShow, storedShow, userManuallySelectedShow });
       
       if (currentShow && currentShow !== storedShow && !userManuallySelectedShow) {
-        console.log(`🔄 IMMEDIATE UPDATE: Current show ${currentShow} differs from stored ${storedShow}, updating now!`);
+        console.log(`[SHOW] IMMEDIATE UPDATE: Current show ${currentShow} differs from stored ${storedShow}, updating now!`);
         setSelectedShow(currentShow as any);
         
         // Navigate to seat grid to refresh data
-        console.log('🔄 Navigating to seat grid to refresh data for current show...');
+        console.log('[NAV] Navigating to seat grid to refresh data for current show...');
         setActiveView('booking');
         setIsExchangeMode(true);
         
         setTimeout(() => {
-          console.log('🔄 Auto-navigating back to checkout after seat data load...');
+          console.log('[NAV] Auto-navigating back to checkout after seat data load...');
           setIsExchangeMode(false);
           setActiveView('checkout');
         }, 1000);
@@ -170,14 +170,14 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         // Use existing utility function for time parsing
         const startMinutes = parse12HourToMinutes(show.startTime);
         
-        console.log(`⏰ Checking show ${show.key}: starts at ${show.startTime} (${startMinutes} minutes)`);
+        console.log(`[TIMER] Checking show ${show.key}: starts at ${show.startTime} (${startMinutes} minutes)`);
         
         // If show hasn't started yet, it's a future transition
         if (startMinutes > nowMinutes) {
           if (!nextTransitionTime || startMinutes < nextTransitionTime) {
             nextTransitionTime = startMinutes;
             nextTransitionShow = show.key;
-            console.log(`⏰ Found future transition: ${show.key} at ${show.startTime}`);
+            console.log(`[TIMER] Found future transition: ${show.key} at ${show.startTime}`);
           }
         }
       }
@@ -186,30 +186,30 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         // Calculate milliseconds until next transition
         const msUntilTransition = (nextTransitionTime - nowMinutes) * 60 * 1000;
         
-        console.log(`⏰ Next transition: ${nextTransitionShow} in ${Math.round(msUntilTransition / 1000)}s (${Math.round(msUntilTransition / 1000 / 60)} minutes)`);
+        console.log(`[TIMER] Next transition: ${nextTransitionShow} in ${Math.round(msUntilTransition / 1000)}s (${Math.round(msUntilTransition / 1000 / 60)} minutes)`);
         
         // Set single timer for exact transition moment
         const timerId = setTimeout(() => {
-          console.log(`🔄 Transition time reached for ${nextTransitionShow}`);
+          console.log(`[TIMER] Transition time reached for ${nextTransitionShow}`);
           
           // Directly trigger the transition logic instead of relying on state update
           if (!userManuallySelectedShow) {
-            console.log(`🔄 Auto-updating show to: ${nextTransitionShow}`);
+            console.log(`[SHOW] Auto-updating show to: ${nextTransitionShow}`);
             setSelectedShow(nextTransitionShow as any);
             
             // Navigate to seat grid to refresh seat data for the new show
-            console.log('🔄 Navigating to seat grid to load fresh data for new show...');
+            console.log('[NAV] Navigating to seat grid to load fresh data for new show...');
             setActiveView('booking');
             setIsExchangeMode(true);
             
             // After a short delay, navigate back to checkout
             setTimeout(() => {
-              console.log('🔄 Auto-navigating back to checkout after seat data load...');
+              console.log('[NAV] Auto-navigating back to checkout after seat data load...');
               setIsExchangeMode(false);
               setActiveView('checkout');
             }, 1000); // 1 second delay
           } else {
-            console.log('⏸️ Skipping auto-update: user manually selected show');
+            console.log('[SHOW] Skipping auto-update: user manually selected show');
           }
           
           setCurrentTime(new Date()); // Update time state for other components
@@ -218,20 +218,20 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         
         // Return cleanup function
         return () => {
-          console.log('🧹 Cleaning up smart timer');
+          console.log('[TIMER] Cleaning up smart timer');
           clearTimeout(timerId);
         };
       } else {
         // No more transitions today, check again in 1 hour
-        console.log('⏰ No more transitions today, checking again in 1 hour');
+        console.log('[TIMER] No more transitions today, checking again in 1 hour');
         const timerId = setTimeout(() => {
-          console.log('⏰ Hourly check - updating time and rescheduling');
+          console.log('[TIMER] Hourly check - updating time and rescheduling');
           setCurrentTime(new Date());
           scheduleNextTransition();
         }, 60 * 60 * 1000);
         
         return () => {
-          console.log('🧹 Cleaning up hourly timer');
+          console.log('[TIMER] Cleaning up hourly timer');
           clearTimeout(timerId);
         };
       }
@@ -244,7 +244,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   // ✅ AUTO-NAVIGATE TO SEAT GRID ON FIRST LOAD - Trigger seat data loading
   useEffect(() => {
     if (isFirstLoad) {
-      console.log('🔄 First app load detected - auto-navigating to seat grid to load data...');
+      console.log('[NAV] First app load detected - auto-navigating to seat grid to load data...');
       
       // Navigate to seat grid to trigger seat data loading
       setActiveView('booking');
@@ -252,7 +252,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
       
       // After a short delay, navigate back to checkout
       setTimeout(() => {
-        console.log('🔄 Auto-navigating back to checkout after seat data load...');
+        console.log('[NAV] Auto-navigating back to checkout after seat data load...');
         setIsExchangeMode(false);
         setActiveView('checkout');
         setIsFirstLoad(false); // Mark as no longer first load
@@ -266,40 +266,40 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     try {
       const enabledShowTimes = showTimes.filter(show => show.enabled);
       if (enabledShowTimes.length === 0) {
-        console.log('⚠️ No shows available in settings, using fallback: EVENING');
+        console.log('[SHOW] No shows available in settings, using fallback: EVENING');
         return 'EVENING';
       }
       // Use the same utility used by header subtitle
       const key = getShowKeyFromNow(enabledShowTimes as any);
       return key || enabledShowTimes[0].key || 'EVENING';
     } catch (error) {
-      console.error('❌ Error in getCurrentShowKey:', error);
+      console.error('[ERROR] Error in getCurrentShowKey:', error);
       return 'EVENING';
     }
   }, [showTimes, currentTime]);
 
   // Handler for manual show selection
   const handleManualShowSelection = useCallback((showKey: string) => {
-    console.log(`🎯 Manual show selection: ${showKey}`);
-    console.log('🎯 Setting userManuallySelectedShow to true');
+    console.log(`[SHOW] Manual show selection: ${showKey}`);
+    console.log('[SHOW] Setting userManuallySelectedShow to true');
     setUserManuallySelectedShow(true);
-    console.log('🎯 Calling setSelectedShow with:', showKey);
+    console.log('[SHOW] Calling setSelectedShow with:', showKey);
     setSelectedShow(showKey as ShowTime);
     
     // Navigate to seat grid to refresh seat data for the new show (same as auto transition)
-    console.log('🔄 Manual show selection - navigating to seat grid to load fresh data...');
+    console.log('[NAV] Manual show selection - navigating to seat grid to load fresh data...');
     setActiveView('booking');
     setIsExchangeMode(true);
     
     // After a short delay, navigate back to checkout
     setTimeout(() => {
-      console.log('🔄 Manual show selection - auto-navigating back to checkout after seat data load...');
+      console.log('[NAV] Manual show selection - auto-navigating back to checkout after seat data load...');
       setIsExchangeMode(false);
       setActiveView('checkout');
     }, 1000); // 1 second delay
     
     setTimeout(() => {
-      console.log('🔄 Resetting manual selection flag after 10 minutes');
+      console.log('[SHOW] Resetting manual selection flag after 10 minutes');
       setUserManuallySelectedShow(false);
     }, 10 * 60 * 1000); // 10 minutes
   }, [setSelectedShow]);
@@ -310,7 +310,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     // Get the current show based on time and settings store (same as header)
     const currentShowKey = getCurrentShowKey();
     
-    console.log('🎯 Show transition check:', {
+    console.log('[SHOW] Show transition check:', {
       currentShowKey,
       previousCurrentShow,
       userManuallySelectedShow,
@@ -320,33 +320,33 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     // Only update if the CURRENT SHOW has CHANGED from the previous current show
     // This ensures we only auto-update ONCE when the show transitions
     if (currentShowKey !== previousCurrentShow && previousCurrentShow !== null) {
-      console.log(`🔄 Show transition detected: ${previousCurrentShow} → ${currentShowKey}`);
+      console.log(`[SHOW] Show transition detected: ${previousCurrentShow} -> ${currentShowKey}`);
       
       // Don't auto-update if user has manually selected a show
       if (!userManuallySelectedShow) {
-        console.log(`🔄 Auto-updating show to: ${currentShowKey}`);
+        console.log(`[SHOW] Auto-updating show to: ${currentShowKey}`);
       setSelectedShow(currentShowKey as ShowTime);
         
         // Navigate to seat grid to refresh seat data for the new show
-        console.log('🔄 Navigating to seat grid to load fresh data for new show...');
+        console.log('[NAV] Navigating to seat grid to load fresh data for new show...');
         setActiveView('booking');
         setIsExchangeMode(true);
         
         // After a short delay, navigate back to checkout
         setTimeout(() => {
-          console.log('🔄 Auto-navigating back to checkout after seat data load...');
+          console.log('[NAV] Auto-navigating back to checkout after seat data load...');
           setIsExchangeMode(false);
           setActiveView('checkout');
         }, 1000); // 1 second delay
     } else {
-        console.log('⏸️ Skipping auto-update: user manually selected show');
+        console.log('[SHOW] Skipping auto-update: user manually selected show');
       }
       
       // Update the previous current show tracker
       setPreviousCurrentShow(currentShowKey);
     } else if (previousCurrentShow === null) {
       // Initialize the tracker on first run (don't trigger navigation on initial load)
-      console.log(`🎯 Initializing current show tracker: ${currentShowKey}`);
+      console.log(`[SHOW] Initializing current show tracker: ${currentShowKey}`);
       setPreviousCurrentShow(currentShowKey);
     }
   }, [currentTime, showTimes, getCurrentShowKey, userManuallySelectedShow, previousCurrentShow, setSelectedShow]); // Depend on showTimes to re-run when settings change
@@ -358,7 +358,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
   // Manual test function to debug dynamic show selection
   const testDynamicShowSelection = () => {
     const currentShowKey = getCurrentShowKey();
-    console.log('🧪 Test function called');
+    console.log('[TEST] Test function called');
     console.log('Current show key:', currentShowKey);
     console.log('Selected show:', selectedShow);
     console.log('User manually selected:', userManuallySelectedShow);
@@ -720,13 +720,13 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     return acc;
                   }, {} as Record<string, any>);
                   
-                  console.log('🕐 FRONTEND TIME DEBUG:');
-                  console.log('🕐 showtime variable:', showtime);
-                  console.log('🕐 showtime type:', typeof showtime);
-                  console.log('🕐 showtime length:', showtime?.length);
-                  console.log('🕐 currentShowTime object:', currentShowTime);
-                  console.log('🕐 currentShowTime.startTime:', currentShowTime?.startTime);
-                  console.log('🕐 currentShowTime.endTime:', currentShowTime?.endTime);
+                  console.log('[TIME] FRONTEND TIME DEBUG:');
+                  console.log('[TIME] showtime variable:', showtime);
+                  console.log('[TIME] showtime type:', typeof showtime);
+                  console.log('[TIME] showtime length:', showtime?.length);
+                  console.log('[TIME] currentShowTime object:', currentShowTime);
+                  console.log('[TIME] currentShowTime.startTime:', currentShowTime?.startTime);
+                  console.log('[TIME] currentShowTime.endTime:', currentShowTime?.endTime);
                   
                   const ticketGroups = Object.values(groups).map(group => ({
                     theaterName: printerConfig.theaterName || getTheaterConfig().name,
@@ -800,7 +800,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   if (response.success) {
                     // Mark all selected seats as booked in the store
                     selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
-                    console.log('✅ Tickets printed and booking saved successfully');
+                    console.log('[PRINT] Tickets printed and booking saved successfully');
                   } else {
                     console.error('❌ Failed to save booking to backend');
                   }

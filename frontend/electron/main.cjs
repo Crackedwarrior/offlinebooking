@@ -31,10 +31,10 @@ const logError = (error, context = '') => {
 };
 
 // Log app startup
-logToFile('🚀 Electron app starting...');
-logToFile(`🔧 Development mode: ${isDev}`);
-logToFile(`🔧 App path: ${app.getAppPath()}`);
-logToFile(`🔧 User data path: ${app.getPath('userData')}`);
+logToFile('[STARTUP] Electron app starting...');
+logToFile(`[STARTUP] Development mode: ${isDev}`);
+logToFile(`[STARTUP] App path: ${app.getAppPath()}`);
+logToFile(`[STARTUP] User data path: ${app.getPath('userData')}`);
 
 function createWindow() {
   // Create the browser window
@@ -64,23 +64,23 @@ function createWindow() {
     ? `http://localhost:${FRONTEND_PORT}` 
     : `file://${path.join(app.getAppPath(), 'dist/index.html')}`;
   
-  console.log('🔧 Development mode:', isDev);
-  console.log('🔧 Frontend port:', FRONTEND_PORT);
-  console.log('🔧 App path:', app.getAppPath());
-  console.log('🔧 __dirname:', __dirname);
+  console.log('[STARTUP] Development mode:', isDev);
+  console.log('[STARTUP] Frontend port:', FRONTEND_PORT);
+  console.log('[STARTUP] App path:', app.getAppPath());
+  console.log('[STARTUP] __dirname:', __dirname);
   
-  console.log('🚀 Loading URL:', startUrl);
+  console.log('[STARTUP] Loading URL:', startUrl);
   
   // Add error handling for page load
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error('❌ Page load failed:', errorCode, errorDescription, validatedURL);
-    console.error('🔧 Attempted URL:', validatedURL);
-    console.error('🔧 Error code:', errorCode);
-    console.error('🔧 Error description:', errorDescription);
+    console.error('[ERROR] Page load failed:', errorCode, errorDescription, validatedURL);
+    console.error('[STARTUP] Attempted URL:', validatedURL);
+    console.error('[STARTUP] Error code:', errorCode);
+    console.error('[STARTUP] Error description:', errorDescription);
   });
   
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('✅ Page loaded successfully');
+    console.log('[STARTUP] Page loaded successfully');
   });
   
   mainWindow.loadURL(startUrl);
@@ -102,7 +102,7 @@ function createWindow() {
 
   // Prevent opening external URLs in browser (desktop app security)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    console.log('🚫 Blocked external URL:', url);
+    console.log('[SECURITY] Blocked external URL:', url);
     return { action: 'deny' };
   });
 
@@ -110,7 +110,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
     // Only allow localhost URLs (your app)
     if (!navigationUrl.startsWith('http://localhost:')) {
-      console.log('🚫 Blocked navigation to:', navigationUrl);
+      console.log('[SECURITY] Blocked navigation to:', navigationUrl);
       event.preventDefault();
     }
   });
@@ -128,12 +128,12 @@ async function killProcessOnPort(port) {
             const parts = line.trim().split(/\s+/);
             if (parts.length >= 5) {
               const pid = parts[4];
-              console.log(`🛑 Killing process ${pid} on port ${port}`);
+              console.log(`[STARTUP] Killing process ${pid} on port ${port}`);
               exec(`taskkill /f /pid ${pid}`, (killError) => {
                 if (killError) {
-                  console.log(`⚠️ Failed to kill process ${pid}:`, killError.message);
+                  console.log(`[WARN] Failed to kill process ${pid}:`, killError.message);
                 } else {
-                  console.log(`✅ Killed process ${pid} on port ${port}`);
+                  console.log(`[STARTUP] Killed process ${pid} on port ${port}`);
                 }
               });
             }
@@ -144,22 +144,22 @@ async function killProcessOnPort(port) {
       });
     });
   } catch (error) {
-    console.log('⚠️ Error killing processes on port:', error.message);
+    console.log('[WARN] Error killing processes on port:', error.message);
   }
 }
 
 // Start backend server with retry logic
 function startBackend(retryCount = 0) {
   const maxRetries = 3;
-  console.log(`🚀 [DEBUG] Starting backend with retry count: ${retryCount}`);
-  logToFile(`🚀 [DEBUG] Starting backend with retry count: ${retryCount}`);
+  console.log(`[STARTUP] [DEBUG] Starting backend with retry count: ${retryCount}`);
+  logToFile(`[DEBUG] Starting backend with retry count: ${retryCount}`);
   
   return new Promise(async (resolve, reject) => {
     try {
-      console.log(`🔍 [DEBUG] Determining backend path...`);
-      console.log(`🔍 [DEBUG] isDev: ${isDev}`);
-      console.log(`🔍 [DEBUG] __dirname: ${__dirname}`);
-      console.log(`🔍 [DEBUG] process.resourcesPath: ${process.resourcesPath}`);
+      console.log(`[STARTUP] [DEBUG] Determining backend path...`);
+      console.log(`[STARTUP] [DEBUG] isDev: ${isDev}`);
+      console.log(`[STARTUP] [DEBUG] __dirname: ${__dirname}`);
+      console.log(`[STARTUP] [DEBUG] process.resourcesPath: ${process.resourcesPath}`);
       
       let backendPath;
       let nodeModulesPath;
@@ -179,7 +179,7 @@ function startBackend(retryCount = 0) {
 
         if (!resolved) {
           const pathsTried = backendCandidates.map(c => c.backend).join(', ');
-          console.log(`❌ [DEBUG] Backend directory not found in any expected locations: ${pathsTried}`);
+          console.log(`[ERROR] [DEBUG] Backend directory not found in any expected locations: ${pathsTried}`);
           logToFile(`❌ Backend directory not found in any expected locations: ${pathsTried}`);
           reject(new Error('Backend directory not found'));
           return;
@@ -189,18 +189,18 @@ function startBackend(retryCount = 0) {
         nodeModulesPath = resolved.nodeModules;
       }
       
-      console.log(`🔧 [DEBUG] Calculated backend path: ${backendPath}`);
+      console.log(`[STARTUP] [DEBUG] Calculated backend path: ${backendPath}`);
       logToFile(`🔧 Backend path: ${backendPath}`);
       
       // Check if backend directory exists
-      console.log(`🔍 [DEBUG] Checking if backend directory exists: ${backendPath}`);
+      console.log(`[STARTUP] [DEBUG] Checking if backend directory exists: ${backendPath}`);
       if (!fs.existsSync(backendPath)) {
-        console.log(`❌ [DEBUG] Backend directory not found: ${backendPath}`);
+        console.log(`[ERROR] [DEBUG] Backend directory not found: ${backendPath}`);
         logToFile(`❌ Backend directory not found: ${backendPath}`);
         reject(new Error('Backend directory not found'));
         return;
       }
-      console.log(`✅ [DEBUG] Backend directory exists: ${backendPath}`);
+      console.log(`[STARTUP] [DEBUG] Backend directory exists: ${backendPath}`);
 
       // In production, the backend files are directly in the backend directory
       // In development, they're in backend/dist
@@ -208,24 +208,24 @@ function startBackend(retryCount = 0) {
         ? path.join(backendPath, 'dist')
         : backendPath;
       
-      console.log(`🔧 [DEBUG] Backend dist path: ${backendDistPath}`);
+      console.log(`[STARTUP] [DEBUG] Backend dist path: ${backendDistPath}`);
       logToFile(`🔧 Backend dist path: ${backendDistPath}`);
       
       // Check if backend dist directory exists
-      console.log(`🔍 [DEBUG] Checking if backend dist directory exists: ${backendDistPath}`);
+      console.log(`[STARTUP] [DEBUG] Checking if backend dist directory exists: ${backendDistPath}`);
       if (!fs.existsSync(backendDistPath)) {
-        console.log(`❌ [DEBUG] Backend dist directory not found: ${backendDistPath}`);
+        console.log(`[ERROR] [DEBUG] Backend dist directory not found: ${backendDistPath}`);
         logToFile(`❌ Backend directory not found: ${backendDistPath}`);
         reject(new Error('Backend directory not found'));
         return;
       }
-      console.log(`✅ [DEBUG] Backend dist directory exists: ${backendDistPath}`);
+      console.log(`[STARTUP] [DEBUG] Backend dist directory exists: ${backendDistPath}`);
 
       // Kill any existing processes on port 3001
-      console.log(`🛑 [DEBUG] Checking for existing processes on port 3001...`);
-      logToFile('🛑 Checking for existing processes on port 3001...');
+      console.log(`[STARTUP] [DEBUG] Checking for existing processes on port 3001...`);
+      logToFile('Checking for existing processes on port 3001...');
       await killProcessOnPort(3001);
-      console.log(`✅ [DEBUG] Port 3001 cleanup completed`);
+      console.log(`[STARTUP] [DEBUG] Port 3001 cleanup completed`);
 
       // Check if port 3001 is available first
       const checkPort = () => {
@@ -245,36 +245,36 @@ function startBackend(retryCount = 0) {
       // Wait for port to be available
       const waitForPort = async () => {
         let attempts = 0;
-        console.log(`🔍 [DEBUG] Starting port availability check...`);
+        console.log(`[STARTUP] [DEBUG] Starting port availability check...`);
         while (attempts < 5) {
-          console.log(`🔍 [DEBUG] Checking port availability (attempt ${attempts + 1}/5)`);
+          console.log(`[STARTUP] [DEBUG] Checking port availability (attempt ${attempts + 1}/5)`);
           const isAvailable = await checkPort();
           if (isAvailable) {
-            console.log('✅ [DEBUG] Port 3001 is available');
+            console.log('[STARTUP] [DEBUG] Port 3001 is available');
             return true;
           }
-          console.log(`⏳ [DEBUG] Port 3001 busy, waiting... (attempt ${attempts + 1}/5)`);
+          console.log(`[STARTUP] [DEBUG] Port 3001 busy, waiting... (attempt ${attempts + 1}/5)`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           attempts++;
         }
-        console.log(`❌ [DEBUG] Port 3001 still busy after 5 attempts`);
+        console.log(`[ERROR] [DEBUG] Port 3001 still busy after 5 attempts`);
         return false;
       };
 
       const portAvailable = await waitForPort();
       if (!portAvailable) {
-        console.log('❌ [DEBUG] Port 3001 still busy after 5 seconds');
+        console.log('[ERROR] [DEBUG] Port 3001 still busy after 5 seconds');
         reject(new Error('Port 3001 is busy'));
         return;
       }
-      console.log(`✅ [DEBUG] Port 3001 is ready for backend startup`);
+      console.log(`[STARTUP] [DEBUG] Port 3001 is ready for backend startup`);
 
       // Start backend process
-      console.log(`🔄 [DEBUG] Starting backend process...`);
-      logToFile('🔄 Starting backend process...');
+      console.log(`[STARTUP] [DEBUG] Starting backend process...`);
+      logToFile('Starting backend process...');
       
       // Sanitize environment variables for security
-      console.log(`🔧 [DEBUG] Setting up environment variables...`);
+      console.log(`[STARTUP] [DEBUG] Setting up environment variables...`);
       const backendEnv = {
         // Only essential environment variables
         NODE_ENV: isDev ? 'development' : 'production',
@@ -301,40 +301,40 @@ function startBackend(retryCount = 0) {
         ELECTRON_ENABLE_LOGGING: undefined
       };
       
-      console.log(`🔧 [DEBUG] Environment variables configured:`, {
+      console.log(`[STARTUP] [DEBUG] Environment variables configured:`, {
         NODE_ENV: backendEnv.NODE_ENV,
         DATABASE_URL: backendEnv.DATABASE_URL,
         PORT: backendEnv.PORT,
         CORS_ORIGIN: backendEnv.CORS_ORIGIN
       });
       
-      logToFile(`🔧 Database URL: ${backendEnv.DATABASE_URL}`);
-      logToFile(`🔧 Working directory: ${backendDistPath}`);
-      logToFile(`🔧 Database file exists: ${fs.existsSync(path.join(backendDistPath, 'dev.db'))}`);
-      logToFile(`🔧 Server.js exists: ${fs.existsSync(path.join(backendDistPath, 'server.js'))}`);
-      logToFile(`🔧 Node modules exists: ${fs.existsSync(path.join(backendDistPath, 'node_modules'))}`);
-      logToFile(`🔧 Prisma directory exists: ${fs.existsSync(path.join(backendDistPath, 'prisma'))}`);
+      logToFile(`Database URL: ${backendEnv.DATABASE_URL}`);
+      logToFile(`Working directory: ${backendDistPath}`);
+      logToFile(`Database file exists: ${fs.existsSync(path.join(backendDistPath, 'dev.db'))}`);
+      logToFile(`Server.js exists: ${fs.existsSync(path.join(backendDistPath, 'server.js'))}`);
+      logToFile(`Node modules exists: ${fs.existsSync(path.join(backendDistPath, 'node_modules'))}`);
+      logToFile(`Prisma directory exists: ${fs.existsSync(path.join(backendDistPath, 'prisma'))}`);
       
       // List directory contents for debugging
       try {
         const dirContents = fs.readdirSync(backendDistPath);
-        logToFile(`🔧 Backend directory contents: ${dirContents.join(', ')}`);
+        logToFile(`Backend directory contents: ${dirContents.join(', ')}`);
       } catch (error) {
-        logToFile(`❌ Failed to read backend directory: ${error.message}`);
+        logToFile(`Failed to read backend directory: ${error.message}`, 'ERROR');
       }
       
       // In production, use Electron's bundled Node.js runtime for reliability
       // This ensures the backend works in portable apps without system Node.js dependency
-      console.log(`🔧 [DEBUG] Determining Node.js executable...`);
+      console.log(`[STARTUP] [DEBUG] Determining Node.js executable...`);
       const nodeExecutable = isDev ? 'node' : process.execPath;
       const spawnArgs = isDev ? ['server.js'] : ['--preserve-symlinks', 'server.js'];
       
-      console.log(`🔧 [DEBUG] Node executable: ${nodeExecutable}`);
-      console.log(`🔧 [DEBUG] Spawn args: ${JSON.stringify(spawnArgs)}`);
+      console.log(`[STARTUP] [DEBUG] Node executable: ${nodeExecutable}`);
+      console.log(`[STARTUP] [DEBUG] Spawn args: ${JSON.stringify(spawnArgs)}`);
       
         // Allow file:// based renderer to call backend in production (no Origin)
         if (!isDev) {
-          console.log(`🔧 [DEBUG] Configuring production environment...`);
+          console.log(`[STARTUP] [DEBUG] Configuring production environment...`);
           // Don't set CORS_ORIGIN to '*' - let the backend handle CORS properly
           // backendEnv.CORS_ORIGIN = '*'; // REMOVED: Security vulnerability
           // Critical: Set ELECTRON_RUN_AS_NODE to use Electron's Node.js runtime
@@ -348,7 +348,7 @@ function startBackend(retryCount = 0) {
           // Force CommonJS module resolution for backend
           backendEnv.NODE_NO_WARNINGS = '1';
         
-        console.log(`🔧 [DEBUG] Production environment configured:`, {
+        console.log(`[STARTUP] [DEBUG] Production environment configured:`, {
           ELECTRON_RUN_AS_NODE: backendEnv.ELECTRON_RUN_AS_NODE,
           NODE_PATH: backendEnv.NODE_PATH,
           NODE_OPTIONS: backendEnv.NODE_OPTIONS,
@@ -356,18 +356,18 @@ function startBackend(retryCount = 0) {
         });
         
         // Log module resolution paths for debugging
-        logToFile(`🔧 NODE_PATH: ${backendEnv.NODE_PATH}`);
-        logToFile(`🔧 Node modules path exists: ${fs.existsSync(nodeModulesPath)}`);
-        logToFile(`🔧 Server.js exists: ${fs.existsSync(path.join(backendDistPath, 'server.js'))}`);
+        logToFile(`NODE_PATH: ${backendEnv.NODE_PATH}`);
+        logToFile(`Node modules path exists: ${fs.existsSync(nodeModulesPath)}`);
+        logToFile(`Server.js exists: ${fs.existsSync(path.join(backendDistPath, 'server.js'))}`);
       } else {
-        console.log(`🔧 [DEBUG] Using development environment configuration`);
+        console.log(`[STARTUP] [DEBUG] Using development environment configuration`);
       }
       
-      logToFile(`🔧 Using spawn() executable: ${nodeExecutable}`);
-      logToFile(`🔧 Spawn args: ${JSON.stringify(spawnArgs)}`);
+      logToFile(`Using spawn() executable: ${nodeExecutable}`);
+      logToFile(`Spawn args: ${JSON.stringify(spawnArgs)}`);
       
-      console.log(`🚀 [DEBUG] About to spawn backend process...`);
-      console.log(`🚀 [DEBUG] Spawn options:`, {
+      console.log(`[STARTUP] [DEBUG] About to spawn backend process...`);
+      console.log(`[STARTUP] [DEBUG] Spawn options:`, {
         cwd: backendDistPath,
         stdio: 'pipe',
         windowsHide: true,
@@ -383,26 +383,26 @@ function startBackend(retryCount = 0) {
         detached: false
       });
       
-      console.log(`✅ [DEBUG] Backend process spawned with PID: ${backendProcess.pid}`);
+      console.log(`[STARTUP] [DEBUG] Backend process spawned with PID: ${backendProcess.pid}`);
 
       backendProcess.stdout.on('data', (data) => {
         const output = data.toString();
-        console.log(`📤 [DEBUG] Backend stdout: ${output.trim()}`);
+        console.log(`[BACKEND] [DEBUG] Backend stdout: ${output.trim()}`);
         logToFile(`Backend stdout: ${output}`);
         if (output.includes('Server running at')) {
-          console.log(`✅ [DEBUG] Backend server started successfully!`);
+          console.log(`[STARTUP] [DEBUG] Backend server started successfully!`);
           logToFile('✅ Backend server started successfully');
           // Wait a bit more for the server to be fully ready
           setTimeout(async () => {
-            console.log(`🔍 [DEBUG] Performing health check...`);
+            console.log(`[STARTUP] [DEBUG] Performing health check...`);
             // Verify the backend is actually responding
             const isHealthy = await checkBackendHealth();
             if (isHealthy) {
-              console.log(`✅ [DEBUG] Backend health check passed`);
+              console.log(`[STARTUP] [DEBUG] Backend health check passed`);
               logToFile('✅ Backend health check passed');
               resolve();
             } else {
-              console.log(`⚠️ [DEBUG] Backend health check failed, but continuing...`);
+              console.log(`[WARN] [DEBUG] Backend health check failed, but continuing...`);
               logToFile('⚠️ Backend health check failed, but continuing...');
               resolve();
             }
@@ -412,32 +412,32 @@ function startBackend(retryCount = 0) {
 
       backendProcess.stderr.on('data', (data) => {
         const error = data.toString();
-        console.log(`📥 [DEBUG] Backend stderr: ${error.trim()}`);
+        console.log(`[BACKEND] [DEBUG] Backend stderr: ${error.trim()}`);
         logToFile(`Backend stderr: ${error}`);
         console.error('Backend Error:', error);
       });
 
       backendProcess.on('error', (error) => {
-        console.log(`❌ [DEBUG] Backend process error:`, error);
+        console.log(`[ERROR] [DEBUG] Backend process error:`, error);
         logError(error, 'Failed to start backend');
         if (retryCount < maxRetries) {
-          console.log(`🔄 [DEBUG] Retrying backend startup (${retryCount + 1}/${maxRetries})...`);
+          console.log(`[STARTUP] [DEBUG] Retrying backend startup (${retryCount + 1}/${maxRetries})...`);
           logToFile(`🔄 Retrying backend startup (${retryCount + 1}/${maxRetries})...`);
           setTimeout(() => {
             startBackend(retryCount + 1).then(resolve).catch(reject);
           }, 2000);
         } else {
-          console.log(`❌ [DEBUG] Max retries reached, giving up`);
+          console.log(`[ERROR] [DEBUG] Max retries reached, giving up`);
           reject(error);
         }
       });
 
       backendProcess.on('close', (code) => {
-        console.log(`🔚 [DEBUG] Backend process exited with code: ${code}`);
+        console.log(`[BACKEND] [DEBUG] Backend process exited with code: ${code}`);
         logToFile(`Backend process exited with code ${code}`);
         if (code !== 0 && !isDev) {
           // In production, attempt to restart backend on unexpected exit
-          console.log(`⚠️ [DEBUG] Backend exited unexpectedly, attempting restart...`);
+          console.log(`[WARN] [DEBUG] Backend exited unexpectedly, attempting restart...`);
           logToFile('Backend exited unexpectedly, attempting restart...', 'WARN');
           setTimeout(() => {
             if (!backendProcess || backendProcess.killed) {
@@ -458,19 +458,19 @@ function startBackend(retryCount = 0) {
           try {
             const response = await fetch('http://localhost:3001/api/health');
             if (response.ok) {
-              console.log('✅ [DEBUG] Backend is ready');
+              console.log('[STARTUP] [DEBUG] Backend is ready');
               logToFile('✅ Backend is ready');
               resolve();
               return;
             }
           } catch (error) {
-            console.log(`⏳ [DEBUG] Waiting for backend... (${attempts + 1}/${maxAttempts})`);
+            console.log(`[STARTUP] [DEBUG] Waiting for backend... (${attempts + 1}/${maxAttempts})`);
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
           }
         }
         
-        console.log(`❌ [DEBUG] Backend health check timeout after ${maxAttempts} attempts`);
+        console.log(`[ERROR] [DEBUG] Backend health check timeout after ${maxAttempts} attempts`);
         logToFile(`❌ Backend health check timeout after ${maxAttempts} attempts`);
         reject(new Error('Backend health check timeout'));
       };
@@ -478,7 +478,7 @@ function startBackend(retryCount = 0) {
       // Start health check after a short delay
       setTimeout(waitForBackend, 2000);
     } catch (error) {
-      console.log(`❌ [DEBUG] Backend startup error:`, error);
+      console.log(`[ERROR] [DEBUG] Backend startup error:`, error);
       logError(error, 'Backend startup error');
       reject(error);
     }
@@ -545,10 +545,10 @@ function monitorBackendHealth() {
 app.whenReady().then(async () => {
   try {
     // Always start backend in development mode
-    console.log('🚀 [DEBUG] Electron app is ready, starting backend server...');
+    console.log('[STARTUP] [DEBUG] Electron app is ready, starting backend server...');
     
     // Start backend with timeout
-    console.log('🚀 [DEBUG] Calling startBackend() with 30s timeout...');
+    console.log('[STARTUP] [DEBUG] Calling startBackend() with 30s timeout...');
     const backendPromise = startBackend();
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Backend startup timeout')), 30000)
@@ -556,12 +556,12 @@ app.whenReady().then(async () => {
     
     try {
       await Promise.race([backendPromise, timeoutPromise]);
-      console.log('✅ [DEBUG] Backend started successfully');
+      console.log('[STARTUP] [DEBUG] Backend started successfully');
       logToFile('✅ Backend started successfully');
       // Start health monitoring after successful backend startup
       monitorBackendHealth();
     } catch (backendError) {
-      console.log('❌ [DEBUG] Backend startup failed:', backendError);
+      console.log('[ERROR] [DEBUG] Backend startup failed:', backendError);
       logError(backendError, 'Backend startup failed');
       logToFile('⚠️ Continuing without backend...', 'WARN');
       // Send error to renderer process
@@ -578,7 +578,7 @@ app.whenReady().then(async () => {
       createWindow();
     }, 2000);
   } catch (error) {
-    console.error('❌ Failed to start backend:', error);
+    console.error('[ERROR] Failed to start backend:', error);
     // Still create window even if backend fails
     createWindow();
   }
@@ -587,7 +587,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // Kill backend process when app closes
   if (backendProcess && !backendProcess.killed) {
-    console.log('🛑 Stopping backend server...');
+    console.log('[STARTUP] Stopping backend server...');
     backendProcess.kill();
   }
   
@@ -599,14 +599,14 @@ app.on('window-all-closed', () => {
 
 // Ensure proper cleanup on app quit
 app.on('before-quit', () => {
-  console.log('🛑 App quitting - cleaning up processes...');
+  console.log('[STARTUP] App quitting - cleaning up processes...');
   if (backendProcess && !backendProcess.killed) {
-    console.log('🛑 Killing backend process...');
+    console.log('[STARTUP] Killing backend process...');
     backendProcess.kill('SIGTERM');
     // Force kill after 3 seconds if not terminated
     setTimeout(() => {
       if (backendProcess && !backendProcess.killed) {
-        console.log('🛑 Force killing backend process...');
+        console.log('[STARTUP] Force killing backend process...');
         backendProcess.kill('SIGKILL');
       }
     }, 3000);
@@ -615,7 +615,7 @@ app.on('before-quit', () => {
 
 // Handle process termination signals
 process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received - cleaning up...');
+  console.log('[STARTUP] SIGINT received - cleaning up...');
   if (backendProcess && !backendProcess.killed) {
     backendProcess.kill('SIGTERM');
   }
@@ -623,7 +623,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received - cleaning up...');
+  console.log('[STARTUP] SIGTERM received - cleaning up...');
   if (backendProcess && !backendProcess.killed) {
     backendProcess.kill('SIGTERM');
   }
@@ -667,7 +667,7 @@ ipcMain.handle('open-external', async (event, url) => {
 // Handle installation tasks
 ipcMain.handle('install-dependencies', async () => {
   try {
-    console.log('🔧 Starting dependency installation...');
+    console.log('[STARTUP] Starting dependency installation...');
     
     // This would be implemented based on your installation needs
     // For now, return success
@@ -675,21 +675,21 @@ ipcMain.handle('install-dependencies', async () => {
       success: true,
       message: 'Dependencies installed successfully!',
       details: [
-        '✅ Sumatra PDF installed',
-        '✅ Epson TM-T81 drivers installed', 
-        '✅ Custom fonts installed system-wide',
-        '✅ Database initialized with default data'
+        'Sumatra PDF installed',
+        'Epson TM-T81 drivers installed', 
+        'Custom fonts installed system-wide',
+        'Database initialized with default data'
       ]
     };
   } catch (error) {
-    console.error('❌ Installation failed:', error);
+    console.error('[ERROR] Installation failed:', error);
     return {
       success: false,
       message: 'Installation failed. Please run as administrator.',
       details: [
-        '❌ Some dependencies may not have been installed',
-        '⚠️ Try running the installer as administrator',
-        '⚠️ Check if antivirus is blocking the installation'
+        'Some dependencies may not have been installed',
+        'Try running the installer as administrator',
+        'Check if antivirus is blocking the installation'
       ]
     };
   }
@@ -698,7 +698,7 @@ ipcMain.handle('install-dependencies', async () => {
 // Handle printer operations
 ipcMain.handle('get-printers', async () => {
   try {
-    console.log('🖨️ Fetching real printer list...');
+    console.log('[PRINT] Fetching real printer list...');
     
     // Use PowerShell to get real printer list on Windows
     const { exec } = require('child_process');
@@ -712,7 +712,7 @@ ipcMain.handle('get-printers', async () => {
         timeout: 10000 // 10 second timeout
       }, (error, stdout, stderr) => {
         if (error) {
-          console.error('❌ Failed to get printers:', error);
+          console.error('[ERROR] Failed to get printers:', error);
           // Fallback to empty array instead of hardcoded data
           resolve([]);
           return;
@@ -729,16 +729,16 @@ ipcMain.handle('get-printers', async () => {
             ? printers.map(p => p.Name).filter(name => name && typeof name === 'string')
             : [];
           
-          console.log('✅ Found printers:', printerNames);
+          console.log('[PRINT] Found printers:', printerNames);
           resolve(printerNames);
         } catch (parseError) {
-          console.error('❌ Failed to parse printer data:', parseError);
+          console.error('[ERROR] Failed to parse printer data:', parseError);
           resolve([]);
         }
       });
     });
   } catch (error) {
-    console.error('❌ Failed to get printers:', error);
+    console.error('[ERROR] Failed to get printers:', error);
     return [];
   }
 });
@@ -771,8 +771,8 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
       }
     }
     
-    console.log('🖨️ Printing ticket via Sumatra PDF:', ticketData);
-    console.log('🖨️ Printer:', printerName);
+    console.log('[PRINT] Printing ticket via Sumatra PDF:', ticketData);
+    console.log('[PRINT] Printer:', printerName);
     
     // Use the backend PDF printing service
     const backendUrl = `http://localhost:${BACKEND_PORT}/api/thermal-printer/print`;
@@ -800,24 +800,24 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
       }
     };
     
-    console.log('📤 Sending to backend PDF service:', printData);
-    console.log('🔤 Movie settings being sent:', printData.movieSettings);
-    console.log('🔤 printInKannada value:', printData.movieSettings.printInKannada);
+    console.log('[PRINT] Sending to backend PDF service:', printData);
+    console.log('[PRINT] Movie settings being sent:', printData.movieSettings);
+    console.log('[PRINT] printInKannada value:', printData.movieSettings.printInKannada);
     
     // 🚀 FRONTEND DEBUG: Log which service will be used
     if (printData.movieSettings.printInKannada) {
-      console.log('🚀 FRONTEND DEBUG: This ticket will use FastKannadaPrintService (wkhtmltopdf)');
-      console.log('🚀 FRONTEND DEBUG: Expected performance improvement: 3-5x faster than Puppeteer');
+      console.log('[PRINT] This ticket will use FastKannadaPrintService (wkhtmltopdf)');
+      console.log('[PRINT] Expected performance improvement: 3-5x faster than Puppeteer');
     } else {
-      console.log('🔤 FRONTEND DEBUG: This ticket will use PdfPrintService (PDFKit) for English');
+      console.log('[PRINT] This ticket will use PdfPrintService (PDFKit) for English');
     }
     
-    console.log('💰 TICKET COST DEBUG - Electron Level:');
-    console.log('💰 ticketData.individualPrice:', ticketData.individualPrice);
-    console.log('💰 ticketData.totalPrice:', ticketData.totalPrice);
-    console.log('💰 ticketData.seatCount:', ticketData.seatCount);
-    console.log('💰 printData.ticketData.individualAmount:', printData.ticketData.individualAmount);
-    console.log('💰 printData.ticketData.totalAmount:', printData.ticketData.totalAmount);
+    console.log('[PRICE] TICKET COST DEBUG - Electron Level:');
+    console.log('[PRICE] ticketData.individualPrice:', ticketData.individualPrice);
+    console.log('[PRICE] ticketData.totalPrice:', ticketData.totalPrice);
+    console.log('[PRICE] ticketData.seatCount:', ticketData.seatCount);
+    console.log('[PRICE] printData.ticketData.individualAmount:', printData.ticketData.individualAmount);
+    console.log('[PRICE] printData.ticketData.totalAmount:', printData.ticketData.totalAmount);
     
     // Make HTTP request to backend printing service
     const http = require('http');
@@ -844,17 +844,17 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
         res.on('end', () => {
           try {
             const result = JSON.parse(data);
-            console.log('✅ Backend PDF print result:', result);
+            console.log('[PRINT] Backend PDF print result:', result);
             resolve(result);
           } catch (error) {
-            console.error('❌ Failed to parse backend response:', error);
+            console.error('[ERROR] Failed to parse backend response:', error);
             resolve({ success: false, message: 'Failed to parse backend response' });
           }
         });
       });
       
       req.on('error', (error) => {
-        console.error('❌ Backend print request failed:', error);
+        console.error('[ERROR] Backend print request failed:', error);
         resolve({ success: false, message: `Backend print failed: ${error.message}` });
       });
       
@@ -862,7 +862,7 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
       req.end();
     });
   } catch (error) {
-    console.error('❌ Failed to print ticket:', error);
+    console.error('[ERROR] Failed to print ticket:', error);
     return { success: false, message: error.message };
   }
 });

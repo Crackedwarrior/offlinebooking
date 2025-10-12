@@ -26,18 +26,18 @@ export function parse12HourToMinutes(timeStr: string): number {
 }
 
 export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date()): string | null {
-  console.log('🕐 getShowKeyFromNow called with shows:', shows);
+  console.log('[TIME] getShowKeyFromNow called with shows:', shows);
   
   const enabled = shows.filter(s => s.enabled);
-  console.log('🕐 enabled shows:', enabled);
+  console.log('[TIME] enabled shows:', enabled);
   
   if (enabled.length === 0) {
-    console.log('🕐 No enabled shows, returning null');
+    console.log('[TIME] No enabled shows, returning null');
     return null;
   }
   
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  console.log('🕐 Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
+  console.log('[TIME] Current time:', now.toLocaleTimeString(), 'minutes:', nowMinutes);
 
   for (let i = 0; i < enabled.length; i++) {
     const show = enabled[i];
@@ -54,7 +54,7 @@ export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date(
       isActive = nowMinutes >= start && nowMinutes < end;
     }
 
-    console.log(`🕐 Checking show ${show.key}:`, {
+    console.log(`[TIME] Checking show ${show.key}:`, {
       startTime: show.startTime,
       endTime: show.endTime,
       startMinutes: start,
@@ -64,12 +64,12 @@ export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date(
     });
 
     if (isActive) {
-      console.log(`🕐 Found active show: ${show.key}`);
+      console.log(`[TIME] Found active show: ${show.key}`);
       return show.key;
     }
   }
 
-  console.log('🕐 No active show found, checking fallback logic');
+  console.log('[TIME] No active show found, checking fallback logic');
   
   // Fallback: Find the next upcoming show (closest future start time)
   let nextShow = null;
@@ -86,7 +86,7 @@ export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date(
   }
   
   if (nextShow) {
-    console.log(`🕐 Fallback: Next upcoming show is ${nextShow.key} (starts in ${minDiff} minutes)`);
+    console.log(`[TIME] Fallback: Next upcoming show is ${nextShow.key} (starts in ${minDiff} minutes)`);
     return nextShow.key;
   }
   
@@ -94,12 +94,12 @@ export function getShowKeyFromNow(shows: ShowTimeConfig[], now: Date = new Date(
   for (let i = enabled.length - 1; i >= 0; i--) {
     const start = parse12HourToMinutes(enabled[i].startTime);
     if (nowMinutes >= start) {
-      console.log(`🕐 Fallback: Most recent show is ${enabled[i].key}`);
+      console.log(`[TIME] Fallback: Most recent show is ${enabled[i].key}`);
       return enabled[i].key;
     }
   }
   
-  console.log(`🕐 Default fallback to first show: ${enabled[0].key}`);
+  console.log(`[TIME] Default fallback to first show: ${enabled[0].key}`);
   return enabled[0].key;
 }
 

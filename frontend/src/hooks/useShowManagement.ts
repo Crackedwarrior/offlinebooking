@@ -29,7 +29,7 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
         return acc;
       }, {} as Record<string, { label: string; timing: string; price: number }>);
     } catch (error) {
-      console.log('❌ Error accessing settings store, using fallback');
+      console.log('[ERROR] Error accessing settings store, using fallback');
       return {
         'MORNING': { label: 'Morning Show', timing: '10:00 AM - 12:00 PM', price: 0 },
         'MATINEE': { label: 'Matinee Show', timing: '2:00 PM - 5:00 PM', price: 0 },
@@ -44,18 +44,18 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
    */
   const getCurrentShowByTime = useCallback(() => {
     const currentTime = getCurrentTimeMinutes();
-    console.log('🎯 getCurrentShowByTime called - currentTime:', currentTime);
+    console.log('[SHOW] getCurrentShowByTime called - currentTime:', currentTime);
     
     const enabledShowTimes = showTimes.filter(show => show.enabled);
     if (enabledShowTimes.length === 0) {
-      console.log('🎯 getCurrentShowByTime: No enabled shows found');
+      console.log('[SHOW] getCurrentShowByTime: No enabled shows found');
       return null;
     }
     const sortedShows = [...enabledShowTimes].sort((a, b) => {
       return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
     });
     
-    console.log('🎯 Available shows:', sortedShows.map(s => ({key: s.key, start: s.startTime, end: s.endTime})));
+    console.log('[SHOW] Available shows:', sortedShows.map(s => ({key: s.key, start: s.startTime, end: s.endTime})));
     
     for (let i = 0; i < sortedShows.length; i++) {
       const show = sortedShows[i];
@@ -77,7 +77,7 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
         isActive = currentTime >= startMinutes && currentTime < endMinutes;
       }
       
-      console.log(`🎯 Checking show ${show.key}:`, {
+      console.log(`[SHOW] Checking show ${show.key}:`, {
         startMinutes,
         endMinutes,
         currentMinutes: currentTime,
@@ -85,7 +85,7 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
       });
       
       if (isActive) {
-        console.log('🎯 getCurrentShowByTime returning:', show.key);
+        console.log('[SHOW] getCurrentShowByTime returning:', show.key);
         return show;
       }
     }
@@ -93,12 +93,12 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
       const show = sortedShows[i];
       const startMinutes = parseTimeToMinutes(show.startTime);
       if (currentTime >= startMinutes) {
-        console.log('🎯 getCurrentShowByTime returning (fallback):', show.key);
+        console.log('[SHOW] getCurrentShowByTime returning (fallback):', show.key);
         return show;
       }
     }
     const fallbackShow = sortedShows[0] || null;
-    console.log('🎯 getCurrentShowByTime returning (default):', fallbackShow ? fallbackShow.key : null);
+    console.log('[SHOW] getCurrentShowByTime returning (default):', fallbackShow ? fallbackShow.key : null);
     return fallbackShow;
   }, [showTimes]);
 
@@ -196,8 +196,8 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
    * Handle show selection
    */
   const handleShowSelect = useCallback(async (showKey: string, onManualShowSelection?: (showKey: string) => void) => {
-    console.log('🎯 handleShowSelect: Received showKey:', showKey);
-    console.log('🎯 handleShowSelect: Current store selectedShow:', useBookingStore.getState().selectedShow);
+    console.log('[SHOW] handleShowSelect: Received showKey:', showKey);
+    console.log('[SHOW] handleShowSelect: Current store selectedShow:', useBookingStore.getState().selectedShow);
     
     const currentSelectedSeats = useBookingStore.getState().seats.filter(seat => seat.status === 'SELECTED');
     // console.log('🎯 Clearing selected seats:', currentSelectedSeats.length);
@@ -211,11 +211,11 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
     // console.log('🎯 Calling manual show selection handler');
     
     if (onManualShowSelection) {
-      console.log('🎯 handleShowSelect: Calling onManualShowSelection with:', showKey);
+      console.log('[SHOW] handleShowSelect: Calling onManualShowSelection with:', showKey);
       onManualShowSelection(showKey);
     } else {
-      console.warn('No manual selection handler available, using direct store update');
-      console.log('🎯 handleShowSelect: Setting selectedShow directly to:', showKey);
+      console.warn('[SHOW] No manual selection handler available, using direct store update');
+      console.log('[SHOW] handleShowSelect: Setting selectedShow directly to:', showKey);
       setSelectedShow(showKey as any);
     }
     
@@ -239,10 +239,10 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
             syncSeatStatus(bookedSeatIds, bmsSeatIds);
           }
         } catch (seatError) {
-          console.error('❌ Failed to fetch seat status for ${showKey}:', seatError);
+          console.error('[ERROR] Failed to fetch seat status for ${showKey}:', seatError);
         }
       } catch (error) {
-        console.error('❌ Failed to load seats for show ${showKey}:', error);
+        console.error('[ERROR] Failed to load seats for show ${showKey}:', error);
       }
     }, 100);
   }, [selectedDate, loadBookingForDate, syncSeatStatus, toggleSeatStatus, setSelectedShow]);
@@ -271,20 +271,20 @@ export const useShowManagement = (onManualShowSelection?: (showKey: string) => v
       return;
     }
     if (count >= 3) {
-      console.log('🎯 TRIPLE-CLICK: Before selection - selectedShow:', selectedShow);
-      console.log('🎯 TRIPLE-CLICK: Current store selectedShow:', useBookingStore.getState().selectedShow);
+      console.log('[SHOW] TRIPLE-CLICK: Before selection - selectedShow:', selectedShow);
+      console.log('[SHOW] TRIPLE-CLICK: Current store selectedShow:', useBookingStore.getState().selectedShow);
       
       const currentShow = getCurrentShowByTime();
-      console.log('🎯 TRIPLE-CLICK: getCurrentShowByTime returned:', currentShow);
+      console.log('[SHOW] TRIPLE-CLICK: getCurrentShowByTime returned:', currentShow);
       
       const currentShowKey = currentShow ? currentShow.key : null;
-      console.log('🎯 TRIPLE-CLICK: Extracted key:', currentShowKey);
+      console.log('[SHOW] TRIPLE-CLICK: Extracted key:', currentShowKey);
       
       if (currentShowKey && currentShowKey !== selectedShow) {
-        console.log('🎯 TRIPLE-CLICK: About to call handleShowSelect with:', currentShowKey);
+        console.log('[SHOW] TRIPLE-CLICK: About to call handleShowSelect with:', currentShowKey);
         handleShowSelect(currentShowKey, onManualShowSelection);
       } else {
-        console.log('🎯 TRIPLE-CLICK: No action needed - same show or no current show');
+        console.log('[SHOW] TRIPLE-CLICK: No action needed - same show or no current show');
       }
     }
   }, [selectedShow, getCurrentShowByTime, handleShowSelect, showDropdownOpen, onManualShowSelection]);

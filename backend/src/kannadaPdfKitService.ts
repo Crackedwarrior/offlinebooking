@@ -76,7 +76,7 @@ class KannadaPdfKitService {
   // Get list of thermal printers (same as English service)
   async getThermalPrinters(): Promise<PrinterInfo[]> {
     try {
-      console.log('🔍 Scanning for thermal printers...');
+      console.log('[PRINT] Scanning for thermal printers...');
       
       const { stdout } = await execAsync('powershell -Command "Get-Printer | Select-Object Name, DriverName, PortName, PrinterStatus"', {
         timeout: 10000,
@@ -113,11 +113,11 @@ class KannadaPdfKitService {
         }
       }
 
-      console.log(`✅ Found ${printers.length} thermal printers`);
+      console.log(`[PRINT] Found ${printers.length} thermal printers`);
       return printers;
 
     } catch (error) {
-      console.log('❌ Error scanning printers:', error);
+      console.log('[ERROR] Error scanning printers:', error);
       return [];
     }
   }
@@ -125,7 +125,7 @@ class KannadaPdfKitService {
   // Print PDF using SumatraPDF (same as English service)
   async printPDF(pdfPath: string, printerName: string): Promise<PrintResult> {
     try {
-      console.log(`🖨️ Printing PDF to ${printerName}...`);
+      console.log(`[PRINT] Printing PDF to ${printerName}...`);
       
       // Enhanced SumatraPDF detection with multiple paths (same as English service)
       const sumatraPaths = [
@@ -142,11 +142,11 @@ class KannadaPdfKitService {
       
       for (const sumatraPath of sumatraPaths) {
         if (fs.existsSync(sumatraPath)) {
-          console.log(`📋 Found SumatraPDF at: ${sumatraPath}`);
+          console.log(`[PRINT] Found SumatraPDF at: ${sumatraPath}`);
           
           try {
             const printCommand = `"${sumatraPath}" -print-to "${printerName}" "${pdfPath}"`;
-            console.log('📋 Executing print command...');
+            console.log('[PRINT] Executing print command...');
             
             const { stdout, stderr } = await execAsync(printCommand, {
               timeout: 30000,
@@ -154,11 +154,11 @@ class KannadaPdfKitService {
             });
             
             if (stderr) {
-              console.log('⚠️ Print stderr:', stderr);
+              console.log('[PRINT] Print stderr:', stderr);
             }
             
-            console.log('✅ SumatraPDF print executed successfully!');
-            console.log('📋 Print output:', stdout);
+            console.log('[PRINT] SumatraPDF print executed successfully!');
+            console.log('[PRINT] Print output:', stdout);
             
             return {
               success: true,
@@ -167,7 +167,7 @@ class KannadaPdfKitService {
             };
             
           } catch (error) {
-            console.log(`❌ SumatraPDF at ${sumatraPath} failed:`, error);
+            console.log(`[ERROR] SumatraPDF at ${sumatraPath} failed:`, error);
           }
         }
       }
@@ -182,7 +182,7 @@ class KannadaPdfKitService {
       };
       
     } catch (error) {
-      console.log('❌ PDF print failed:', error);
+      console.log('[ERROR] PDF print failed:', error);
       return {
         success: false,
         error: `Print failed: ${error}`
@@ -194,11 +194,11 @@ class KannadaPdfKitService {
   async createPDFTicket(formattedTicket: any): Promise<string> {
     return new Promise((resolve, reject) => {
       // Register Kannada fonts BEFORE creating the document
-      console.log('🔤 Checking font paths...');
-      console.log('📁 Regular font path:', this.regularFontPath);
-      console.log('📁 Bold font path:', this.boldFontPath);
-      console.log('✅ Regular font exists:', fs.existsSync(this.regularFontPath));
-      console.log('✅ Bold font exists:', fs.existsSync(this.boldFontPath));
+      console.log('[PRINT] Checking font paths...');
+      console.log('[PRINT] Regular font path:', this.regularFontPath);
+      console.log('[PRINT] Bold font path:', this.boldFontPath);
+      console.log('[PRINT] Regular font exists:', fs.existsSync(this.regularFontPath));
+      console.log('[PRINT] Bold font exists:', fs.existsSync(this.boldFontPath));
       
       const doc = new PDFDocument({
         size: [226, 800],
@@ -224,24 +224,24 @@ class KannadaPdfKitService {
         try {
           doc.registerFont('NotoSansKannada', this.regularFontPath);
           regularFontRegistered = true;
-          console.log('✅ Registered NotoSansKannada font');
+          console.log('[PRINT] Registered NotoSansKannada font');
         } catch (error) {
-          console.log('❌ Failed to register NotoSansKannada font:', (error as Error).message);
+          console.log('[ERROR] Failed to register NotoSansKannada font:', (error as Error).message);
         }
       } else {
-        console.log('❌ Regular font not found!');
+        console.log('[ERROR] Regular font not found!');
       }
       
       if (fs.existsSync(this.boldFontPath)) {
         try {
           doc.registerFont('NotoSansKannada-Bold', this.boldFontPath);
           boldFontRegistered = true;
-          console.log('✅ Registered NotoSansKannada-Bold font');
+          console.log('[PRINT] Registered NotoSansKannada-Bold font');
         } catch (error) {
-          console.log('❌ Failed to register NotoSansKannada-Bold font:', (error as Error).message);
+          console.log('[ERROR] Failed to register NotoSansKannada-Bold font:', (error as Error).message);
         }
       } else {
-        console.log('❌ Bold font not found!');
+        console.log('[ERROR] Bold font not found!');
       }
       
       // Helper function to get safe font
@@ -306,7 +306,7 @@ class KannadaPdfKitService {
       const boxX = leftMargin;
       const boxY = currentY;
       
-      console.log('📦 Header box position:', { boxX, boxY, boxWidth, boxHeight, leftMargin, rightMargin });
+      console.log('[PRINT] Header box position:', { boxX, boxY, boxWidth, boxHeight, leftMargin, rightMargin });
       doc.rect(boxX, boxY, boxWidth, boxHeight).stroke();
       
       let textY = boxY + 4.7; // Moved up by 0.1mm (0.3 points) from 5 to 4.7
@@ -325,7 +325,7 @@ class KannadaPdfKitService {
       const dateLabelText = 'ದಿನಾಂಕ: ';
       const dateLabelWidth = doc.widthOfString(dateLabelText);
       const dateX = leftMargin + 3; // Keep text 3px to the left of boxes (41 + 3 = 44, same as before)
-      console.log('📝 Text positioning:', { leftMargin, dateX, currentY });
+      console.log('[PRINT] Text positioning:', { leftMargin, dateX, currentY });
       doc.text(dateLabelText, dateX, currentY);
       doc.font('Times-Bold').text(`${formattedTicket.date}`, dateX + dateLabelWidth, currentY + 1); // Moved date value down by 1 point to align with Kannada baseline
       
@@ -413,7 +413,7 @@ class KannadaPdfKitService {
       const classSeatBoxHeight = 55;
       const classSeatBoxY = currentY;
       
-      console.log('📦 CLASS/SEAT box position:', { leftMargin, classSeatBoxY, boxWidth, classSeatBoxHeight });
+      console.log('[PRINT] CLASS/SEAT box position:', { leftMargin, classSeatBoxY, boxWidth, classSeatBoxHeight });
       drawBox(leftMargin, classSeatBoxY, boxWidth, classSeatBoxHeight);
       
       let classSeatTextY = classSeatBoxY + 15;
@@ -493,7 +493,7 @@ class KannadaPdfKitService {
       const totalBoxHeight = 37.0; // Increased height by another 0.1mm (36.7 + 0.3 = 37.0)
       const totalBoxY = currentY;
       
-      console.log('📦 Total box position:', { leftMargin, totalBoxY, boxWidth, totalBoxHeight });
+      console.log('[PRINT] Total box position:', { leftMargin, totalBoxY, boxWidth, totalBoxHeight });
       drawBox(leftMargin, totalBoxY, boxWidth, totalBoxHeight);
       
       let totalTextY = totalBoxY + 10.4; // Moved text up by 0.2mm (12 - 0.6 = 10.4)
@@ -626,7 +626,7 @@ class KannadaPdfKitService {
 
   // Format ticket data for printing - Map frontend data to correct format (same as English service)
   formatTicket(ticketData: any): any {
-    console.log('🔧 Raw ticket data received:', JSON.stringify(ticketData, null, 2));
+    console.log('[PRINT] Raw ticket data received:', JSON.stringify(ticketData, null, 2));
     
     // Handle different data structures from frontend
     let movieName = 'Movie';
@@ -650,12 +650,12 @@ class KannadaPdfKitService {
     hours = hours % 12;
     hours = hours ? hours : 12; // 0 should be 12
     let currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    console.log('🕐 CURRENT TIME DEBUG - Kannada PDF Service:');
-    console.log('🕐 new Date():', new Date());
-    console.log('🕐 new Date().toISOString():', new Date().toISOString());
-    console.log('🕐 toLocaleTimeString result:', currentTime);
-    console.log('🕐 typeof currentTime:', typeof currentTime);
-    console.log('🕐 currentTime length:', currentTime.length);
+    console.log('[TIME] CURRENT TIME DEBUG - Kannada PDF Service:');
+    console.log('[TIME] new Date():', new Date());
+    console.log('[TIME] new Date().toISOString():', new Date().toISOString());
+    console.log('[TIME] toLocaleTimeString result:', currentTime);
+    console.log('[TIME] typeof currentTime:', typeof currentTime);
+    console.log('[TIME] currentTime length:', currentTime.length);
     
     // Extract data from frontend format
     if (ticketData.movie) {
@@ -672,7 +672,7 @@ class KannadaPdfKitService {
     // Extract showTime first (if available)
     if (ticketData.showTime) {
       showTime = ticketData.showTime;
-      console.log('🕐 Using showTime from frontend:', showTime);
+      console.log('[TIME] Using showTime from frontend:', showTime);
     }
     
     // Use show label from frontend and translate to Kannada
@@ -695,7 +695,7 @@ class KannadaPdfKitService {
       }
       
       showClass = kannadaShow;
-      console.log('🎬 Using show from frontend:', ticketData.show, '→', kannadaShow);
+      console.log('[PRINT] Using show from frontend:', ticketData.show, '->', kannadaShow);
     } else if (showTime) {
       // Fallback to hardcoded time ranges only if no show label provided
       const m = showTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
@@ -708,7 +708,7 @@ class KannadaPdfKitService {
         else if (hour < 17) showClass = 'ಮ್ಯಾಟಿನೀ ಶೋ';
         else if (hour < 21) showClass = 'ಈವ್ನಿಂಗ್ ಶೋ';
         else showClass = 'ನೈಟ್ ಶೋ';
-        console.log('🕐 Using hardcoded time range for hour:', hour, '→', showClass);
+        console.log('[TIME] Using hardcoded time range for hour:', hour, '->', showClass);
       }
     }
     
@@ -731,7 +731,7 @@ class KannadaPdfKitService {
     }
     
     // Handle seats data - check multiple possible field names
-    console.log('🔧 Seat data extraction:', {
+    console.log('[PRINT] Seat data extraction:', {
       seatInfo: ticketData.seatInfo,
       seatClass: ticketData.seatClass,
       seatRange: ticketData.seatRange,
@@ -764,7 +764,7 @@ class KannadaPdfKitService {
       }
     } else if (ticketData.seatInfo) {
       // Direct seat info from Electron (fallback)
-      console.log('🔧 Using direct seatInfo (fallback):', ticketData.seatInfo);
+      console.log('[PRINT] Using direct seatInfo (fallback):', ticketData.seatInfo);
       seatInfo = ticketData.seatInfo;
       seatClass = ticketData.seatClass;
     } else if (ticketData.seatId) {
@@ -788,15 +788,15 @@ class KannadaPdfKitService {
     // Use individualAmount if available, otherwise calculate from totalAmount
     const individualTicketPrice = ticketData.individualAmount || (totalAmount / (ticketData.seatCount || 1));
     
-    console.log('💰 TICKET COST DEBUG - Kannada PDF Service:');
-    console.log('💰 Raw ticketData.individualAmount:', ticketData.individualAmount);
-    console.log('💰 Raw ticketData.totalAmount:', ticketData.totalAmount);
-    console.log('💰 Raw ticketData.totalPrice:', ticketData.totalPrice);
-    console.log('💰 Raw ticketData.seatCount:', ticketData.seatCount);
-    console.log('💰 Calculated totalAmount variable:', totalAmount);
-    console.log('💰 Calculated individualTicketPrice:', individualTicketPrice);
-    console.log('💰 Fallback calculation (totalAmount / seatCount):', totalAmount / (ticketData.seatCount || 1));
-    console.log('💰 Final value used for TICKET COST:', individualTicketPrice);
+    console.log('[PRICE] TICKET COST DEBUG - Kannada PDF Service:');
+    console.log('[PRICE] Raw ticketData.individualAmount:', ticketData.individualAmount);
+    console.log('[PRICE] Raw ticketData.totalAmount:', ticketData.totalAmount);
+    console.log('[PRICE] Raw ticketData.totalPrice:', ticketData.totalPrice);
+    console.log('[PRICE] Raw ticketData.seatCount:', ticketData.seatCount);
+    console.log('[PRICE] Calculated totalAmount variable:', totalAmount);
+    console.log('[PRICE] Calculated individualTicketPrice:', individualTicketPrice);
+    console.log('[PRICE] Fallback calculation (totalAmount / seatCount):', totalAmount / (ticketData.seatCount || 1));
+    console.log('[PRICE] Final value used for TICKET COST:', individualTicketPrice);
     
     const mcAmount = ticketData.mc || parseFloat(getTheaterConfig().defaultTaxValues.mc); // Use frontend value or default
     const baseAmount = (individualTicketPrice - mcAmount) / 1.18; // Remove MC and divide by 1.18 (1 + 0.18 GST)
@@ -805,14 +805,14 @@ class KannadaPdfKitService {
     sgst = baseAmount * 0.09; // 9% SGST - keep as number
     const mc = mcAmount; // Keep as number
     
-    console.log('💰 Tax calculation results:');
-    console.log('💰 individualTicketPrice:', individualTicketPrice);
-    console.log('💰 mcAmount:', mcAmount);
-    console.log('💰 baseAmount:', baseAmount);
-    console.log('💰 net:', net);
-    console.log('💰 cgst:', cgst);
-    console.log('💰 sgst:', sgst);
-    console.log('💰 mc:', mc);
+    console.log('[PRICE] Tax calculation results:');
+    console.log('[PRICE] individualTicketPrice:', individualTicketPrice);
+    console.log('[PRICE] mcAmount:', mcAmount);
+    console.log('[PRICE] baseAmount:', baseAmount);
+    console.log('[PRICE] net:', net);
+    console.log('[PRICE] cgst:', cgst);
+    console.log('[PRICE] sgst:', sgst);
+    console.log('[PRICE] mc:', mc);
     
     // Generate ticket ID using the service
     ticketId = ticketIdService.getNextTicketId();
@@ -841,9 +841,9 @@ class KannadaPdfKitService {
 
   // Main print ticket method (same approach as English service)
   async printTicket(ticketData: TicketData, printerName: string | null = null): Promise<PrintResult> {
-    console.log('🔤 KannadaPdfKitService.printTicket called! (KANNADA SERVICE)');
-    console.log('🔤 Using PDFKit with Kannada fonts and SumatraPDF printing');
-    console.log('🔤 Ticket data received:', ticketData);
+    console.log('[PRINT] KannadaPdfKitService.printTicket called! (KANNADA SERVICE)');
+    console.log('[PRINT] Using PDFKit with Kannada fonts and SumatraPDF printing');
+    console.log('[PRINT] Ticket data received:', ticketData);
     
     try {
       // Auto-detect printer if not specified
@@ -851,7 +851,7 @@ class KannadaPdfKitService {
         const thermalPrinters = await this.getThermalPrinters();
         if (thermalPrinters.length > 0) {
           printerName = thermalPrinters[0].name;
-          console.log(`🖨️ Auto-selected printer: ${printerName}`);
+          console.log(`[PRINT] Auto-selected printer: ${printerName}`);
         } else {
           throw new Error('No thermal printers found');
         }
@@ -863,13 +863,13 @@ class KannadaPdfKitService {
       // Generate PDF
       const pdfPath = await this.createPDFTicket(formattedTicket);
       
-      console.log(`💾 PDF file created: ${pdfPath}`);
+      console.log(`[PRINT] PDF file created: ${pdfPath}`);
       
       // Print using SumatraPDF (same as English service)
       const printResult = await this.printPDF(pdfPath, printerName);
       
       if (printResult.success) {
-        console.log('✅ Kannada ticket printed successfully!');
+        console.log('[PRINT] Kannada ticket printed successfully!');
         return {
           success: true,
           printer: printerName,
@@ -880,7 +880,7 @@ class KannadaPdfKitService {
       }
       
     } catch (error) {
-      console.log('❌ Kannada PDFKit printing failed:', error);
+      console.log('[ERROR] Kannada PDFKit printing failed:', error);
       return {
         success: false,
         error: `Kannada printing failed: ${error}`
