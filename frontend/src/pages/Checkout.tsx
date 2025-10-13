@@ -312,7 +312,7 @@ const Checkout = ({
   
   return (
     <>
-      <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-2 px-4 lg:px-6 pt-2 pb-4 overflow-x-hidden">
+      <div className="checkout-container w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-2 px-4 lg:px-6 pt-2 pb-4 overflow-x-hidden">
       <div className="flex-1 lg:flex-[1.4] flex flex-col mt-4">
           {/* Show cards moved up */}
         <div className="mt-2">
@@ -329,7 +329,6 @@ const Checkout = ({
           </div>
           
           {/* Seat Grid Preview in the empty space */}
-          {console.log('[CHECKOUT] About to render SeatGridPreview with:', { selectedShow, selectedDate })}
           <SeatGridPreview 
             selectedShow={selectedShow}
             selectedDate={selectedDate}
@@ -339,7 +338,7 @@ const Checkout = ({
         <CheckoutSummary createClassInfo={createClassInfo} />
 
         {/* Ticket Print Component - RESTORED ALL MISSING PROPS */}
-      <div className="flex-[1.1] flex flex-col h-full">
+      <div className="right-panel flex-[1.1] flex flex-col h-full">
         <TicketPrint
           selectedSeats={ticketSeats}
             onDelete={ticketOperations.handleDeleteTickets}

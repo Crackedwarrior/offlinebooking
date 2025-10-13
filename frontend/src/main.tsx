@@ -11,3 +11,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 )
+
+// Load web-only CSS overrides when not running inside Electron
+try {
+  const isElectron = !!(window as any).electronAPI || !!(window as any).process?.versions?.electron;
+  if (!isElectron) {
+    import('./web-overrides.css');
+  }
+} catch {}

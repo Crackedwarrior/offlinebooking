@@ -1,0 +1,37 @@
+/* Web-only overrides loaded dynamically (not in Electron) */
+
+/* Scope to checkout layout only */
+.checkout-container {
+  /* prevent stray horizontal scrollbars on web */
+  overflow-x: hidden;
+}
+
+/* Ensure the show card row wraps cleanly and has consistent spacing */
+.checkout-container .show-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px; /* consistent spacing between cards */
+}
+
+/* Normalize class card styling to avoid negative margins stacking */
+.checkout-container .class-card {
+  margin-left: 0 !important; /* neutralize Tailwind -ml-2 used in desktop */
+  border-radius: 0 !important;
+}
+
+.checkout-container .class-card:first-child {
+  border-top-left-radius: 0.75rem !important; /* 12px */
+  border-bottom-left-radius: 0.75rem !important;
+}
+
+.checkout-container .class-card:last-child {
+  border-top-right-radius: 0.75rem !important;
+  border-bottom-right-radius: 0.75rem !important;
+}
+
+/* Keep the tickets panel from collapsing and causing visual gaps */
+.checkout-container .right-panel {
+  min-width: 340px;
+}
+
+

@@ -149,7 +149,7 @@ export const CheckoutShowSelector: React.FC<CheckoutShowSelectorProps> = ({
                       </div>
                       
                       {/* Show Card Row */}
-                      <div className="flex flex-row w-full">
+                      <div className="show-row flex flex-row w-full">
                         {/* Show Box */}
                         <div className="flex flex-col border border-gray-200 bg-white w-[250px] min-h-[120px] px-6 py-2 relative select-none rounded-l-xl shadow-md">
                           <div className="font-bold text-base mb-1 leading-tight break-words">{getMovieForShow(show.key)?.name || 'No show assigned'}</div>

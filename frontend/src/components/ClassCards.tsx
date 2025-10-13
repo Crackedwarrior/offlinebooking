@@ -52,7 +52,7 @@ export const ClassCards: React.FC<ClassCardsProps> = ({
         return (
           <div
             key={cls.key}
-            className={`flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform ${
+            className={`class-card flex flex-col justify-between w-[200px] h-[120px] px-6 py-2 relative border border-white shadow-md transition-transform ${
               isAccessible ? 'hover:-translate-y-1 hover:shadow-lg cursor-pointer' : 'cursor-not-allowed opacity-50'
             } ${colorMap[cls.label as keyof typeof colorMap]} ${cardClass}`}
             onClick={() => isAccessible && onClassClick(cls)}
