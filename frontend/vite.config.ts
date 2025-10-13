@@ -62,7 +62,7 @@ export default defineConfig(({ mode }) => {
             ],
             
             // Form libraries
-            'forms': ['react-hook-form', 'zod', '@hookform/resolvers'],
+            'forms': ['react-hook-form', '@hookform/resolvers'],
             
             // Date libraries
             'date': ['date-fns', 'react-datepicker', 'react-day-picker'],
