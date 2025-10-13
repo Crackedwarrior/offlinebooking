@@ -14,6 +14,7 @@
     "copy:backend-post": "node scripts/copy-backend-post-safe.js",
     "copy:backend-final": "node scripts/copy-backend-final-safe.js",
     "build": "npm run build:backend && npm run copy:backend && vite build && npm run copy:backend-post",
+    "build:web": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron electron/main.cjs\"",
     "electron:build": "npm run build && electron-builder --win",
