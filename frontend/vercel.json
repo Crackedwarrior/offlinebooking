@@ -1,15 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { 
-        "distDir": "dist",
-        "buildCommand": "chmod +x node_modules/.bin/vite && npm run build:web"
-      }
-    }
-  ],
   "routes": [
     { "src": "/(.*\\..*)", "dest": "/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
