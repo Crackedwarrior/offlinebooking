@@ -12,7 +12,7 @@ export class InstallationService {
    */
   static async installAllDependencies(): Promise<InstallationStatus> {
     try {
-      console.log('🔧 Starting dependency installation...');
+      console.log('[INSTALL] Starting dependency installation...');
       
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
@@ -20,30 +20,31 @@ export class InstallationService {
         return result;
       } else {
         // Fallback for web environment
-        return {
+        const result = {
           success: true,
           message: 'Installation completed (web environment)',
           details: [
-            '✅ Installation would run in desktop environment',
-            '✅ Backend dependencies available',
-            '✅ Database ready for use'
+            '[INSTALL] Installation would run in desktop environment',
+            '[INSTALL] Backend dependencies available',
+            '[INSTALL] Database ready for use'
           ]
         };
+        return result;
       }
       
-      console.log('✅ Installation completed:', result);
+      console.log('[INSTALL] Installation completed:', result);
       
       return result;
     } catch (error) {
-      console.error('❌ Installation failed:', error);
+      console.error('[ERROR] Installation failed:', error);
       
       return {
         success: false,
         message: 'Installation failed. Please run as administrator.',
         details: [
-          '❌ Some dependencies may not have been installed',
-          '⚠️ Try running the installer as administrator',
-          '⚠️ Check if antivirus is blocking the installation'
+          '[ERROR] Some dependencies may not have been installed',
+          '[WARN] Try running the installer as administrator',
+          '[WARN] Check if antivirus is blocking the installation'
         ]
       };
     }
@@ -58,7 +59,7 @@ export class InstallationService {
       const response = await fetch('http://localhost:3001/health');
       return !response.ok; // If health check fails, might need installation
     } catch (error) {
-      console.log('🔍 First run detected - backend not accessible');
+      console.log('[INSTALL] First run detected - backend not accessible');
       return true;
     }
   }

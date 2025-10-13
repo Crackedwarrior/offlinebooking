@@ -60,7 +60,7 @@ const BoxVsOnlineReport = () => {
   // Refetch data when pricing changes
   useEffect(() => {
     if (pricingVersion > 0) {
-      console.log('💰 Pricing changed, refetching sales data...');
+      console.log('[PRICE] Pricing changed, refetching sales data...');
       fetchSalesData(reportDate);
     }
   }, [pricingVersion, reportDate]);
@@ -77,11 +77,11 @@ const BoxVsOnlineReport = () => {
     try {
       // Fetch bookings for each show to get different movie names
       const shows: Show[] = ['MORNING', 'MATINEE', 'EVENING', 'NIGHT'];
-      console.log('🔍 Fetching bookings for shows:', shows);
+      console.log('[REPORT] Fetching bookings for shows:', shows);
       
       const bookingPromises = shows.map(show => 
         getBookings({ date, show }).catch(error => {
-          console.warn(`Failed to fetch bookings for ${show}:`, error);
+          console.warn(`[WARN] Failed to fetch bookings for ${show}:`, error);
           return { success: false, data: null };
         })
       );
@@ -90,21 +90,21 @@ const BoxVsOnlineReport = () => {
       let allBookings: any[] = [];
       
       bookingResponses.forEach((response, index) => {
-        console.log(`📊 Bookings for ${shows[index]}:`, response);
+        console.log(`[REPORT] Bookings for ${shows[index]}:`, response);
         if (response.success && response.data) {
-          console.log(`✅ Found ${response.data.length} bookings for ${shows[index]}:`, response.data);
+          console.log(`[REPORT] Found ${response.data.length} bookings for ${shows[index]}:`, response.data);
           allBookings = allBookings.concat(response.data);
         } else {
-          console.log(`❌ No bookings found for ${shows[index]}`);
+          console.log(`[REPORT] No bookings found for ${shows[index]}`);
         }
       });
       
-      console.log('📋 Total bookings found:', allBookings);
+      console.log('[REPORT] Total bookings found:', allBookings);
       
       // Fetch seat status for all shows to get BMS seats with show information
         const seatStatusPromises = shows.map(show => 
           getSeatStatus({ date, show }).catch(error => {
-            console.warn(`Failed to fetch seat status for ${show}:`, error);
+            console.warn(`[WARN] Failed to fetch seat status for ${show}:`, error);
             return { success: false, data: null };
           })
         );
@@ -113,25 +113,25 @@ const BoxVsOnlineReport = () => {
         let allBmsSeats: any[] = [];
         
         seatStatusResponses.forEach((response, index) => {
-        console.log(`🎫 Seat status for ${shows[index]}:`, response);
+        console.log(`[REPORT] Seat status for ${shows[index]}:`, response);
           if (response.success && response.data && response.data.bmsSeats) {
           // Add show information to each BMS seat
           const bmsSeatsWithShow = response.data.bmsSeats.map((bmsSeat: any) => ({
             ...bmsSeat,
             show: shows[index] // Associate the show with each BMS seat
           }));
-          console.log(`✅ Found ${bmsSeatsWithShow.length} BMS seats for ${shows[index]}:`, bmsSeatsWithShow);
+          console.log(`[REPORT] Found ${bmsSeatsWithShow.length} BMS seats for ${shows[index]}:`, bmsSeatsWithShow);
           allBmsSeats = allBmsSeats.concat(bmsSeatsWithShow);
         } else {
-          console.log(`❌ No BMS seats found for ${shows[index]}`);
+          console.log(`[REPORT] No BMS seats found for ${shows[index]}`);
         }
       });
       
-      console.log('🎫 Total BMS seats found:', allBmsSeats);
+      console.log('[REPORT] Total BMS seats found:', allBmsSeats);
         
         // Process bookings and BMS seat data
       const processedData = processBookingsWithBMSSeats(allBookings, allBmsSeats, date);
-      console.log('📊 Processed data:', processedData);
+      console.log('[REPORT] Processed data:', processedData);
         setSalesData(processedData);
         
         // toast({
@@ -139,7 +139,7 @@ const BoxVsOnlineReport = () => {
         // description: `Data loaded for ${format(new Date(date), 'dd/MM/yyyy')}`,
         // });
     } catch (error) {
-      console.error('❌ Error fetching sales data:', error);
+      console.error('[ERROR] Error fetching sales data:', error);
       // toast({
       //   title: 'Error',
       //   description: 'Failed to load data. Please try again.',
@@ -152,8 +152,8 @@ const BoxVsOnlineReport = () => {
 
   // Process bookings with BMS seats
   const processBookingsWithBMSSeats = (bookings: any[], bmsSeats: any[], date: string): SalesData[] => {
-    console.log('🔄 Processing bookings:', bookings);
-    console.log('🔄 Processing BMS seats:', bmsSeats);
+    console.log('[REPORT] Processing bookings:', bookings);
+    console.log('[REPORT] Processing BMS seats:', bmsSeats);
     
     const salesDataMap = new Map<string, SalesData>();
     
@@ -186,7 +186,7 @@ const BoxVsOnlineReport = () => {
     
     // Process regular bookings - derive class per seat to avoid misclassification
     bookings.forEach(booking => {
-      console.log('📝 Processing booking:', booking);
+      console.log('[REPORT] Processing booking:', booking);
       const showKey = booking.show;
       const movieName = booking.movie || getMovieNameForShow(showKey);
       const seatIds: string[] = Array.isArray(booking.bookedSeats) ? booking.bookedSeats : [];
@@ -212,7 +212,7 @@ const BoxVsOnlineReport = () => {
     const bmsSeatsByClass: Record<string, Record<string, string[]>> = {};
     
     bmsSeats.forEach(bmsSeat => {
-      console.log('🎫 Processing BMS seat:', bmsSeat);
+      console.log('[REPORT] Processing BMS seat:', bmsSeat);
       
       // Use the show information that was added during data fetching
       const show = bmsSeat.show;
@@ -220,7 +220,7 @@ const BoxVsOnlineReport = () => {
       // Use the class from the BMS seat data if available, otherwise determine from seat ID
       const classLabel = bmsSeat.class || extractClassFromSeatId(bmsSeat.seatId);
       const key = `${show}-${classLabel}`;
-      console.log('🔑 BMS seat key:', key, 'show:', show, 'class:', classLabel);
+      console.log('[REPORT] BMS seat key:', key, 'show:', show, 'class:', classLabel);
       
       // Track seats by class for debugging
       if (!bmsSeatsByClass[show]) {
@@ -236,7 +236,7 @@ const BoxVsOnlineReport = () => {
         const price = getPriceForClass(classLabel);
         
         if (existing) {
-          console.log('📝 Updating existing entry for BMS:', key);
+          console.log('[REPORT] Updating existing entry for BMS:', key);
           existing.bms_pos_qty += 1;
           existing.bms_pos_amt += price;
           existing.total_qty = existing.online_qty + existing.bms_pos_qty + existing.counter_qty;
@@ -251,7 +251,7 @@ const BoxVsOnlineReport = () => {
     });
     
     // Debug log BMS seats by class
-    console.log('🔍 BMS seats by class for income calculation:', bmsSeatsByClass);
+    console.log('[PRICE] BMS seats by class for income calculation:', bmsSeatsByClass);
     
     // Calculate total BMS income for debugging
     const totalBmsIncome = bmsSeats.reduce((sum, bmsSeat) => {
@@ -259,10 +259,10 @@ const BoxVsOnlineReport = () => {
       return sum + (classLabel ? getPriceForClass(classLabel) : 0);
     }, 0);
     
-    console.log('💰 Total BMS income calculated:', totalBmsIncome);
+    console.log('[PRICE] Total BMS income calculated:', totalBmsIncome);
     
     const result = Array.from(salesDataMap.values());
-    console.log('📊 Final processed data:', result);
+    console.log('[REPORT] Final processed data:', result);
     return result;
   };
 
@@ -316,10 +316,10 @@ const BoxVsOnlineReport = () => {
     try {
       const { getPriceForClass: getPriceFromStore } = useSettingsStore.getState();
       const price = getPriceFromStore(classLabel);
-      console.log(`💰 BoxVsOnlineReport: Price for ${classLabel} = ₹${price}`);
+      console.log(`[PRICE] BoxVsOnlineReport: Price for ${classLabel} = ₹${price}`);
       return price;
     } catch {
-      console.warn('Settings store not available, using fallback price');
+      console.warn('[WARN] Settings store not available, using fallback price');
       return 150;
     }
   };

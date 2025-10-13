@@ -20,19 +20,19 @@ export class NativePrintService {
       // Method 1: Use Windows Print Spooler API directly via CMD with hidden window
       await this.printUsingSpoolerAPI(filePath, printerName);
     } catch (error) {
-      console.log('⚠️ Spooler API failed, trying alternative...');
+      console.log('[WARN] Spooler API failed, trying alternative...');
       
       try {
         // Method 2: Use Windows Print Spooler via VBScript (completely silent)
         await this.printUsingVBScript(filePath, printerName);
       } catch (error2) {
-        console.log('⚠️ VBScript failed, trying PowerShell hidden...');
+        console.log('[WARN] VBScript failed, trying PowerShell hidden...');
         
         try {
           // Method 3: Use PowerShell with extreme hiding
           await this.printUsingPowerShellHidden(filePath, printerName);
         } catch (error3) {
-          console.log('⚠️ PowerShell hidden failed, trying direct command...');
+          console.log('[WARN] PowerShell hidden failed, trying direct command...');
           
           // Method 4: Direct command with hidden window
           await this.printUsingDirectCommand(filePath, printerName);
@@ -45,7 +45,7 @@ export class NativePrintService {
           fs.unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        console.warn('[WARN] Could not clean up temp file:', cleanupError);
       }
     }
   }
@@ -105,7 +105,7 @@ Set objFSO = Nothing
           fs.unlinkSync(vbsPath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up VBS file:', cleanupError);
+        console.warn('[WARN] Could not clean up VBS file:', cleanupError);
       }
     }
   }

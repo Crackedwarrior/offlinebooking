@@ -94,7 +94,7 @@ class AuditLogger {
       
       // Also log to console in development
       if (config.server.isDevelopment) {
-        console.log(`🔒 AUDIT: ${auditEvent.eventType} - ${auditEvent.action} - ${auditEvent.success ? 'SUCCESS' : 'FAILED'}`);
+        console.log(`[AUDIT] ${auditEvent.eventType} - ${auditEvent.action} - ${auditEvent.success ? 'SUCCESS' : 'FAILED'}`);
       }
     } catch (error) {
       console.error('Failed to write audit log:', error);

@@ -47,10 +47,10 @@ export class PrinterService {
       const savedConfig = localStorage.getItem('printerConfig');
       if (savedConfig) {
         this.printerConfig = JSON.parse(savedConfig);
-        console.log('🔧 Printer configuration loaded:', this.printerConfig);
+        console.log('[PRINT] Printer configuration loaded:', this.printerConfig);
       }
     } catch (error) {
-      console.error('❌ Failed to load printer configuration:', error);
+      console.error('[ERROR] Failed to load printer configuration:', error);
     }
   }
 
@@ -61,7 +61,7 @@ export class PrinterService {
   public setPrinterConfig(config: PrinterConfig): void {
     this.printerConfig = config;
     localStorage.setItem('printerConfig', JSON.stringify(config));
-    console.log('🔧 Printer configuration saved:', config);
+    console.log('[PRINT] Printer configuration saved:', config);
   }
 
   // Format seat data into TicketData format for printing
@@ -157,13 +157,13 @@ export class PrinterService {
   // Print multiple tickets
   async printTickets(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log('🖨️ Printing tickets:', tickets.length);
+      console.log('[PRINT] Printing tickets:', tickets.length);
       
       // Always use native desktop printing for desktop app
       return await this.printTicketsNative(tickets);
       
     } catch (error) {
-      console.error('❌ Failed to print tickets:', error);
+      console.error('[ERROR] Failed to print tickets:', error);
       return false;
     }
   }
@@ -171,13 +171,13 @@ export class PrinterService {
   // Print tickets using native desktop printing
   private async printTicketsNative(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log('🖨️ Using backend printing service for', tickets.length, 'tickets');
+      console.log('[PRINT] Using backend printing service for', tickets.length, 'tickets');
       
       // Always use backend printing service for desktop app
       return await this.printToBackendPrinter(tickets);
       
     } catch (error) {
-      console.error('❌ Failed to print tickets using backend service:', error);
+      console.error('[ERROR] Failed to print tickets using backend service:', error);
       return false;
     }
   }
@@ -185,7 +185,7 @@ export class PrinterService {
   // Print to backend printer service (supports thermal and PDF)
   private async printToBackendPrinter(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log('🖨️ Printing via backend service:', tickets.length, 'tickets');
+      console.log('[PRINT] Printing via backend service:', tickets.length, 'tickets');
       
       const config = this.getPrinterConfig();
       const printerName = config?.name || 'EPSON TM-T81 Receipt';
@@ -224,13 +224,13 @@ export class PrinterService {
       }
       
       const result = await response.json();
-      console.log('✅ Printed tickets via backend:', result);
+      console.log('[PRINT] Printed tickets via backend:', result);
       
-      console.log('✅ All tickets printed successfully via backend service');
+      console.log('[PRINT] All tickets printed successfully via backend service');
       return true;
       
     } catch (error) {
-      console.error('❌ Failed to print via backend:', error);
+      console.error('[ERROR] Failed to print via backend:', error);
       return false;
     }
   }
@@ -238,14 +238,14 @@ export class PrinterService {
   // Send to printer (main method)
   async sendToPrinter(tickets: TicketData[]): Promise<boolean> {
     try {
-      console.log('🖨️ Printing tickets:', tickets.length);
-      console.log('🖨️ Ticket data:', tickets);
+      console.log('[PRINT] Printing tickets:', tickets.length);
+      console.log('[PRINT] Ticket data:', tickets);
       
       // Use the backend printing service
       return await this.printTickets(tickets);
       
     } catch (error) {
-      console.error('❌ Failed to send to printer:', error);
+      console.error('[ERROR] Failed to send to printer:', error);
       return false;
     }
   }

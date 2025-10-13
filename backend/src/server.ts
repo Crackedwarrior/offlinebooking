@@ -461,7 +461,7 @@ app.get('/api/admin/security-status', asyncHandler(async (req: Request, res: Res
       data: securityStatus
     });
   } catch (error) {
-    console.error('❌ Error getting security status:', error);
+    console.error('[ERROR] Error getting security status:', error);
     
     auditLogger.logError(
       'SECURITY_STATUS_FAILED',
@@ -522,7 +522,7 @@ app.get('/api/admin/audit-logs', asyncHandler(async (req: Request, res: Response
       logFilePath
     });
   } catch (error) {
-    console.error('❌ Error reading audit logs:', error);
+    console.error('[ERROR] Error reading audit logs:', error);
     
     auditLogger.logError(
       'VIEW_AUDIT_LOGS_FAILED',
@@ -770,7 +770,7 @@ app.get('/api/thermal-printer/list', asyncHandler(async (req: Request, res: Resp
       recommended: thermalPrinters.length > 0 ? thermalPrinters[0].name : null
     });
   } catch (error) {
-    console.error('❌ Error getting thermal printers:', error);
+    console.error('[ERROR] Error getting thermal printers:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -858,9 +858,9 @@ app.post('/api/thermal-printer/test-ultra-fast-kannada', asyncHandler(async (req
     throw new Error('Ticket data is required');
   }
 
-  console.log('🚀 Testing Kannada PDFKit Print Service');
-  console.log('🚀 Ticket data:', ticketData);
-  console.log('🚀 Printer name:', printerName);
+  console.log('[PRINT] Testing Kannada PDFKit Print Service');
+  console.log('[PRINT] Ticket data:', ticketData);
+  console.log('[PRINT] Printer name:', printerName);
   
   const result = await kannadaPdfKitService.printTicket(ticketData, printerName);
   
@@ -951,7 +951,7 @@ app.get('/api/sumatra/status', asyncHandler(async (req: Request, res: Response) 
       message: result.installed ? 'SumatraPDF is installed' : 'SumatraPDF is not installed'
     });
   } catch (error) {
-    console.error('❌ Error checking SumatraPDF status:', error);
+    console.error('[ERROR] Error checking SumatraPDF status:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -962,7 +962,7 @@ app.get('/api/sumatra/status', asyncHandler(async (req: Request, res: Response) 
 // Install SumatraPDF
 app.post('/api/sumatra/install', asyncHandler(async (req: Request, res: Response) => {
   try {
-    console.log('🔧 SumatraPDF installation requested');
+    console.log('[PRINT] SumatraPDF installation requested');
     
     const sumatraInstaller = new SumatraInstaller();
     const result = await sumatraInstaller.installIfNeeded();
@@ -981,7 +981,7 @@ app.post('/api/sumatra/install', asyncHandler(async (req: Request, res: Response
       });
     }
   } catch (error) {
-    console.error('❌ SumatraPDF installation error:', error);
+    console.error('[ERROR] SumatraPDF installation error:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

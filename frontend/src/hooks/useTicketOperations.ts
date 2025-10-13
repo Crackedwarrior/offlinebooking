@@ -21,10 +21,10 @@ export const useTicketOperations = () => {
    * Handle ticket deletion
    */
   const handleDeleteTickets = useCallback(async (seatIds: string[]) => {
-    console.log('🔧 handleDeleteTickets called with seatIds:', seatIds);
+    console.log('[TICKET] handleDeleteTickets called with seatIds:', seatIds);
     
     if (!seatIds || seatIds.length === 0) {
-      console.warn('⚠️ No seat IDs provided for deletion');
+      console.warn('[WARN] No seat IDs provided for deletion');
       return;
     }
     
@@ -47,10 +47,10 @@ export const useTicketOperations = () => {
       // Remove from decoupled list if present
       setDecoupledSeatIds(prev => prev.filter(id => !seatIds.includes(id)));
       
-      console.log('✅ Tickets deleted from database and frontend:', seatIds);
+      console.log('[TICKET] Tickets deleted from database and frontend:', seatIds);
       
     } catch (error) {
-      console.error('❌ Failed to delete tickets:', error);
+      console.error('[ERROR] Failed to delete tickets:', error);
       // Revert frontend changes if backend update failed
       seatIds.forEach(id => {
         toggleSeatStatus(id, 'SELECTED');
@@ -130,10 +130,10 @@ export const useTicketOperations = () => {
       // Clear checkoutData to force re-evaluation of selectedSeats
       if (onClearCheckoutData) {
         onClearCheckoutData();
-        console.log('🔄 checkoutData cleared');
+        console.log('[TICKET] checkoutData cleared');
       }
       
-      console.log('✅ All tickets reset from database and frontend:', selectedSeats.length);
+      console.log('[TICKET] All tickets reset from database and frontend:', selectedSeats.length);
       
       // Force refresh the seat status to ensure sync
       setTimeout(async () => {
@@ -146,15 +146,15 @@ export const useTicketOperations = () => {
             const bmsSeatIds = bmsSeats.map((seat: any) => seat.seatId);
             const selectedSeatIds = backendSelectedSeats ? backendSelectedSeats.map((seat: any) => seat.seatId) : [];
             syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
-            console.log('🔄 Seat status refreshed after reset');
+            console.log('[SEAT] Seat status refreshed after reset');
           }
         } catch (error) {
-          console.error('❌ Failed to refresh seat status after reset:', error);
+          console.error('[ERROR] Failed to refresh seat status after reset:', error);
         }
       }, 100);
       
     } catch (error) {
-      console.error('❌ Failed to reset tickets:', error);
+      console.error('[ERROR] Failed to reset tickets:', error);
       // Don't revert frontend changes if backend update failed - let user try again
     }
   }, [seats, selectedDate, selectedShow, toggleSeatStatus, syncSeatStatus]);

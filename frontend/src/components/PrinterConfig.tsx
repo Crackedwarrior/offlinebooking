@@ -50,15 +50,15 @@ export default function PrinterConfig() {
       }
       
       setAvailablePrinters(printers);
-      console.log('✅ Loaded printers:', printers);
-      console.log('🔍 Current config name:', config.name);
+      console.log('[PRINT] Loaded printers:', printers);
+      console.log('[PRINT] Current config name:', config.name);
       
     } catch (error) {
-      console.error('❌ Error loading printers:', error);
+      console.error('[ERROR] Error loading printers:', error);
       
       // No fallback - return empty array
       setAvailablePrinters([]);
-      console.log('❌ No printers available - backend may not be running');
+      console.log('[WARN] No printers available - backend may not be running');
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +119,7 @@ export default function PrinterConfig() {
               <Select 
                 value={config.name} 
                 onValueChange={(value) => {
-                  console.log('🖨️ Selected printer:', value);
+                  console.log('[PRINT] Selected printer:', value);
                   setConfig({ ...config, name: value });
                 }}
               >

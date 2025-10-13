@@ -109,31 +109,31 @@ export const useSeatSelection = () => {
    * Helper function to get center-first seat selection for rows with aisles
    */
   const getCenterFirstSeats = useCallback((rowSeats: any[], count: number, row: string) => {
-    console.log(`🔍 getCenterFirstSeats called for row ${row}, requesting ${count} seats`);
+    console.log(`[SEAT] getCenterFirstSeats called for row ${row}, requesting ${count} seats`);
     
     if (!hasAisles(row)) {
-      console.log(`🔍 Row ${row} doesn't have aisles, returning null`);
+      console.log(`[SEAT] Row ${row} doesn't have aisles, returning null`);
       return null;
     }
     
     const gapPosition = findCenterGapPosition(row);
     if (gapPosition === -1) {
-      console.log(`🔍 No gap position found for row ${row}, returning null`);
+      console.log(`[SEAT] No gap position found for row ${row}, returning null`);
       return null;
     }
     
-    console.log(`🔍 Gap position for row ${row}: ${gapPosition}`);
+    console.log(`[SEAT] Gap position for row ${row}: ${gapPosition}`);
     
     // Get available seats sorted by seat number
     const availableSeats = rowSeats.filter(seat => seat.status === 'AVAILABLE').sort((a, b) => a.number - b.number);
     
-    console.log(`🔍 Available seats in row ${row}: ${availableSeats.length}`);
+    console.log(`[SEAT] Available seats in row ${row}: ${availableSeats.length}`);
     if (availableSeats.length > 0) {
-      console.log(`🔍 First available seat: ${availableSeats[0].id}, Last available seat: ${availableSeats[availableSeats.length - 1].id}`);
+      console.log(`[SEAT] First available seat: ${availableSeats[0].id}, Last available seat: ${availableSeats[availableSeats.length - 1].id}`);
     }
     
     if (availableSeats.length < count) {
-      console.log(`🔍 Not enough available seats (${availableSeats.length}) for requested count (${count}), returning null`);
+      console.log(`[SEAT] Not enough available seats (${availableSeats.length}) for requested count (${count}), returning null`);
       return null;
     }
     
@@ -175,21 +175,21 @@ export const useSeatSelection = () => {
         if (remainingLeft.length >= 3) score += 1;
         if (remainingRight.length >= 3) score += 1;
 
-        console.log(`🔍 Candidate at index ${startIndex}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, gapDistance=${gapDistance.toFixed(2)}, centerScore=${centerScore.toFixed(2)}`);
+        console.log(`[SEAT] Candidate at index ${startIndex}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, gapDistance=${gapDistance.toFixed(2)}, centerScore=${centerScore.toFixed(2)}`);
         
         if (score > bestScore) {
           bestScore = score;
           bestBlock = candidate;
-          console.log(`🔍 New best block found at index ${startIndex} with score ${score.toFixed(2)}`);
+          console.log(`[SEAT] New best block found at index ${startIndex} with score ${score.toFixed(2)}`);
         }
       }
     }
     
-    console.log(`🔍 Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
+    console.log(`[SEAT] Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
     if (bestBlock) {
-      console.log(`🔍 Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
+      console.log(`[SEAT] Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
     } else {
-      console.log(`🔍 No suitable block found in row ${row}`);
+      console.log(`[SEAT] No suitable block found in row ${row}`);
     }
     
     return bestBlock;
@@ -199,10 +199,10 @@ export const useSeatSelection = () => {
    * Helper function to find the best contiguous block for family seating
    */
   const findContiguousBlock = useCallback((rowSeats: any[], count: number, startFromIndex: number = 0) => {
-    console.log(`🔍 findContiguousBlock called, requesting ${count} seats, starting from index ${startFromIndex}`);
+    console.log(`[SEAT] findContiguousBlock called, requesting ${count} seats, starting from index ${startFromIndex}`);
     
     if (rowSeats.length < count) {
-      console.log(`🔍 Not enough seats in row (${rowSeats.length}) for requested count (${count}), returning null`);
+      console.log(`[SEAT] Not enough seats in row (${rowSeats.length}) for requested count (${count}), returning null`);
       return null;
     }
     
@@ -246,21 +246,21 @@ export const useSeatSelection = () => {
         if (remainingLeft.length >= 3) score += 1;
         if (remainingRight.length >= 3) score += 1;
 
-        console.log(`🔍 Candidate at index ${i}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, centerDistance=${centerDistance}, centerScore=${centerScore.toFixed(2)}`);
+        console.log(`[SEAT] Candidate at index ${i}: score=${score.toFixed(2)}, blockCenter=${blockCenter}, centerDistance=${centerDistance}, centerScore=${centerScore.toFixed(2)}`);
         
         if (score > bestScore) {
           bestScore = score;
           bestBlock = candidate;
-          console.log(`🔍 New best block found at index ${i} with score ${score.toFixed(2)}`);
+          console.log(`[SEAT] New best block found at index ${i} with score ${score.toFixed(2)}`);
         }
       }
     }
     
-    console.log(`🔍 Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
+    console.log(`[SEAT] Checked ${candidatesChecked} candidates, found ${contiguousCandidates} contiguous blocks`);
     if (bestBlock) {
-      console.log(`🔍 Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
+      console.log(`[SEAT] Best block found with score ${bestScore.toFixed(2)}: ${bestBlock.map(s => s.id).join(', ')}`);
     } else {
-      console.log(`🔍 No suitable block found`);
+      console.log(`[SEAT] No suitable block found`);
     }
     
     return bestBlock;
@@ -270,7 +270,7 @@ export const useSeatSelection = () => {
    * NEW: Incremental carrot growth (+1 seat per click) with outward expansion priority
    */
   const growCarrotInRow = useCallback((row: string, selectedSeatsInRow: any[], newCount: number) => {
-    console.log(`🔍 growCarrotInRow called: row=${row}, selectedSeatsInRow.length=${selectedSeatsInRow.length}, newCount=${newCount}`);
+    console.log(`[SEAT] growCarrotInRow called: row=${row}, selectedSeatsInRow.length=${selectedSeatsInRow.length}, newCount=${newCount}`);
     
     try {
       if (!selectedSeatsInRow || selectedSeatsInRow.length === 0) return null;
@@ -283,7 +283,7 @@ export const useSeatSelection = () => {
         status: seat.status
       }));
       
-      console.log(`🔍 currentCarrot:`, currentCarrot);
+      console.log(`[SEAT] currentCarrot:`, currentCarrot);
       
       const availableSeats: Seat[] = seats
         .filter(s => s.row === row && s.status === 'AVAILABLE')
@@ -294,12 +294,12 @@ export const useSeatSelection = () => {
           status: seat.status
         }));
       
-      console.log(`🔍 availableSeats in row ${row}:`, availableSeats);
+      console.log(`[SEAT] availableSeats in row ${row}:`, availableSeats);
       
       // Use the new incremental growth function
       const grownCarrot = growCarrotIncrementallyUtil(currentCarrot, availableSeats);
       
-      console.log(`🔍 grownCarrot result:`, grownCarrot);
+      console.log(`[SEAT] grownCarrot result:`, grownCarrot);
       
       if (grownCarrot && grownCarrot.length === newCount) {
         // Convert back to original format
@@ -307,14 +307,14 @@ export const useSeatSelection = () => {
           seats.find(s => s.id === seat.id)
         ).filter(Boolean);
         
-        console.log(`🔍 growCarrotInRow returning:`, result);
+        console.log(`[SEAT] growCarrotInRow returning:`, result);
         return result;
       }
       
-      console.log(`🔍 growCarrotInRow returning null - no valid growth found`);
+      console.log(`[SEAT] growCarrotInRow returning null - no valid growth found`);
       return null;
     } catch (error) {
-      console.log(`🔍 growCarrotInRow error:`, error);
+      console.log(`[ERROR] growCarrotInRow error:`, error);
       return null;
     }
   }, [seats, growCarrotIncrementallyUtil]);
@@ -435,24 +435,24 @@ export const useSeatSelection = () => {
       return (priorities[a as keyof typeof priorities] || 999) - (priorities[b as keyof typeof priorities] || 999);
     });
     
-    console.log(`🔍 findAdjacentToBooked: Searching rows in priority order:`, sortedRows);
+    console.log(`[SEAT] findAdjacentToBooked: Searching rows in priority order:`, sortedRows);
     
     for (const row of sortedRows) {
       const availableSeats = seats.filter(seat => seat.row === row && seat.status === 'AVAILABLE');
       const bookedSeats = seats.filter(seat => seat.row === row && (seat.status === 'BOOKED' || seat.status === 'BMS_BOOKED'));
       
-      console.log(`🔍 Checking row ${row}: ${availableSeats.length} available, ${bookedSeats.length} booked`);
+      console.log(`[SEAT] Checking row ${row}: ${availableSeats.length} available, ${bookedSeats.length} booked`);
       
       if (bookedSeats.length > 0) {
         const adjacentSeats = findAdjacentToBookedUtil(row, count, availableSeats, bookedSeats);
         if (adjacentSeats) {
-          console.log(`🔍 Found adjacent seats in row ${row}:`, adjacentSeats);
+          console.log(`[SEAT] Found adjacent seats in row ${row}:`, adjacentSeats);
           return adjacentSeats;
         }
       }
     }
     
-    console.log(`🔍 No adjacent seats found in any row`);
+    console.log(`[SEAT] No adjacent seats found in any row`);
     return null;
   }, [seats]);
 
@@ -460,7 +460,7 @@ export const useSeatSelection = () => {
    * Find best block across rows with priority system - THE CORRECT ONE FOR 5-PHASE ALGORITHM
    */
   const findBestBlockAcrossRows = useCallback((cls: any, count: number, currentRow?: string, selectedSeats?: any[]): any => {
-    console.log(`🔍 findBestBlockAcrossRows called: count=${count}, currentRow=${currentRow}`);
+    console.log(`[SEAT] findBestBlockAcrossRows called: count=${count}, currentRow=${currentRow}`);
     
     // Sort rows by priority (A, B, C, D, E, F, G, H) - TOP ROWS FIRST, G and H have LOWEST priority
     const sortedRows = cls.rows.sort((a: string, b: string) => {
@@ -468,14 +468,14 @@ export const useSeatSelection = () => {
       return (priorities[a as keyof typeof priorities] || 999) - (priorities[b as keyof typeof priorities] || 999);
     });
     
-    console.log(`🔍 Searching rows in priority order:`, sortedRows);
+    console.log(`[SEAT] Searching rows in priority order:`, sortedRows);
     
     let bestBlock: any = null;
     let bestScore = -Infinity;
     
     for (const row of sortedRows) {
       const availableSeats = seats.filter(seat => seat.row === row && seat.status === 'AVAILABLE');
-      console.log(`🔍 Row ${row}: ${availableSeats.length} available seats`);
+      console.log(`[SEAT] Row ${row}: ${availableSeats.length} available seats`);
       
       if (availableSeats.length >= count) {
         const centerBlock = startCarrotAtCenterUtil(row, count, availableSeats);
@@ -484,7 +484,7 @@ export const useSeatSelection = () => {
           const rowPriority = sortedRows.indexOf(row);
           const score = 1000 - rowPriority; // Higher score for higher priority rows
           
-          console.log(`🔍 Row ${row} block found with score ${score}`);
+          console.log(`[SEAT] Row ${row} block found with score ${score}`);
           
           if (score > bestScore) {
             bestScore = score;
@@ -494,7 +494,7 @@ export const useSeatSelection = () => {
       }
     }
     
-    console.log(`🔍 Best block found:`, bestBlock ? `${bestBlock.row} with ${bestBlock.seats.length} seats` : 'none');
+    console.log(`[SEAT] Best block found:`, bestBlock ? `${bestBlock.row} with ${bestBlock.seats.length} seats` : 'none');
     return bestBlock;
   }, [seats]);
 

@@ -50,15 +50,15 @@ export class ElectronPrinterService {
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
         const printers = await (window as any).electronAPI.getPrinters();
-        console.log('🖨️ Real printers fetched:', printers);
+        console.log('[PRINT] Real printers fetched:', printers);
         return printers;
       } else {
         // Fallback for web environment - return empty array instead of hardcoded data
-        console.log('⚠️ Running in web environment, no real printers available');
+        console.log('[WARN] Running in web environment, no real printers available');
         return [];
       }
     } catch (error) {
-      console.error('❌ Failed to get printers:', error);
+      console.error('[ERROR] Failed to get printers:', error);
       return [];
     }
   }
@@ -76,7 +76,7 @@ export class ElectronPrinterService {
         printer.toLowerCase().includes('thermal')
       );
     } catch (error) {
-      console.error('Failed to get USB printers:', error);
+      console.error('[ERROR] Failed to get USB printers:', error);
       return [];
     }
   }
@@ -124,20 +124,20 @@ export class ElectronPrinterService {
    */
   async printTicket(ticketData: TicketData, printerName: string, movieData?: any): Promise<boolean> {
     try {
-      console.log('🖨️ Printing ticket via Electron:', ticketData);
-      console.log('🖨️ Printer:', printerName);
+      console.log('[PRINT] Printing ticket via Electron:', ticketData);
+      console.log('[PRINT] Printer:', printerName);
       
       // 🚀 FRONTEND DEBUG: Log which service will be used based on movie data
       if (movieData && movieData.printInKannada) {
-        console.log('🚀 FRONTEND DEBUG: Movie is set to print in Kannada');
-        console.log('🚀 FRONTEND DEBUG: Backend will use FastKannadaPrintService (wkhtmltopdf)');
-        console.log('🚀 FRONTEND DEBUG: This should be 3-5x faster than the old Puppeteer method');
+        console.log('[PRINT] FRONTEND DEBUG: Movie is set to print in Kannada');
+        console.log('[PRINT] FRONTEND DEBUG: Backend will use FastKannadaPrintService (wkhtmltopdf)');
+        console.log('[PRINT] FRONTEND DEBUG: This should be 3-5x faster than the old Puppeteer method');
       } else {
-        console.log('🔤 FRONTEND DEBUG: Movie is set to print in English');
-        console.log('🔤 FRONTEND DEBUG: Backend will use PdfPrintService (PDFKit)');
+        console.log('[PRINT] FRONTEND DEBUG: Movie is set to print in English');
+        console.log('[PRINT] FRONTEND DEBUG: Backend will use PdfPrintService (PDFKit)');
       }
       
-      console.log('🚀 FRONTEND DEBUG: Movie data being sent:', movieData);
+      console.log('[PRINT] FRONTEND DEBUG: Movie data being sent:', movieData);
 
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
@@ -145,11 +145,11 @@ export class ElectronPrinterService {
         return result.success;
       } else {
         // Fallback for web environment
-        console.log('🖨️ Would print ticket in desktop environment:', ticketData);
+        console.log('[PRINT] Would print ticket in desktop environment:', ticketData);
         return true; // Simulate success
       }
     } catch (error) {
-      console.error('❌ Failed to print ticket:', error);
+      console.error('[ERROR] Failed to print ticket:', error);
       return false;
     }
   }
@@ -179,7 +179,7 @@ export class ElectronPrinterService {
 
       return await this.printTicket(testTicket, printerName);
     } catch (error) {
-      console.error('❌ Printer test failed:', error);
+      console.error('[ERROR] Printer test failed:', error);
       return false;
     }
   }

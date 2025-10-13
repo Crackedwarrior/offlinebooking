@@ -51,17 +51,17 @@ const Checkout = ({
   
   // 🎯 Track component mounting
   useEffect(() => {
-    console.log('🎯 CHECKOUT MOUNTED - seats:', seats?.length);
-    console.log('🎯 selectedShow:', selectedShow);
-    console.log('🎯 selectedDate:', selectedDate);
-    console.log('🎯 Component successfully mounted!');
+    console.log('[CHECKOUT] Mounted - seats:', seats?.length);
+    console.log('[CHECKOUT] selectedShow:', selectedShow);
+    console.log('[CHECKOUT] selectedDate:', selectedDate);
+    console.log('[CHECKOUT] Component successfully mounted');
   }, []);
   
   // 🎯 Load seats when show or date changes
   useEffect(() => {
-    console.log('🔍 useEffect triggered:', { selectedShow, selectedDate });
+    console.log('[CHECKOUT] useEffect triggered:', { selectedShow, selectedDate });
     if (selectedShow && selectedDate) {
-      console.log('🔍 Loading seats for:', { selectedDate, selectedShow });
+      console.log('[CHECKOUT] Loading seats for:', { selectedDate, selectedShow });
       loadBookingForDate(selectedDate, selectedShow);
     }
   }, [selectedShow, selectedDate, loadBookingForDate]);
@@ -80,7 +80,7 @@ const Checkout = ({
             syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
           }
         } catch (error) {
-          console.error('❌ Failed to sync seat status:', error);
+          console.error('[ERROR] Failed to sync seat status:', error);
         }
       };
       syncSeats();
@@ -125,7 +125,7 @@ const Checkout = ({
     // Only use checkoutData.selectedSeats if store is completely empty AND we have checkoutData
     // This prevents checkoutData from overriding store state after deletions
     if (storeSelectedSeats.length === 0 && checkoutData?.selectedSeats && checkoutData.selectedSeats.length > 0) {
-      console.log('✓ Using selectedSeats from checkoutData (store empty):', checkoutData.selectedSeats.length);
+      console.log('[CHECKOUT] Using selectedSeats from checkoutData (store empty):', checkoutData.selectedSeats.length);
       return checkoutData.selectedSeats;
     }
     
@@ -143,7 +143,7 @@ const Checkout = ({
   // 🎯 Handle class card clicks with CORRECTLY STRUCTURED 5-phase carrot algorithm
   const handleClassCardClick = useCallback((cls: any) => {
     const classKey = cls.key || cls.label;
-    console.log('🥕 NEW 5-PHASE CARROT ALGORITHM - Adding +1 seat:', cls);
+    console.log('[SEAT] Carrot algorithm - Add +1 seat:', cls);
     
     // Reset booking completed state when new seats are selected
     if (ticketOperations.bookingCompleted) {
@@ -158,7 +158,7 @@ const Checkout = ({
     const currentCount = previouslySelected.length;
     const targetCount = currentCount + 1; // ALWAYS +1 seat per click
     
-    console.log('🥕 NEW 5-PHASE CARROT ALGORITHM - Adding +1 seat:', {
+    console.log('[SEAT] Carrot algorithm - Add +1 seat:', {
       classKey,
       currentCount,
       targetCount
@@ -167,42 +167,42 @@ const Checkout = ({
     // 🔧 CORRECTLY STRUCTURED ALGORITHM FLOW
     if (previouslySelected.length === 0) {
       // CASE 1: Nothing selected yet - try adjacent-to-booked first, then center-start
-      console.log('🥕 CASE 1: Nothing selected yet - try adjacent-to-booked first');
+      console.log('[SEAT] CASE 1: Nothing selected yet - try adjacent-to-booked first');
       
       // PHASE 1: Adjacent-to-booked priority (ONLY when no existing selection)
-      console.log('🥕 PHASE 1: Adjacent-to-booked priority (center preference)');
+      console.log('[SEAT] PHASE 1: Adjacent-to-booked priority (center preference)');
       const bookedSeats = seats.filter(seat => cls.rows.includes(seat.row) && (seat.status === 'BOOKED' || seat.status === 'BMS_BOOKED'));
       
       if (bookedSeats.length > 0) {
         const adjacentSeats = seatSelection.findAdjacentToBooked(cls, 1);
         if (adjacentSeats && adjacentSeats.length === 1) {
-          console.log('🥕 PHASE 1 SUCCESS: Adjacent block found in', adjacentSeats[0].row);
+          console.log('[SEAT] PHASE 1 SUCCESS: Adjacent block found in', adjacentSeats[0].row);
           useBookingStore.getState().selectMultipleSeats(adjacentSeats.map(seat => seat.id));
         return;
         }
       }
       
       // PHASE 2A: Use carrot scoring for best center-first block
-      console.log('🥕 PHASE 2A: Starting new carrot at center');
+      console.log('[SEAT] PHASE 2A: Starting new carrot at center');
       const centerStart = seatSelection.startCarrotAtCenter(cls.rows[0], targetCount);
       if (centerStart && centerStart.length === targetCount) {
-        console.log('🥕 PHASE 2A SUCCESS: Center start in', cls.rows[0]);
+        console.log('[SEAT] PHASE 2A SUCCESS: Center start in', cls.rows[0]);
         useBookingStore.getState().selectMultipleSeats(centerStart.map(s => s.id));
       return;
     }
     
-      console.log('🥕 CASE 1: No block found - stopping');
+      console.log('[SEAT] CASE 1: No block found - stopping');
       return;
     } else {
       // CASE 2: Growing existing selection - try growing in same row FIRST
-      console.log('🥕 CASE 2: Growing existing selection FIRST');
+      console.log('[SEAT] CASE 2: Growing existing selection FIRST');
     const currentRow = previouslySelected[0].row;
     
       // PHASE 2B: Try growing existing carrot incrementally in same row
-      console.log('🥕 PHASE 2B: Growing existing carrot incrementally');
+      console.log('[SEAT] PHASE 2B: Growing existing carrot incrementally');
       const grownCarrot = seatSelection.growCarrotInRow(currentRow, previouslySelected, targetCount);
       if (grownCarrot && grownCarrot.length === targetCount) {
-        console.log(`🥕 PHASE 2B SUCCESS: Incremental growth in ${currentRow}`);
+        console.log(`[SEAT] PHASE 2B SUCCESS: Incremental growth in ${currentRow}`);
         useBookingStore.getState().atomicSeatReplacement(
         previouslySelected.map(s => s.id),
         grownCarrot.map(s => s.id)
@@ -213,7 +213,7 @@ const Checkout = ({
       // PHASE 3: Base Line Logic - ONLY for CLASSIC BALCONY and FIRST CLASS
       const shouldApplyBaseLine = cls.label.includes('CLASSIC') || cls.label.includes('FIRST');
       if (shouldApplyBaseLine) {
-        console.log('🥕 PHASE 3: Check for base line hit (CLASSIC/FIRST CLASS only)');
+        console.log('[SEAT] PHASE 3: Check for base line hit (CLASSIC/FIRST CLASS only)');
         const baseRow = seatSelection.getBaseRowForClass(cls);
         const hitBase = previouslySelected.some(seat => {
           const rowIndex = cls.rows.indexOf(seat.row);
@@ -222,23 +222,23 @@ const Checkout = ({
         });
 
         if (hitBase) {
-          console.log('🥕 PHASE 3: Base line hit - but maintaining single-row contiguity');
+          console.log('[SEAT] PHASE 3: Base line hit - but maintaining single-row contiguity');
           // Base Line hit, but we still need to maintain contiguity in same row
           // Skip to Phase 5 for proper class search
-          console.log('🥕 PHASE 3: Skipping to Phase 5 for class search');
+          console.log('[SEAT] PHASE 3: Skipping to Phase 5 for class search');
         }
       } else {
-        console.log('🥕 PHASE 3: Skipped - no base line for this class');
+        console.log('[SEAT] PHASE 3: Skipped - no base line for this class');
       }
       
       // PHASE 4: Skipped - no multi-row spanning allowed
-      console.log('🥕 PHASE 4: Skipped - maintaining single-row contiguity only');
+      console.log('[SEAT] PHASE 4: Skipped - maintaining single-row contiguity only');
       
       // PHASE 5: N+1 technique with ROW PRIORITY - class-wide replacement
-      console.log('🥕 PHASE 5: N+1 technique with ROW PRIORITY');
+      console.log('[SEAT] PHASE 5: N+1 technique with ROW PRIORITY');
       const bestPosition = seatSelection.findBestBlockAcrossRows(cls, targetCount, currentRow, previouslySelected);
       if (bestPosition && bestPosition.seats && bestPosition.seats.length === targetCount) {
-        console.log(`🥕 PHASE 5 SUCCESS: N+1 replacement in ${bestPosition.row}`);
+        console.log(`[SEAT] PHASE 5 SUCCESS: N+1 replacement in ${bestPosition.row}`);
         useBookingStore.getState().atomicSeatReplacement(
           previouslySelected.map(s => s.id),
           bestPosition.seats.map(s => s.id)
@@ -247,17 +247,17 @@ const Checkout = ({
       }
 
       // PHASE 5: Class-wide search (N+1 technique)
-      console.log('🥕 PHASE 5: Class-wide search (N+1 technique)');
+      console.log('[SEAT] PHASE 5: Class-wide search (N+1 technique)');
       const classWideSeats = seatSelection.findBestBlockAcrossRows(cls, newCount);
       if (classWideSeats && classWideSeats.length === newCount) {
-        console.log('🥕 PHASE 5 SUCCESS: Class-wide block found');
+        console.log('[SEAT] PHASE 5 SUCCESS: Class-wide block found');
         useBookingStore.getState().selectMultipleSeats(classWideSeats.map(s => s.id));
       return;
     }
     }
     
-    console.log('🥕 NO SEATS FOUND: All 5 phases exhausted');
-    console.log('🥕 NO VALID SEAT SELECTION FOUND');
+    console.log('[SEAT] NO SEATS FOUND: All 5 phases exhausted');
+    console.log('[SEAT] NO VALID SEAT SELECTION FOUND');
   }, [seats, seatSelection, ticketOperations]);
 
   // 🎯 Calculate class counts for total
@@ -291,11 +291,11 @@ const Checkout = ({
     }
   }, [onBookingComplete]);
 
-  console.log('🔍 About to render main checkout content!');
+  console.log('[CHECKOUT] About to render main checkout content');
 
   // Simple fallback if no data
   if (!seats || seats.length === 0) {
-    console.log('🔍 No seats data - showing loading message');
+    console.log('[CHECKOUT] No seats data - showing loading message');
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
@@ -329,7 +329,7 @@ const Checkout = ({
           </div>
           
           {/* Seat Grid Preview in the empty space */}
-          {console.log('🎯 Checkout: About to render SeatGridPreview with:', { selectedShow, selectedDate })}
+          {console.log('[CHECKOUT] About to render SeatGridPreview with:', { selectedShow, selectedDate })}
           <SeatGridPreview 
             selectedShow={selectedShow}
             selectedDate={selectedDate}

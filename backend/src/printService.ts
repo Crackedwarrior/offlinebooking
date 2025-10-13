@@ -23,7 +23,7 @@ class WindowsPrintService {
   private serviceInstallAttempted = false; // Prevent multiple install attempts
 
   constructor() {
-    console.log('🖨️ Windows Print Service initialized');
+    console.log('[PRINT] Windows Print Service initialized');
     // Don't auto-initialize service to prevent infinite loops
     // this.initializeService();
   }
@@ -31,7 +31,7 @@ class WindowsPrintService {
   private initializeService() {
     // Prevent multiple initialization attempts
     if (this.serviceInstallAttempted) {
-      console.log('ℹ️ Service initialization already attempted, skipping...');
+      console.log('[PRINT] Service initialization already attempted, skipping...');
       return;
     }
     
@@ -51,40 +51,40 @@ class WindowsPrintService {
 
       // Handle service events
       this.service.on('install', () => {
-        console.log('✅ Print service installed successfully');
+        console.log('[PRINT] Print service installed successfully');
         this.service?.start();
       });
 
       this.service.on('alreadyinstalled', () => {
-        console.log('ℹ️ Print service already installed');
+        console.log('[PRINT] Print service already installed');
         this.service?.start();
       });
 
       this.service.on('start', () => {
-        console.log('🚀 Print service started');
+        console.log('[PRINT] Print service started');
         this.isServiceRunning = true;
       });
 
       this.service.on('stop', () => {
-        console.log('⏹️ Print service stopped');
+        console.log('[PRINT] Print service stopped');
         this.isServiceRunning = false;
       });
 
       this.service.on('error', (err: any) => {
-        console.error('❌ Print service error:', err);
+        console.error('[ERROR] Print service error:', err);
         this.isServiceRunning = false;
       });
 
       // Install the service if not already installed
       this.service.install();
     } catch (error) {
-      console.error('❌ Failed to initialize print service:', error);
+      console.error('[ERROR] Failed to initialize print service:', error);
       this.isServiceRunning = false;
     }
   }
 
   async addToPrintQueue(ticketData: string, printerName: string): Promise<string> {
-    console.log('🖨️ Adding to print queue:', { ticketDataLength: ticketData?.length, printerName });
+    console.log('[PRINT] Adding to print queue:', { ticketDataLength: ticketData?.length, printerName });
     
     if (!ticketData) {
       throw new Error('Ticket data is required');
@@ -102,10 +102,10 @@ class WindowsPrintService {
     
     this.printQueue.push(printJob);
     
-    console.log('🖨️ Print job created:', jobId);
+    console.log('[PRINT] Print job created:', jobId);
     
     // Always use direct method to avoid service issues
-    console.log('🖨️ Using direct method (service disabled)');
+    console.log('[PRINT] Using direct method (service disabled)');
     await this.processDirectly(printJob);
     
     return jobId;
@@ -138,7 +138,7 @@ class WindowsPrintService {
           printJob.status = 'completed';
           fs.unlinkSync(jobFile + '.completed');
           fs.unlinkSync(jobFile);
-          console.log(`✅ Print job ${printJob.id} completed via service`);
+          console.log(`[PRINT] Print job ${printJob.id} completed via service`);
           return;
         }
         
@@ -156,11 +156,11 @@ class WindowsPrintService {
       }
       
       // Timeout - fallback to direct method
-      console.log('⚠️ Service timeout, falling back to direct method');
+      console.log('[WARN] Service timeout, falling back to direct method');
       await this.processDirectly(printJob);
       
     } catch (error) {
-      console.error('❌ Service processing failed:', error);
+      console.error('[ERROR] Service processing failed:', error);
       await this.processDirectly(printJob);
     }
   }
@@ -173,12 +173,12 @@ class WindowsPrintService {
       await this.printUsingWindowsAPI(printJob.ticketData, printJob.printerName);
       
       printJob.status = 'completed';
-      console.log(`✅ Print job ${printJob.id} completed directly`);
+      console.log(`[PRINT] Print job ${printJob.id} completed directly`);
       
     } catch (error) {
       printJob.status = 'failed';
       printJob.error = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`❌ Print job ${printJob.id} failed:`, error);
+      console.error(`[ERROR] Print job ${printJob.id} failed:`, error);
       throw error;
     }
   }
@@ -195,11 +195,11 @@ class WindowsPrintService {
     // Check if this is ESC/POS commands or plain text
     if (ticketData.includes('\x1B')) {
       // This is ESC/POS commands - write as binary
-      console.log('🖨️ Writing ESC/POS commands as binary data');
+      console.log('[PRINT] Writing ESC/POS commands as binary data');
       fs.writeFileSync(filePath, ticketData, 'binary');
     } else {
       // This is plain text - write as UTF-8
-      console.log('🖨️ Writing plain text as UTF-8');
+      console.log('[PRINT] Writing plain text as UTF-8');
       fs.writeFileSync(filePath, ticketData, 'utf8');
     }
     
@@ -207,17 +207,17 @@ class WindowsPrintService {
       // Method 1: Direct copy to printer port (most reliable for ESC/POS)
       const copyCommand = `cmd /c copy "${filePath}" "\\\\.\\ESDPRT001" >nul 2>&1`;
       
-      console.log('🖨️ Using direct copy to printer port...');
+      console.log('[PRINT] Using direct copy to printer port...');
       const { stdout, stderr } = await execAsync(copyCommand, { 
         maxBuffer: 10 * 1024 * 1024, 
         timeout: 30000,
         windowsHide: true
       });
       
-      console.log('✅ Direct copy to printer port completed');
+      console.log('[PRINT] Direct copy to printer port completed');
       
     } catch (error) {
-      console.log('⚠️ Direct copy failed, trying PowerShell...');
+      console.log('[WARN] Direct copy failed, trying PowerShell...');
       
       // Method 2: PowerShell Out-Printer (fallback)
       const psCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' -Raw | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
@@ -233,17 +233,17 @@ class WindowsPrintService {
           throw new Error(`PowerShell error: ${stderr}`);
         }
         
-        console.log('✅ PowerShell Out-Printer completed');
+        console.log('[PRINT] PowerShell Out-Printer completed');
         
       } catch (psError) {
-        console.log('⚠️ PowerShell failed, creating manual print file...');
+        console.log('[WARN] PowerShell failed, creating manual print file...');
         
         // Method 3: Create manual print file
         const manualPrintFile = path.join(tempDir, `manual_print_${Date.now()}.txt`);
         fs.writeFileSync(manualPrintFile, ticketData, 'utf8');
         
-        console.log(`⚠️ Manual print file created: ${manualPrintFile}`);
-        console.log('⚠️ Please print this file manually or check printer connection');
+        console.log(`[WARN] Manual print file created: ${manualPrintFile}`);
+        console.log('[WARN] Please print this file manually or check printer connection');
         
         // Don't throw error for manual fallback
       }
@@ -254,7 +254,7 @@ class WindowsPrintService {
           fs.unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        console.warn('[WARN] Could not clean up temp file:', cleanupError);
       }
     }
   }
@@ -275,14 +275,14 @@ class WindowsPrintService {
 
   // Method to manually start the service (disabled by default)
   async startService() {
-    console.log('🖨️ Manually starting print service...');
+    console.log('[PRINT] Manually starting print service...');
     this.initializeService();
   }
 
   // Method to stop the service
   async stopService() {
     if (this.service) {
-      console.log('🛑 Stopping print service...');
+      console.log('[PRINT] Stopping print service...');
       this.service.stop();
       this.isServiceRunning = false;
     }

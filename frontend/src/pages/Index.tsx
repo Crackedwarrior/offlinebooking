@@ -370,11 +370,11 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
     if (typeof window !== 'undefined') {
       (window as any).testShowSelection = testDynamicShowSelection;
       (window as any).resetManualSelection = () => {
-        console.log('🔄 Manually resetting selection flag');
+        console.log('[SHOW] Manually resetting selection flag');
         setUserManuallySelectedShow(false);
       };
       (window as any).setManualSelection = () => {
-        console.log('🎯 Manually setting selection flag');
+        console.log('[SHOW] Manually setting selection flag');
         setUserManuallySelectedShow(true);
       };
     }
@@ -396,10 +396,10 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
         const { syncSeatStatus } = useBookingStore.getState();
         syncSeatStatus(bookedSeatIds, bmsSeatIds, selectedSeatIds);
         
-        console.log('✅ Seat status refreshed successfully');
+        console.log('[SEAT] Seat status refreshed successfully');
       }
     } catch (error) {
-      console.error('❌ Failed to refresh seat status:', error);
+      console.error('[ERROR] Failed to refresh seat status:', error);
     }
   }, [selectedDate, selectedShow]);
 
@@ -646,14 +646,14 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
               showExchangeButton={isExchangeMode}
               onExchange={async () => {
                 // Handle exchange button click - print tickets and return to checkout
-                console.log('🔄 Exchange button clicked - printing tickets and returning to checkout');
+                console.log('[PRINT] Exchange button clicked - printing tickets and returning to checkout');
                 
                 try {
                   // Get selected seats from the store
                   const selectedSeats = seats.filter(seat => seat.status === 'SELECTED');
                   
                   if (selectedSeats.length === 0) {
-                    console.log('⚠️ No seats selected for printing');
+                    console.log('[WARN] No seats selected for printing');
                     return;
                   }
                   
@@ -667,7 +667,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   const currentMovie = getMovieForShow(selectedShow);
                   
                   if (!currentMovie) {
-                    console.error('❌ No movie found for show:', selectedShow);
+                    console.error('[ERROR] No movie found for show:', selectedShow);
                     return;
                   }
                   
@@ -677,7 +677,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   const currentShowTime = showTimes.find(show => show.key === selectedShow);
                   
                   if (!currentShowTime) {
-                    console.error('❌ No show time found for:', selectedShow);
+                    console.error('[ERROR] No show time found for:', selectedShow);
                     return;
                   }
                   
@@ -689,7 +689,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                   const printerConfig = printerInstance.getPrinterConfig();
                   
                   if (!printerConfig || !printerConfig.name) {
-                    console.error('❌ No printer configured');
+                    console.error('[ERROR] No printer configured');
                     return;
                   }
                   
@@ -747,7 +747,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     transactionId: 'TXN' + Date.now()
                   }));
                   
-                                     console.log('🖨️ Preparing to print grouped tickets via Electron:', ticketGroups);
+                  console.log('[PRINT] Preparing to print grouped tickets via Electron:', ticketGroups);
                    
                    // Print each ticket group using Electron
                    let allPrinted = true;
@@ -756,14 +756,14 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                      const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
                     
                     if (!printSuccess) {
-                      console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
+                      console.error('[ERROR] Failed to print ticket group:', ticketGroup.seatRange);
                       allPrinted = false;
                       break;
                     }
                   }
                   
                   if (!allPrinted) {
-                    console.error('❌ Failed to print all tickets');
+                    console.error('[ERROR] Failed to print all tickets');
                     return;
                   }
                   
@@ -802,11 +802,11 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
                     selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
                     console.log('[PRINT] Tickets printed and booking saved successfully');
                   } else {
-                    console.error('❌ Failed to save booking to backend');
+                    console.error('[ERROR] Failed to save booking to backend');
                   }
                   
                 } catch (error) {
-                  console.error('❌ Error in exchange button:', error);
+                  console.error('[ERROR] Error in exchange button:', error);
                 }
                 
                 // Return to checkout page

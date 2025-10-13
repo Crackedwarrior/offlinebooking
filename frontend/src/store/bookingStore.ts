@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { seatsByRow } from '@/lib/seatMatrix';
 
 // Debug the import
-console.log('🔍 seatsByRow imported:', Object.keys(seatsByRow).length, 'rows');
+console.log('[SEAT] seatsByRow imported:', Object.keys(seatsByRow).length, 'rows');
 
 export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'BMS_BOOKED' | 'SELECTED';
 export type ShowTime = 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
@@ -48,11 +48,11 @@ export interface BookingState {
 
 // Initialize seat layout from seatsByRow
 const createInitialSeats = (): Seat[] => {
-  console.log('🔍 createInitialSeats called');
-  console.log('🔍 seatsByRow keys:', Object.keys(seatsByRow));
+  console.log('[SEAT] createInitialSeats called');
+  console.log('[SEAT] seatsByRow keys:', Object.keys(seatsByRow));
   const seats: Seat[] = [];
   Object.entries(seatsByRow).forEach(([row, numbers]) => {
-    console.log(`🔍 Processing row ${row}:`, numbers);
+    console.log(`[SEAT] Processing row ${row}:`, numbers);
     numbers.forEach((num, idx) => {
       if (typeof num === 'number') {
         seats.push({
@@ -64,8 +64,8 @@ const createInitialSeats = (): Seat[] => {
       }
     });
   });
-  console.log('🔍 createInitialSeats created', seats.length, 'seats');
-  console.log('🔍 First few seats:', seats.slice(0, 5));
+  console.log('[SEAT] createInitialSeats created', seats.length, 'seats');
+  console.log('[SEAT] First few seats:', seats.slice(0, 5));
   return seats;
 };
 
@@ -80,27 +80,27 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   setSelectedShow: (show) => set({ selectedShow: show }),
   
   toggleSeatStatus: (seatId, newStatus) => {
-    console.log('🔄 toggleSeatStatus called:', { seatId, newStatus });
+    console.log('[SEAT] toggleSeatStatus called:', { seatId, newStatus });
     set((state) => {
       const updatedSeats = state.seats.map(seat =>
         seat.id === seatId ? { ...seat, status: newStatus } : seat
       );
-      console.log('🔄 Updated seats:', updatedSeats.filter(s => s.id === seatId));
-      console.log('🔄 Total selected seats after update:', updatedSeats.filter(s => s.status === 'SELECTED').length);
+      console.log('[SEAT] Updated seats:', updatedSeats.filter(s => s.id === seatId));
+      console.log('[SEAT] Total selected seats after update:', updatedSeats.filter(s => s.status === 'SELECTED').length);
       return { seats: updatedSeats };
     });
   },
 
   // ✅ NEW PROFESSIONAL BATCH OPERATIONS - PREVENTS RACE CONDITIONS
   selectMultipleSeats: (seatIds: string[]) => {
-    console.log('🔄 selectMultipleSeats called:', { seatIds });
+    console.log('[SEAT] selectMultipleSeats called:', { seatIds });
     set((state) => {
       const updatedSeats = state.seats.map(seat => 
         seatIds.includes(seat.id) && seat.status === 'AVAILABLE'
           ? { ...seat, status: 'SELECTED' as SeatStatus }
           : seat
       );
-      console.log('🔄 Total selected seats after batch select:', updatedSeats.filter(s => s.status === 'SELECTED').length);
+      console.log('[SEAT] Total selected seats after batch select:', updatedSeats.filter(s => s.status === 'SELECTED').length);
       return { seats: updatedSeats };
     });
   },
@@ -117,7 +117,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
   // ✅ ATOMIC SEAT REPLACEMENT - FOR AUTOMATIC SELECTION ALGORITHMS
   atomicSeatReplacement: (deselectIds: string[], selectIds: string[]) => {
-    console.log('🔄 atomicSeatReplacement called:', { deselectIds, selectIds });
+    console.log('[SEAT] atomicSeatReplacement called:', { deselectIds, selectIds });
     set((state) => {
       let deselectedCount = 0;
       let selectedCount = 0;
@@ -137,7 +137,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       });
 
       const totalSelected = updatedSeats.filter(s => s.status === 'SELECTED').length;
-      console.log('🔄 atomicSeatReplacement result:', { deselected: deselectedCount, selected: selectedCount, totalSelected });
+      console.log('[SEAT] atomicSeatReplacement result:', { deselected: deselectedCount, selected: selectedCount, totalSelected });
       
       return { seats: updatedSeats };
     });
@@ -167,17 +167,17 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   loadBookingForDate: (date, show) => {
-    console.log('🔍 loadBookingForDate called:', { date, show });
+    console.log('[DB] loadBookingForDate called:', { date, show });
     const state = get();
     const booking = state.bookingHistory.find(
       b => b.date === date && b.show === show
     );
     
-    console.log('🔍 Found booking:', booking ? 'yes' : 'no');
+    console.log('[DB] Found booking:', booking ? 'yes' : 'no');
     
     if (booking) {
       const bookedSeatIds = booking.seats.map(seat => seat.id);
-      console.log('🔍 Loading existing booking with', bookedSeatIds.length, 'booked seats');
+      console.log('[DB] Loading existing booking with', bookedSeatIds.length, 'booked seats');
       set((state) => ({
         seats: state.seats.map(seat => 
           bookedSeatIds.includes(seat.id)
@@ -187,7 +187,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }));
     } else {
       // Reset all seats to available if no booking found
-      console.log('🔍 No booking found, ensuring seats are available');
+      console.log('[DB] No booking found, ensuring seats are available');
       set((state) => ({
         seats: state.seats.map(seat => ({ ...seat, status: 'AVAILABLE' as SeatStatus }))
       }));
@@ -206,7 +206,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     if ((window as any).lastSyncTime && 
         (window as any).lastSyncKey === lastSyncKey && 
         now - (window as any).lastSyncTime < 500) {
-      console.log('🔄 syncSeatStatus SKIPPED - duplicate call within 500ms');
+      console.log('[SEAT] syncSeatStatus SKIPPED - duplicate call within 500ms');
       return;
     }
     
@@ -215,7 +215,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
     // ✅ NEW PROFESSIONAL APPROACH - SURGICAL UPDATES ONLY
     set((state) => {
-      console.log('🔄 syncSeatStatus called with:', {
+      console.log('[SEAT] syncSeatStatus called with:', {
         bookedSeatIds: bookedSeatIds.length,
         bmsSeatIds: bmsSeatIds.length,
         totalSeats: state.seats.length,
@@ -259,7 +259,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         return seat;
       });
 
-      console.log(`✅ syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS, ${freedCount} freed, ${selectedCount} selected from backend`);
+      console.log(`[SEAT] syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS, ${freedCount} freed, ${selectedCount} selected from backend`);
       return { seats: updatedSeats };
     });
   },

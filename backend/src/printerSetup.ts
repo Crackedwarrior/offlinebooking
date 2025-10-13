@@ -20,21 +20,21 @@ class PrinterSetup {
    */
   static async openPrinterProperties(printerName: string): Promise<boolean> {
     try {
-      console.log(`🔧 Opening printer properties for: ${printerName}`);
+      console.log(`[PRINT] Opening printer properties for: ${printerName}`);
       
       const command = `rundll32 printui.dll,PrintUIEntry /p /n "${printerName}"`;
       await execAsync(command, { windowsHide: true });
       
-      console.log('✅ Printer properties dialog opened!');
-      console.log('📝 Please configure the following settings:');
+      console.log('[PRINT] Printer properties dialog opened!');
+      console.log('[PRINT] Please configure the following settings:');
       console.log('   - Paper Conservation: Top & Bottom');
-      console.log('   - Paper Size: 100mm × 95mm (or your preferred size)');
+      console.log('   - Paper Size: 100mm x 95mm (or your preferred size)');
       console.log('   - Print Position: 0.0mm (both X and Y)');
       console.log('   - Click OK to save settings');
       
       return true;
     } catch (error) {
-      console.error('❌ Failed to open printer properties:', error);
+      console.error('[ERROR] Failed to open printer properties:', error);
       return false;
     }
   }
@@ -44,15 +44,15 @@ class PrinterSetup {
    */
   static async openPrinterPreferences(printerName: string): Promise<boolean> {
     try {
-      console.log(`🔧 Opening printer preferences for: ${printerName}`);
+      console.log(`[PRINT] Opening printer preferences for: ${printerName}`);
       
       const command = `rundll32 printui.dll,PrintUIEntry /e /n "${printerName}"`;
       await execAsync(command, { windowsHide: true });
       
-      console.log('✅ Printer preferences dialog opened!');
+      console.log('[PRINT] Printer preferences dialog opened!');
       return true;
     } catch (error) {
-      console.error('❌ Failed to open printer preferences:', error);
+      console.error('[ERROR] Failed to open printer preferences:', error);
       return false;
     }
   }
@@ -72,7 +72,7 @@ class PrinterSetup {
       
       return printerList.map((p: any) => p.Name).filter(Boolean);
     } catch (error) {
-      console.error('❌ Failed to list printers:', error);
+      console.error('[ERROR] Failed to list printers:', error);
       return [];
     }
   }
@@ -89,7 +89,7 @@ class PrinterSetup {
       
       return JSON.parse(stdout);
     } catch (error) {
-      console.error(`❌ Failed to get printer info for ${printerName}:`, error);
+      console.error(`[ERROR] Failed to get printer info for ${printerName}:`, error);
       return null;
     }
   }
@@ -99,15 +99,15 @@ class PrinterSetup {
    */
   static async setDefaultPrinter(printerName: string): Promise<boolean> {
     try {
-      console.log(`🔧 Setting default printer to: ${printerName}`);
+      console.log(`[PRINT] Setting default printer to: ${printerName}`);
       
       const command = `rundll32 printui.dll,PrintUIEntry /y /n "${printerName}"`;
       await execAsync(command, { windowsHide: true });
       
-      console.log('✅ Default printer set successfully!');
+      console.log('[PRINT] Default printer set successfully!');
       return true;
     } catch (error) {
-      console.error('❌ Failed to set default printer:', error);
+      console.error('[ERROR] Failed to set default printer:', error);
       return false;
     }
   }
@@ -116,20 +116,20 @@ class PrinterSetup {
    * Complete printer setup workflow
    */
   static async setupPrinter(printerName: string): Promise<boolean> {
-    console.log('🎯 Starting Printer Setup Workflow\n');
+    console.log('[PRINT] Starting Printer Setup Workflow');
     
     // Step 1: Verify printer exists
-    console.log('1️⃣ Verifying printer exists...');
+    console.log('[PRINT] Step 1: Verifying printer exists...');
     const printers = await this.listPrinters();
     if (!printers.includes(printerName)) {
-      console.error(`❌ Printer "${printerName}" not found!`);
+      console.error(`[ERROR] Printer "${printerName}" not found!`);
       console.log('Available printers:', printers);
       return false;
     }
-    console.log('✅ Printer found!');
+    console.log('[PRINT] Printer found!');
     
     // Step 2: Get printer info
-    console.log('\n2️⃣ Getting printer information...');
+    console.log('[PRINT] Step 2: Getting printer information...');
     const printerInfo = await this.getPrinterInfo(printerName);
     if (printerInfo) {
       console.log('Printer Details:', {
@@ -141,20 +141,20 @@ class PrinterSetup {
     }
     
     // Step 3: Set as default (optional)
-    console.log('\n3️⃣ Setting as default printer...');
+    console.log('[PRINT] Step 3: Setting as default printer...');
     await this.setDefaultPrinter(printerName);
     
     // Step 4: Open properties for manual configuration
-    console.log('\n4️⃣ Opening printer properties for configuration...');
+    console.log('[PRINT] Step 4: Opening printer properties for configuration...');
     const propertiesOpened = await this.openPrinterProperties(printerName);
     
     if (propertiesOpened) {
-      console.log('\n✅ Printer setup workflow completed!');
-      console.log('📝 Please configure the printer settings as shown above.');
-      console.log('🖨️ After configuration, the printer will be ready for optimal printing.');
+      console.log('[PRINT] Printer setup workflow completed!');
+      console.log('[PRINT] Please configure the printer settings as shown above.');
+      console.log('[PRINT] After configuration, the printer will be ready for optimal printing.');
       return true;
     } else {
-      console.log('\n❌ Printer setup workflow failed!');
+      console.log('[ERROR] Printer setup workflow failed!');
       return false;
     }
   }

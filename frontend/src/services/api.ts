@@ -77,7 +77,7 @@ class ApiService {
       } catch (error) {
         // Check if it's a network error (backend not running)
         if (error instanceof TypeError && error.message.includes('fetch')) {
-          console.error('❌ Backend not available. Make sure to run: npm run dev:backend');
+          console.error('[ERROR] Backend not available. Make sure to run: npm run dev:backend');
           throw new Error('Backend service not running. Please start the backend server.');
         }
         

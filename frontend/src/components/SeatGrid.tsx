@@ -75,10 +75,10 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         await saveBmsSeatStatus(availableSeats, 'AVAILABLE', selectedDate!, selectedShow!);
       }
       
-      console.log(`✅ Batch updated ${updates.length} BMS seat statuses`);
+      console.log(`[SEAT] Batch updated ${updates.length} BMS seat statuses`);
       setPendingBmsUpdates(new Map());
     } catch (error) {
-      console.error('❌ Failed to batch update BMS statuses:', error);
+      console.error('[ERROR] Failed to batch update BMS statuses:', error);
       // Revert all changes on error
       updates.forEach(([seatId, originalStatus]) => {
         const oppositeStatus = originalStatus === 'BMS_BOOKED' ? 'AVAILABLE' : 'BMS_BOOKED';
@@ -119,14 +119,14 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         const notFoundBmsSeats = bmsSeatIds.filter(id => !allSeatIds.includes(id as string));
         
         if (notFoundBookedSeats.length > 0) {
-          console.warn('⚠️ Some booked seat IDs from API not found in seat matrix:', notFoundBookedSeats);
+          console.warn('[WARN] Some booked seat IDs from API not found in seat matrix:', notFoundBookedSeats);
         }
         if (notFoundBmsSeats.length > 0) {
-          console.warn('⚠️ Some BMS seat IDs from API not found in seat matrix:', notFoundBmsSeats);
+          console.warn('[WARN] Some BMS seat IDs from API not found in seat matrix:', notFoundBmsSeats);
         }
       }
     } catch (error) {
-      console.error('❌ Error fetching seat status:', error);
+      console.error('[ERROR] Error fetching seat status:', error);
       // toast({
       //   title: 'Error',
       //   description: 'Failed to load seat status from database.',
@@ -217,7 +217,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   // Enhanced seat click handler with BMS mode and move mode
   const handleSeatClick = async (seat: Seat) => {
     // Set a flag to indicate manual selection is happening
-    console.log('🔍 Manual seat click detected:', seat.id);
+    console.log('[SEAT] Manual seat click detected:', seat.id);
     
     if (moveMode) {
       // Double-click detection for manual selection/deselection in move mode
@@ -249,11 +249,11 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
         if (seat.status === 'SELECTED') {
           // Double-click to deselect
           toggleSeatStatus(seat.id, 'AVAILABLE');
-          console.log('🔍 Double-click: Deselected seat', seat.id);
+          console.log('[SEAT] Double-click: Deselected seat', seat.id);
         } else if (seat.status === 'AVAILABLE') {
           // Double-click to select
           toggleSeatStatus(seat.id, 'SELECTED');
-          console.log('🔍 Double-click: Selected seat', seat.id);
+          console.log('[SEAT] Double-click: Selected seat', seat.id);
         }
       }
       return;
@@ -432,9 +432,9 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
     // Save changes to backend
     try {
       await updateSeatStatus(seatUpdates, selectedDate, selectedShow);
-      console.log('✅ Seat move saved to backend:', seatUpdates);
+      console.log('[SEAT] Seat move saved to backend:', seatUpdates);
     } catch (error) {
-      console.error('❌ Failed to save seat move to backend:', error);
+      console.error('[ERROR] Failed to save seat move to backend:', error);
       // Revert changes if backend save failed
       sortedSeats.forEach(seat => {
         toggleSeatStatus(seat.id, 'SELECTED');
@@ -473,7 +473,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
   // Debug: Log selected seats details
   useEffect(() => {
     if (selectedSeats.length > 0) {
-      console.log('🎯 Selected Seats Details:', selectedSeats.map(seat => ({
+      console.log('[SEAT] Selected Seats Details:', selectedSeats.map(seat => ({
         id: seat.id,
         row: seat.row,
         number: seat.number,
@@ -886,7 +886,7 @@ const SeatGrid = ({ onProceed, hideProceedButton = false, hideRefreshButton = fa
               <button
                 className="absolute inset-0 w-full h-full bg-transparent hover:bg-gray-50 transition-colors cursor-pointer"
                 onClick={() => {
-                  console.log('🖨️ SeatGrid Print area clicked');
+                  console.log('[PRINT] SeatGrid Print area clicked');
                   if (onExchange) {
                     onExchange();
                   }

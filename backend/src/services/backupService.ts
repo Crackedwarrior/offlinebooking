@@ -38,7 +38,7 @@ class BackupService {
 
       // Check if backup already exists for today
       if (fs.existsSync(backupPath)) {
-        console.log('📁 Backup already exists for today, skipping...');
+        console.log('[BACKUP] Backup already exists for today, skipping...');
         return {
           success: true,
           message: 'Backup already exists for today',
@@ -49,7 +49,7 @@ class BackupService {
       // Copy database file to backup location
       await copyFile(this.config.sourcePath, backupPath);
       
-      console.log(`✅ Database backup created: ${backupPath}`);
+      console.log(`[BACKUP] Database backup created: ${backupPath}`);
       
       // Clean up old backups
       await this.cleanupOldBackups();
@@ -61,7 +61,7 @@ class BackupService {
       };
 
     } catch (error) {
-      console.error('❌ Backup failed:', error);
+      console.error('[ERROR] Backup failed:', error);
       return {
         success: false,
         message: `Backup failed: ${error}`
@@ -76,7 +76,7 @@ class BackupService {
     try {
       await mkdir(this.config.backupDir, { recursive: true });
     } catch (error) {
-      console.error('❌ Failed to create backup directory:', error);
+      console.error('[ERROR] Failed to create backup directory:', error);
       throw error;
     }
   }
@@ -153,18 +153,18 @@ class BackupService {
       for (const filePath of filesToDelete) {
         try {
           await unlink(filePath);
-          console.log(`🗑️ Deleted old backup: ${path.basename(filePath)}`);
+          console.log(`[BACKUP] Deleted old backup: ${path.basename(filePath)}`);
         } catch (error) {
-          console.error(`❌ Failed to delete backup ${filePath}:`, error);
+          console.error(`[ERROR] Failed to delete backup ${filePath}:`, error);
         }
       }
 
       if (filesToDelete.length > 0) {
-        console.log(`🧹 Cleaned up ${filesToDelete.length} old backup files`);
+        console.log(`[BACKUP] Cleaned up ${filesToDelete.length} old backup files`);
       }
 
     } catch (error) {
-      console.error('❌ Backup cleanup failed:', error);
+      console.error('[ERROR] Backup cleanup failed:', error);
     }
   }
 
@@ -206,7 +206,7 @@ class BackupService {
       };
 
     } catch (error) {
-      console.error('❌ Failed to get backup stats:', error);
+      console.error('[ERROR] Failed to get backup stats:', error);
       return {
         totalBackups: 0,
         totalSize: 0,

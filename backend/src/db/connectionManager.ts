@@ -50,15 +50,15 @@ export class DatabaseConnectionManager {
 
   public async connect(): Promise<boolean> {
     try {
-      console.log(`🔍 Testing database connection... (attempt ${this.connectionRetries + 1}/${this.maxRetries + 1})`);
+      console.log(`[DB] Testing database connection... (attempt ${this.connectionRetries + 1}/${this.maxRetries + 1})`);
       
       // Test basic connectivity
       await this.prisma.$queryRaw`SELECT 1`;
-      console.log('✅ Database connection successful');
+      console.log('[DB] Database connection successful');
       
       // Check if database has tables
       const tableCount = await this.prisma.$queryRaw`SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'`;
-      console.log('📊 Database tables:', tableCount);
+      console.log('[DB] Database tables:', tableCount);
       
       // Test a simple query to ensure database is functional
       await this.prisma.$queryRaw`SELECT name FROM sqlite_master WHERE type='table' LIMIT 1`;
@@ -67,16 +67,16 @@ export class DatabaseConnectionManager {
       this.connectionRetries = 0;
       return true;
     } catch (error) {
-      console.error(`❌ Database connection failed (attempt ${this.connectionRetries + 1}):`, error);
+      console.error(`[ERROR] Database connection failed (attempt ${this.connectionRetries + 1}):`, error);
       
       if (this.connectionRetries < this.maxRetries) {
         this.connectionRetries++;
-        console.log(`🔄 Retrying database connection in ${this.retryDelay}ms...`);
+        console.log(`[DB] Retrying database connection in ${this.retryDelay}ms...`);
         await new Promise(resolve => setTimeout(resolve, this.retryDelay));
         return this.connect();
       }
       
-      console.error('❌ Database connection failed after all retries');
+      console.error('[ERROR] Database connection failed after all retries');
       this.isConnected = false;
       return false;
     }
@@ -86,9 +86,9 @@ export class DatabaseConnectionManager {
     try {
       await this.prisma.$disconnect();
       this.isConnected = false;
-      console.log('✅ Database connection closed gracefully');
+      console.log('[DB] Database connection closed gracefully');
     } catch (error) {
-      console.error('❌ Error disconnecting database:', error);
+      console.error('[ERROR] Error disconnecting database:', error);
       throw error;
     }
   }

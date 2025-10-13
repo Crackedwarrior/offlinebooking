@@ -9,7 +9,7 @@ escpos.USB = require('escpos-usb');
 export class EscposPrintService {
   static async printSilently(ticketData: any, printerName: string): Promise<void> {
     try {
-      console.log('🖨️ Using ESCPOS library for thermal printing...');
+      console.log('[PRINT] Using ESCPOS library for thermal printing...');
       
       // Format the ticket data into proper text
       const formattedTicket = this.createFormattedTicket(ticketData);
@@ -19,20 +19,20 @@ export class EscposPrintService {
         await this.printViaUSB(formattedTicket);
         return;
       } catch (error) {
-        console.log('⚠️ USB method failed, trying PowerShell with formatted text...');
+        console.log('[WARN] USB method failed, trying PowerShell with formatted text...');
       }
 
       // Method 2: Fallback to PowerShell with formatted text
       await this.printViaPowerShellWithEscpos(formattedTicket, printerName);
       
     } catch (error) {
-      console.error('❌ ESCPOS printing failed:', error);
+      console.error('[ERROR] ESCPOS printing failed:', error);
       throw error;
     }
   }
 
   private static async printViaUSB(ticketData: string): Promise<void> {
-    console.log('🔍 Searching for USB printer...');
+    console.log('[PRINT] Searching for USB printer...');
     
     return new Promise((resolve, reject) => {
       // Auto-detect USB printer without hardcoded IDs
@@ -40,12 +40,12 @@ export class EscposPrintService {
       
       device.open((error: any) => {
         if (error) {
-          console.log('❌ USB printer not found:', error.message);
+          console.log('[ERROR] USB printer not found:', error.message);
           reject(new Error(`USB printer not found: ${error.message}`));
           return;
         }
 
-        console.log('✅ USB printer found and connected');
+        console.log('[PRINT] USB printer found and connected');
         
         const printer = new escpos.Printer(device);
         
@@ -70,11 +70,11 @@ export class EscposPrintService {
           .cut()
           .close()
           .then(() => {
-            console.log('✅ USB printing completed successfully');
+            console.log('[PRINT] USB printing completed successfully');
             resolve();
           })
           .catch((err: any) => {
-            console.error('❌ USB printing failed:', err);
+            console.error('[ERROR] USB printing failed:', err);
             reject(new Error(`USB printing failed: ${err.message}`));
           });
       });
@@ -85,7 +85,7 @@ export class EscposPrintService {
     // Try network printer (if connected via network)
     const device = new escpos.Network('192.168.1.100'); // Default IP, adjust as needed
     
-    console.log('🔍 Trying network printer...');
+    console.log('[PRINT] Trying network printer...');
     
     return new Promise((resolve, reject) => {
       device.open((error: any) => {
@@ -94,7 +94,7 @@ export class EscposPrintService {
           return;
         }
 
-        console.log('✅ Network printer found and connected');
+        console.log('[PRINT] Network printer found and connected');
         
         const printer = new escpos.Printer(device);
         
@@ -104,7 +104,7 @@ export class EscposPrintService {
         printer
           .close()
           .then(() => {
-            console.log('✅ Network printing completed successfully');
+            console.log('[PRINT] Network printing completed successfully');
             resolve();
           })
           .catch((err: any) => {
@@ -115,7 +115,7 @@ export class EscposPrintService {
   }
 
   private static async printViaPowerShellWithEscpos(ticketData: string, printerName: string): Promise<void> {
-    console.log('🖨️ Using direct file copy to printer port...');
+    console.log('[PRINT] Using direct file copy to printer port...');
     
     // Create simple formatted text (not ESC/POS binary)
     const formattedTicket = this.createSimpleFormattedTicket(ticketData);
@@ -130,8 +130,8 @@ export class EscposPrintService {
     // Write simple text
     fs.writeFileSync(filePath, formattedTicket, 'utf8');
     
-    console.log('📁 Created simple ticket file:', filePath);
-    console.log('📄 Ticket length:', formattedTicket.length, 'characters');
+    console.log('[PRINT] Created simple ticket file:', filePath);
+    console.log('[PRINT] Ticket length:', formattedTicket.length, 'characters');
     
     // Use direct copy command to printer (this should work for most thermal printers)
     const { exec } = require('child_process');
@@ -148,7 +148,7 @@ export class EscposPrintService {
         windowsHide: true
       });
       
-      console.log('✅ Direct copy printing completed');
+      console.log('[PRINT] Direct copy printing completed');
       
       // Clean up temp file
       try {
@@ -156,11 +156,11 @@ export class EscposPrintService {
           fs.unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        console.warn('[WARN] Could not clean up temp file:', cleanupError);
       }
       
     } catch (error) {
-      console.warn('⚠️ Direct copy failed, trying PowerShell fallback...');
+      console.warn('[WARN] Direct copy failed, trying PowerShell fallback...');
       
       // Fallback to PowerShell Out-Printer
       const fallbackCommand = `powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '${filePath.replace(/\\/g, '\\\\')}' -Encoding UTF8 | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
@@ -172,7 +172,7 @@ export class EscposPrintService {
           windowsHide: true
         });
         
-        console.log('✅ PowerShell fallback printing completed');
+        console.log('[PRINT] PowerShell fallback printing completed');
       } catch (fallbackError) {
         throw new Error(`Both direct copy and PowerShell printing failed: ${error}, ${fallbackError}`);
       }
@@ -183,7 +183,7 @@ export class EscposPrintService {
           fs.unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        console.warn('[WARN] Could not clean up temp file:', cleanupError);
       }
     }
   }
@@ -407,11 +407,11 @@ export class EscposPrintService {
     formatted += doubleLine + '\n';
     
     // Debug: Log the formatted ticket to see what's actually being generated
-    console.log('🔍 DEBUG - Formatted ticket preview:');
+    console.log('[PRINT] DEBUG - Formatted ticket preview:');
     console.log('='.repeat(50));
     console.log(formatted);
     console.log('='.repeat(50));
-    console.log('🔍 DEBUG - Ticket data received:', ticketData);
+    console.log('[PRINT] DEBUG - Ticket data received:', ticketData);
     
     return formatted;
   }
@@ -428,8 +428,8 @@ export class EscposPrintService {
     // Write clean text as UTF-8 for reliable printing
     fs.writeFileSync(filePath, ticketData, 'utf8');
     
-    console.log('📁 Created temp file for direct printing:', filePath);
-    console.log('📄 Clean text data length:', ticketData.length, 'characters');
+    console.log('[PRINT] Created temp file for direct printing:', filePath);
+    console.log('[PRINT] Clean text data length:', ticketData.length, 'characters');
     
     // Use the most minimal PowerShell command possible
     const { exec } = require('child_process');
@@ -445,7 +445,7 @@ export class EscposPrintService {
         windowsHide: true
       });
       
-      console.log('✅ Direct file printing completed');
+      console.log('[PRINT] Direct file printing completed');
       
       // Clean up temp file
       try {
@@ -453,7 +453,7 @@ export class EscposPrintService {
           fs.unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not clean up temp file:', cleanupError);
+        console.warn('[WARN] Could not clean up temp file:', cleanupError);
       }
       
     } catch (error) {
@@ -583,11 +583,11 @@ export class EscposPrintService {
       const printers: any[] = [];
       
       // This is a simplified approach - in practice you'd need to enumerate devices
-      console.log('🔍 Available printers will be listed here');
+      console.log('[PRINT] Available printers will be listed here');
       
       return printers;
     } catch (error) {
-      console.error('❌ Error listing printers:', error);
+      console.error('[ERROR] Error listing printers:', error);
       return [];
     }
   }

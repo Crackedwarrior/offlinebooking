@@ -66,7 +66,7 @@ const parseEnv = () => {
   try {
     return envSchema.parse(process.env);
   } catch (error) {
-    console.error('❌ Environment validation failed:', error);
+    console.error('[ERROR] Environment validation failed:', error);
     process.exit(1);
   }
 };
@@ -154,7 +154,7 @@ export const validateConfig = () => {
   const missingFields = requiredFields.filter(field => !process.env[field]);
   
   if (missingFields.length > 0) {
-    console.warn('⚠️ Missing environment variables:', missingFields);
+    console.warn('[WARN] Missing environment variables:', missingFields);
     // Don't exit, just warn
   }
   
@@ -170,18 +170,18 @@ export const validateConfig = () => {
     const missingProductionFields = productionRequiredFields.filter(field => !process.env[field]);
     
     if (missingProductionFields.length > 0) {
-      console.warn('⚠️ Missing production environment variables:', missingProductionFields);
+      console.warn('[WARN] Missing production environment variables:', missingProductionFields);
       // Don't exit, just warn
     }
     
     // Validate production-specific values - make non-blocking
     if (config.database.url.includes('dev.db')) {
-      console.warn('⚠️ Production environment detected but using development database');
+      console.warn('[WARN] Production environment detected but using development database');
       // Don't exit, just warn
     }
     
     if (config.api.corsOrigin === '*') {
-      console.warn('⚠️ Production environment detected but CORS is set to allow all origins');
+      console.warn('[WARN] Production environment detected but CORS is set to allow all origins');
       // Don't exit, just warn
     }
   }
@@ -220,13 +220,13 @@ export const validateSecurityConfig = () => {
   
   // Log warnings
   if (warnings.length > 0) {
-    console.warn('🔒 Security Configuration Warnings:');
+    console.warn('[SECURITY] Configuration warnings:');
     warnings.forEach(warning => console.warn(warning));
   }
   
   // In production, exit on critical security issues
   if (config.server.isProduction && warnings.length > 0) {
-    console.error('❌ Critical security issues detected in production. Exiting...');
+    console.error('[ERROR] Critical security issues detected in production. Exiting...');
     process.exit(1);
   }
   
@@ -287,7 +287,7 @@ export const validateProductionReadiness = (): { ready: boolean; issues: string[
 
 // Log configuration (only in development)
 if (isDevelopment()) {
-  console.log('🔧 Configuration loaded:', {
+  console.log('[STARTUP] Configuration loaded:', {
     port: config.server.port,
     nodeEnv: config.server.nodeEnv,
     databaseUrl: config.database.url,

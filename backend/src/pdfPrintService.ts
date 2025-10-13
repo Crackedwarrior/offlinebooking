@@ -325,7 +325,7 @@ class PdfPrintService {
     currentY += 12;
    // Use pre-calculated individual ticket price from formatTicket
     const ticketCostFormatted = ticketData.individualTicketPrice || '0.00';
-    console.log('🖨️ RENDER COST LINE:', {
+    console.log('[PRICE] RENDER COST LINE:', {
     individualTicketPrice: ticketCostFormatted
     });
     // Split TICKET COST text: use Times-Bold for label and NotoSansKannada-Bold for amount
@@ -731,12 +731,12 @@ class PdfPrintService {
     hours = hours % 12;
     hours = hours ? hours : 12; // 0 should be 12
     let currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    console.log('🕐 CURRENT TIME DEBUG - English PDF Service:');
-    console.log('🕐 new Date():', new Date());
-    console.log('🕐 new Date().toISOString():', new Date().toISOString());
-    console.log('🕐 toLocaleTimeString result:', currentTime);
-    console.log('🕐 typeof currentTime:', typeof currentTime);
-    console.log('🕐 currentTime length:', currentTime.length);
+    console.log('[TIME] CURRENT TIME DEBUG - English PDF Service:');
+    console.log('[TIME] new Date():', new Date());
+    console.log('[TIME] new Date().toISOString():', new Date().toISOString());
+    console.log('[TIME] toLocaleTimeString result:', currentTime);
+    console.log('[TIME] typeof currentTime:', typeof currentTime);
+    console.log('[TIME] currentTime length:', currentTime.length);
     
     // Extract data from frontend format
     if (ticketData.movie) {

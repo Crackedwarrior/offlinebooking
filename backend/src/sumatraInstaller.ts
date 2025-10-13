@@ -51,7 +51,7 @@ class SumatraInstaller {
     const installerPath = path.join(this.tempDir, 'SumatraPDF-3.5.2-64-install.exe');
 
     return new Promise((resolve, reject) => {
-      console.log(`📥 Downloading SumatraPDF from: ${downloadUrl}`);
+      console.log(`[PRINT] Downloading SumatraPDF from: ${downloadUrl}`);
       
       const file = fs.createWriteStream(installerPath);
       
@@ -65,7 +65,7 @@ class SumatraInstaller {
 
         file.on('finish', () => {
           file.close();
-          console.log(`✅ SumatraPDF downloaded to: ${installerPath}`);
+          console.log(`[PRINT] SumatraPDF downloaded to: ${installerPath}`);
           resolve(installerPath);
         });
 
@@ -84,21 +84,21 @@ class SumatraInstaller {
    */
   private async installSumatra(installerPath: string): Promise<boolean> {
     try {
-      console.log(`🔧 Installing SumatraPDF silently...`);
+      console.log(`[PRINT] Installing SumatraPDF silently...`);
       
       // Silent installation command
       const installCommand = `"${installerPath}" /S /D="C:\\Program Files\\SumatraPDF"`;
-      console.log(`🔧 Executing: ${installCommand}`);
+      console.log(`[PRINT] Executing: ${installCommand}`);
       
       await execAsync(installCommand, { 
         windowsHide: true,
         timeout: 60000 // 60 second timeout
       });
 
-      console.log(`✅ SumatraPDF installation completed`);
+      console.log(`[PRINT] SumatraPDF installation completed`);
       return true;
     } catch (error) {
-      console.error(`❌ SumatraPDF installation failed:`, error);
+      console.error(`[ERROR] SumatraPDF installation failed:`, error);
       return false;
     }
   }
@@ -118,7 +118,7 @@ class SumatraInstaller {
         };
       }
 
-      console.log(`📋 SumatraPDF not found, attempting to install...`);
+      console.log(`[PRINT] SumatraPDF not found, attempting to install...`);
 
       // Download installer
       const installerPath = await this.downloadSumatraInstaller();
@@ -130,10 +130,10 @@ class SumatraInstaller {
       try {
         if (fs.existsSync(installerPath)) {
           fs.unlinkSync(installerPath);
-          console.log(`🧹 Cleaned up installer file`);
+          console.log(`[PRINT] Cleaned up installer file`);
         }
       } catch (cleanupError) {
-        console.log(`⚠️ Could not clean up installer: ${cleanupError}`);
+        console.log(`[WARN] Could not clean up installer: ${cleanupError}`);
       }
 
       if (installSuccess) {
@@ -158,7 +158,7 @@ class SumatraInstaller {
         };
       }
     } catch (error) {
-      console.error(`❌ SumatraPDF installation error:`, error);
+      console.error(`[ERROR] SumatraPDF installation error:`, error);
       return {
         success: false,
         message: `SumatraPDF installation failed: ${error instanceof Error ? error.message : 'Unknown error'}`

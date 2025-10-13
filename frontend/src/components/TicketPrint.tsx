@@ -133,7 +133,7 @@ async function saveBookingToBackend(bookingData: any) {
     });
     return await response.json();
   } catch (error) {
-    console.error('❌ Error saving booking:', error);
+    console.error('[ERROR] Error saving booking:', error);
     return null;
   }
 }
@@ -201,10 +201,10 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const [selectedGroupIdxs, setSelectedGroupIdxs] = useState<number[]>([]);
 
   // 🔍 DEBUG: Log grouping results
-  console.log('🎫 TICKETPRINT DEBUG: selectedSeats count:', selectedSeats.length);
-  console.log('🎫 TICKETPRINT DEBUG: selectedSeats:', selectedSeats.map(s => `${s.id} (${s.row}${s.number})`));
-  console.log('🎫 TICKETPRINT DEBUG: groups count:', groups.length);
-  console.log('🎫 TICKETPRINT DEBUG: groups:', groups.map(g => `${g.classLabel} ${g.row} seats: ${g.seats.join(',')}`));
+  console.log('[PRINT] TICKETPRINT DEBUG: selectedSeats count:', selectedSeats.length);
+  console.log('[PRINT] TICKETPRINT DEBUG: selectedSeats:', selectedSeats.map(s => `${s.id} (${s.row}${s.number})`));
+  console.log('[PRINT] TICKETPRINT DEBUG: groups count:', groups.length);
+  console.log('[PRINT] TICKETPRINT DEBUG: groups:', groups.map(g => `${g.classLabel} ${g.row} seats: ${g.seats.join(',')}`));
 
   // Removed excessive debug logging - performance optimization
   const selectedShow = useBookingStore(state => state.selectedShow);
@@ -229,14 +229,14 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
 
   const handleDelete = () => {
     if (!onDelete) {
-      console.error('❌ onDelete function not provided');
+      console.error('[ERROR] onDelete function not provided');
       return;
     }
     
     const seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
     
     if (seatIdsToDelete.length === 0) {
-      console.warn('⚠️ No seats selected for deletion');
+      console.warn('[WARN] No seats selected for deletion');
       return;
     }
     
@@ -264,17 +264,17 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
   const handleConfirmPrint = async () => {
     
     try {
-      console.log('🖨️ Starting print process...');
-      console.log('📊 Selected seats:', selectedSeats);
-      console.log('📅 Selected date:', selectedDate);
-      console.log('🎬 Selected show:', selectedShow);
+      console.log('[PRINT] Starting print process...');
+      console.log('[PRINT] Selected seats:', selectedSeats);
+      console.log('[PRINT] Selected date:', selectedDate);
+      console.log('[PRINT] Selected show:', selectedShow);
 
       // Get movie for current show from settings
       const currentMovie = getMovieForShow(selectedShow);
-      console.log('🎭 Current movie:', currentMovie);
+      console.log('[PRINT] Current movie:', currentMovie);
       
       if (!currentMovie) {
-        console.error('❌ No movie found for show:', selectedShow);
+        console.error('[ERROR] No movie found for show:', selectedShow);
         return;
       }
 
@@ -283,24 +283,24 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       const showTimes = getShowTimes();
       const currentShowTime = showTimes.find(show => show.key === selectedShow);
       
-      console.log('⏰ Show times from settings:', showTimes);
-      console.log('🎯 Current show time:', currentShowTime);
+      console.log('[TIME] Show times from settings:', showTimes);
+      console.log('[TIME] Current show time:', currentShowTime);
       
       if (!currentShowTime) {
-        console.error('❌ No show time found for:', selectedShow);
+        console.error('[ERROR] No show time found for:', selectedShow);
         return;
       }
 
       // Use show time directly (already in 12-hour format)
       const showtime = currentShowTime.startTime;
-      console.log('🕐 Formatted showtime:', showtime);
+      console.log('[TIME] Formatted showtime:', showtime);
 
       // Get printer configuration
       const printerInstance = printerService.getInstance();
       const printerConfig = printerInstance.getPrinterConfig();
       
       if (!printerConfig || !printerConfig.name) {
-        console.error('❌ No printer configured');
+        console.error('[ERROR] No printer configured');
         return;
       }
 
@@ -327,59 +327,59 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         transactionId: 'TXN' + Date.now()
       }));
 
-      console.log('🖨️ Preparing to print grouped tickets via Electron:', ticketGroups);
+      console.log('[PRINT] Preparing to print grouped tickets via Electron:', ticketGroups);
       
       // 🚀 FRONTEND DEBUG: Log which service will be used
-      console.log('🚀 FRONTEND DEBUG: Movie language:', currentMovie.language);
-      console.log('🚀 FRONTEND DEBUG: Movie printInKannada setting:', currentMovie.printInKannada);
+      console.log('[PRINT] FRONTEND DEBUG: Movie language:', currentMovie.language);
+      console.log('[PRINT] FRONTEND DEBUG: Movie printInKannada setting:', currentMovie.printInKannada);
       if (currentMovie.printInKannada) {
-        console.log('🚀 FRONTEND DEBUG: This movie will use FastKannadaPrintService (wkhtmltopdf)');
-        console.log('🚀 FRONTEND DEBUG: Expected performance: 3-5x faster than Puppeteer');
+        console.log('[PRINT] FRONTEND DEBUG: This movie will use FastKannadaPrintService (wkhtmltopdf)');
+        console.log('[PRINT] FRONTEND DEBUG: Expected performance: 3-5x faster than Puppeteer');
       } else {
-        console.log('🔤 FRONTEND DEBUG: This movie will use PdfPrintService (PDFKit) for English');
+        console.log('[PRINT] FRONTEND DEBUG: This movie will use PdfPrintService (PDFKit) for English');
       }
 
       // Print each ticket group using Electron
       let allPrinted = true;
       for (const ticketGroup of ticketGroups) {
         const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
-        console.log('🚀 FRONTEND DEBUG: About to print ticket group:', ticketGroup.seatRange);
-        console.log('🚀 FRONTEND DEBUG: Movie data being sent:', currentMovie);
+        console.log('[PRINT] FRONTEND DEBUG: About to print ticket group:', ticketGroup.seatRange);
+        console.log('[PRINT] FRONTEND DEBUG: Movie data being sent:', currentMovie);
         
         // 🚀 FRONTEND DEBUG: Start timing for performance measurement
         const startTime = Date.now();
-        console.log('🚀 FRONTEND DEBUG: Starting print at:', new Date().toISOString());
+        console.log('[PRINT] FRONTEND DEBUG: Starting print at:', new Date().toISOString());
         
         const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
         
         // 🚀 FRONTEND DEBUG: End timing and log performance
         const endTime = Date.now();
         const duration = endTime - startTime;
-        console.log('🚀 FRONTEND DEBUG: Print completed at:', new Date().toISOString());
-        console.log('🚀 FRONTEND DEBUG: Print duration:', duration + 'ms');
+        console.log('[PRINT] FRONTEND DEBUG: Print completed at:', new Date().toISOString());
+        console.log('[PRINT] FRONTEND DEBUG: Print duration:', duration + 'ms');
         
         if (currentMovie.printInKannada) {
-          console.log('🚀 FRONTEND DEBUG: FastKannadaPrintService (wkhtmltopdf) performance:', duration + 'ms');
+          console.log('[PRINT] FRONTEND DEBUG: FastKannadaPrintService (wkhtmltopdf) performance:', duration + 'ms');
           if (duration < 2000) {
-            console.log('🚀 FRONTEND DEBUG: ✅ Excellent performance! Under 2 seconds');
+            console.log('[PRINT] FRONTEND DEBUG: Excellent performance - under 2 seconds');
           } else if (duration < 5000) {
-            console.log('🚀 FRONTEND DEBUG: ✅ Good performance! Under 5 seconds');
+            console.log('[PRINT] FRONTEND DEBUG: Good performance - under 5 seconds');
           } else {
-            console.log('🚀 FRONTEND DEBUG: ⚠️ Performance could be better. Consider checking wkhtmltopdf setup');
+            console.log('[WARN] FRONTEND DEBUG: Performance could be better. Consider checking wkhtmltopdf setup');
           }
         } else {
-          console.log('🔤 FRONTEND DEBUG: PdfPrintService (PDFKit) performance:', duration + 'ms');
+          console.log('[PRINT] FRONTEND DEBUG: PdfPrintService (PDFKit) performance:', duration + 'ms');
         }
         
         if (!printSuccess) {
-          console.error('❌ Failed to print ticket group:', ticketGroup.seatRange);
+          console.error('[ERROR] Failed to print ticket group:', ticketGroup.seatRange);
           allPrinted = false;
           break;
         }
       }
       
       if (!allPrinted) {
-        console.error('❌ Failed to print all tickets');
+        console.error('[ERROR] Failed to print all tickets');
         return;
       }
 
@@ -410,17 +410,17 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         source: 'LOCAL'
       };
       
-      console.log('💾 Saving booking to backend:', bookingData);
-      console.log('🌐 Backend URL: http://localhost:3001');
+      console.log('[BOOKING] Saving booking to backend:', bookingData);
+      console.log('[BOOKING] Backend URL: http://localhost:3001');
       
       const response = await saveBookingToBackend(bookingData);
-      console.log('💾 Backend response:', response);
+      console.log('[BOOKING] Backend response:', response);
       
       if (response && response.success) {
         // Mark all selected seats as booked in the store
         selectedSeats.forEach(seat => toggleSeatStatus(seat.id, 'BOOKED'));
 
-        console.log('✅ Tickets printed and booking saved successfully');
+        console.log('[BOOKING] Tickets printed and booking saved successfully');
         setSelectedGroupIdxs([]);
 
         // Stay on checkout page after successful print - don't navigate back to seat grid
@@ -431,12 +431,12 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
           if (onBookingComplete) onBookingComplete();
         }, 100);
       } else {
-        console.error('❌ Failed to save booking to backend');
-        console.error('❌ Response:', response);
+        console.error('[ERROR] Failed to save booking to backend');
+        console.error('[ERROR] Response:', response);
       }
     } catch (error) {
-      console.error('❌ Error in handleConfirmPrint:', error);
-      console.error('❌ Error details:', {
+      console.error('[ERROR] Error in handleConfirmPrint:', error);
+      console.error('[ERROR] Error details:', {
         message: error.message,
         stack: error.stack,
         name: error.name
@@ -539,14 +539,14 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         <button
           className="bg-red-500 hover:bg-red-600 text-white font-medium px-3 py-2 rounded-lg transition-all duration-200 text-sm"
           onClick={async () => {
-            console.log('🗑️ Delete clicked');
-            console.log('🗑️ selectedSeats:', selectedSeats);
-            console.log('🗑️ selectedGroupIdxs:', selectedGroupIdxs);
-            console.log('🗑️ onDelete function exists:', !!onDelete);
-            console.log('🗑️ groups:', groups);
+            console.log('[TICKET] Delete clicked');
+            console.log('[TICKET] selectedSeats:', selectedSeats);
+            console.log('[TICKET] selectedGroupIdxs:', selectedGroupIdxs);
+            console.log('[TICKET] onDelete function exists:', !!onDelete);
+            console.log('[TICKET] groups:', groups);
             
             if (!onDelete || selectedSeats.length === 0) {
-              console.error('❌ Cannot delete: onDelete function missing or no seats selected');
+              console.error('[ERROR] Cannot delete: onDelete function missing or no seats selected');
               return;
             }
             
@@ -555,20 +555,20 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
             if (selectedGroupIdxs.length > 0) {
               // User has selected specific ticket groups - delete only those
               seatIdsToDelete = selectedGroupIdxs.flatMap(idx => groups[idx].seatIds);
-              console.log('🗑️ User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
+              console.log('[TICKET] User selected specific tickets - deleting SELECTED tickets:', seatIdsToDelete);
             } else {
               // No specific selection - delete ALL tickets directly
               seatIdsToDelete = selectedSeats.map(seat => seat.id);
-              console.log('🗑️ No specific selection - deleting ALL tickets:', seatIdsToDelete);
+              console.log('[TICKET] No specific selection - deleting ALL tickets:', seatIdsToDelete);
             }
             
-            console.log('🗑️ About to call onDelete with seatIds:', seatIdsToDelete);
+            console.log('[TICKET] About to call onDelete with seatIds:', seatIdsToDelete);
             
             try {
               await onDelete(seatIdsToDelete);
-              console.log('✅ onDelete completed successfully');
+              console.log('[TICKET] onDelete completed successfully');
             } catch (error) {
-              console.error('❌ onDelete failed:', error);
+              console.error('[ERROR] onDelete failed:', error);
             }
             
             setSelectedGroupIdxs([]);
@@ -590,11 +590,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
           }`}
           onClick={() => {
             if (selectedSeats.length === 0) {
-              console.log('❌ No tickets selected - cannot navigate to seat grid');
+              console.log('[WARN] No tickets selected - cannot navigate to seat grid');
               return;
             }
             
-            console.log('⚡ Lightning button clicked - navigate to seat grid');
+            console.log('[NAV] Lightning button clicked - navigate to seat grid');
             if (onNavigateToSeatGrid) {
               onNavigateToSeatGrid();
             }
@@ -612,10 +612,10 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         <button
             className={`flex-1 flex flex-col items-center justify-center transition-all duration-200 ${canPrint ? 'bg-green-50 hover:bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           onClick={() => {
-            console.log('🖨️ Print button clicked');
+            console.log('[PRINT] Print button clicked');
             if (!canPrint) {
-              if (!hasMovieAssigned) console.log('❌ Cannot print: No movie assigned to the current show');
-              else if (!hasTicketsSelected) console.log('❌ No tickets to print');
+              if (!hasMovieAssigned) console.log('[ERROR] Cannot print: No movie assigned to the current show');
+              else if (!hasTicketsSelected) console.log('[WARN] No tickets to print');
               return;
             }
             handleConfirmPrint();
