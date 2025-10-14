@@ -113,7 +113,12 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
     }
   };
 
-  console.log('[SEAT] About to render with', { seatSegments: seatSegments.length, showSeats: showSeats.length });
+  // Detect Electron to ensure preview-only alignment tweaks do not affect Electron builds
+  const isElectron = typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().includes(' electron/')
+    || !!(window as any).electronAPI
+    || !!(window as any).process?.versions?.electron;
+
+  console.log('[SEAT] About to render with', { seatSegments: seatSegments.length, showSeats: showSeats.length, isElectron });
 
   return (
     <div className="mt-4 p-3 bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 w-full flex flex-col flex-1 min-h-0 overflow-x-hidden relative">
@@ -134,51 +139,68 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
       <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200 shadow-inner flex-1 min-h-0 flex flex-col max-h-[35vh] md:max-h-[40vh] lg:max-h-[45vh]">
         <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-auto hide-scrollbar">
           <div className="space-y-4 mb-4 w-full">
-            {seatSegments.map((segment, segIdx) => (
+            {(() => {
+              // Anchor BOX rows to STAR CLASS width; fallback to 26 if not found
+              const starMaxCols = Math.max(
+                ...Object.keys(seatsByRow)
+                  .filter(k => k.startsWith('SC-'))
+                  .map(k => (seatsByRow as any)[k].length),
+                26
+              );
+
+              return seatSegments.map((segment, segIdx) => {
+                // Keep a uniform column count within each segment for non-BOX rows
+                const segmentMaxCols = Math.max(
+                  ...segment.rows.map(r => (seatsByRow as any)[r].length)
+                );
+
+                return (
               <div key={segment.label}>
                 <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">{segment.label}</div>
                 <div className="space-y-2">
                   {segment.rows.map(row => {
                     // Special layout for BOX seats to match theater arrangement
                     const isBoxRow = row.startsWith('BOX');
-                    
+
                     return (
-                      <div key={row} className="flex flex-row items-center w-full">
-                        <div className="w-16 text-right font-semibold text-gray-700 pr-2 text-xs">
+                      <div key={row} className="flex flex-row items-start w-full">
+                        <div className="w-20 text-right font-semibold text-gray-700 pr-0 text-xs flex items-center justify-end">
                           {row.replace(/^[^-]+-/, '')}
                         </div>
                         <div className={`flex justify-center w-full`}>
                           <div
-                            className={`grid ${isBoxRow ? 'gap-0.5' : 'gap-1'}`}
+                            className={`grid ${isBoxRow ? 'gap-0.5' : 'gap-1'} ${!isElectron ? 'mx-auto' : ''}`}
                             style={{ 
-                              // For BOX rows, set total columns to match STAR CLASS so alignment is relative to it
-                              // Otherwise, use the native row length
+                              // Clean layout: native per-row length; BOX anchored to STAR with 2-col offset
+                              // On web (not Electron), use fixed seat-width columns so the grid width matches content and can be centered.
                               gridTemplateColumns: (() => {
-                                if (!isBoxRow) return `repeat(${seatsByRow[row].length}, minmax(0, 1fr))`;
-                                const starRowKey = Object.keys(seatsByRow).find(k => k.startsWith('SC-')) as string | undefined;
-                                const starCols = starRowKey ? (seatsByRow as any)[starRowKey].length : undefined;
-                                const boxLen = (seatsByRow as any)[row].length;
-                                const totalCols = starCols ? starCols : boxLen + 1; // fallback: one-column offset
-                                return `repeat(${totalCols}, minmax(0, 1fr))`;
+                                if (!isBoxRow) {
+                                  const colCount = (seatsByRow as any)[row].length;
+                                  return isElectron
+                                    ? `repeat(${colCount}, minmax(0, 1fr))`
+                                    : `repeat(${colCount}, 24px)`; // Updated to match clean seat size
+                                }
+                                return isElectron
+                                  ? `repeat(${starMaxCols}, minmax(0, 1fr))`
+                                  : `repeat(${starMaxCols}, 24px)`; // Updated to match clean seat size
                               })()
                             }}
                           >
-                            {/* Leading placeholders to create alignment offset ONLY for BOX rows */}
-                            {isBoxRow && (() => {
-                              const placeholders = [] as JSX.Element[];
-                              for (let i = 0; i < 1; i++) {
-                                placeholders.push(<div key={`box-offset-start-${row}-${i}`} className="w-5 h-5" style={{ visibility: 'hidden' }} />);
-                              }
-                              return placeholders;
+                            {/* Leading placeholders: 0 for BOX rows (aligned with STAR CLASS) */}
+                            {(() => {
+                              const leadCount = isBoxRow ? 0 : 0; // Remove BOX offset
+                              return Array.from({ length: leadCount }).map((_, i) => (
+                                <div key={`lead-${row}-${i}`} className={isElectron ? "w-5 h-5" : "w-6 h-6"} style={{ visibility: 'hidden' }} />
+                              ));
                             })()}
                             {seatsByRow[row].map((seatNum, idx) => {
                               if (seatNum === '') {
-                                return <div key={idx} className="w-5 h-5" style={{ visibility: 'hidden' }} />;
+                                return <div key={idx} className={isElectron ? "w-5 h-5" : "w-6 h-6"} style={{ visibility: 'hidden' }} />;
                               }
                               const seat = seatMap[`${row}${seatNum}`];
-                              if (!seat) return <div key={idx} className="w-5 h-5 bg-gray-200" />;
+                              if (!seat) return <div key={idx} className={isElectron ? "w-5 h-5" : "w-6 h-6"} style={{ backgroundColor: '#e5e7eb' }} />;
                               
-                              const finalClassName = `w-5 h-5 rounded-sm font-medium text-[10px] border border-gray-400 transition-all cursor-pointer hover:scale-110 text-white ${getSeatColor(seat.status)}`;
+                              const finalClassName = `${isElectron ? 'w-5 h-5' : 'w-6 h-6'} rounded-sm font-medium text-[10px] border border-gray-400 transition-all cursor-pointer hover:scale-110 text-white ${getSeatColor(seat.status)}`;
                               
                               return (
                                 <button
@@ -194,13 +216,10 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
                             })}
                             {/* Trailing placeholders so BOX rows keep same total columns as STAR CLASS */}
                             {isBoxRow && (() => {
-                              const starRowKey = Object.keys(seatsByRow).find(k => k.startsWith('SC-')) as string | undefined;
-                              const starCols = starRowKey ? (seatsByRow as any)[starRowKey].length : undefined;
                               const boxLen = (seatsByRow as any)[row].length;
-                              const totalCols = starCols ? starCols : boxLen + 1;
-                              const trailing = Math.max(totalCols - 1 - boxLen, 0);
+                              const trailing = Math.max(starMaxCols - 2 - boxLen, 0); // subtract two leading placeholders
                               return Array.from({ length: trailing }).map((_, i) => (
-                                <div key={`box-offset-end-${row}-${i}`} className="w-5 h-5" style={{ visibility: 'hidden' }} />
+                                <div key={`box-offset-end-${row}-${i}`} className={isElectron ? "w-5 h-5" : "w-6 h-6"} style={{ visibility: 'hidden' }} />
                               ));
                             })()}
                           </div>
@@ -213,7 +232,9 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
                   <div className="border-b border-gray-200 my-4" />
                 )}
               </div>
-            ))}
+            );
+              });
+            })()}
           </div>
         </div>
       </div>

@@ -1,22 +1,175 @@
 /* Web-only overrides loaded dynamically (not in Electron) */
 
+/* Reset page-level spacing on web to avoid stray bottom gaps */
+html {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+}
+
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#root {
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Hide any debug overlays injected by extensions (e.g., Debug CSS, Pesticide) */
+#elementInfoDiv,
+#elementTooltip,
+div#elementInfoDiv,
+div#elementTooltip,
+[id^="debug-"],
+[id^="pesticide"],
+.pesticide-container {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Scope to checkout layout only */
 .checkout-container {
   /* prevent stray horizontal scrollbars on web */
   overflow-x: hidden;
 }
 
-/* Ensure the show card row wraps cleanly and has consistent spacing */
+/* Measured values from Electron DevTools */
+:root {
+  --topbar-h-web: 168px;
+  --class-card-w-web: 200px;
+  --class-card-h-web: 120px;
+  --show-row-max-w-web: 1210px; /* Electron container width */
+  --show-tile-w-web: 250px; /* Electron show tile width */
+  --class-card-gap-web: 16px; /* Electron gap between cards */
+  /* New: independent widths for class cards */
+  --class-card-w-rest: 198.5px;   /* BOX, STAR, CLASSIC, FIRST */
+  --class-card-w-second: 219.5px; /* SECOND CLASS (last card) */
+  /* Seat map sizing to mimic Electron */
+  --seat-w-web: 28px;
+  --seat-h-web: 22px;
+  --seat-gap-x-web: 6px;
+  --seat-gap-y-web: 8px;
+}
+
+/* Class cards row - center and constrain to measured width */
 .checkout-container .show-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px; /* consistent spacing between cards */
+  gap: 0 !important; /* no gap so overlap is tight */
+  align-items: stretch;
+  margin-bottom: 12px;
+  max-width: var(--show-row-max-w-web);
+  width: auto !important; /* let it flow naturally */
+  margin-left: auto;
+  margin-right: auto;
+  flex-shrink: 0 !important;
 }
 
-/* Normalize class card styling to avoid negative margins stacking */
-.checkout-container .class-card {
+/* Ensure the show meta box width stable so class cards align predictably */
+.checkout-container .show-row > div:first-child {
+  width: var(--show-tile-w-web);
+  min-height: var(--class-card-h-web);
+}
+
+/* Class card wrapper (relative) width to match Electron overall tile width */
+.checkout-container .show-row .relative {
+  width: var(--show-tile-w-web) !important;
+}
+
+/* Target the EXACT container from DevTools */
+.flex.flex-row.w-full.max-w-full.lg\:max-w-5xl.pt-0 {
+  max-width: 1210px !important; /* keep original row width */
+  width: 1210px !important;
+  height: 150px !important; /* match card height */
+  min-height: 150px !important;
+  margin-left: 0 !important; /* align hard-left */
+  margin-right: auto !important;
+  gap: var(--class-card-gap-web) !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+
+/* Target the movie card with simpler selector */
+.checkout-container .show-row > div:first-child,
+.checkout-container .show-row .relative:first-child,
+.flex.flex-col.border.border-gray-200.bg-white.w-\[250px\].min-h-\[120px\].px-6.py-2.relative.select-none.rounded-l-xl.shadow-md.cursor-pointer.hover\:bg-gray-50 {
+  width: 312.5px !important;
+  height: 150px !important;
+  max-height: 150px !important;
+  min-height: 120px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+
+/* Normalize class card styling to exact measured inner size */
+.class-card {
   margin-left: 0 !important; /* neutralize Tailwind -ml-2 used in desktop */
   border-radius: 0 !important;
+  width: var(--class-card-w-rest) !important;
+  height: 150px !important; /* 120px effective at 80% zoom */
+  max-height: 150px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  min-height: 0 !important;
+  position: relative !important; /* enable z-index stacking for overlap */
+  z-index: 1 !important;
+}
+
+/* Width override for SECOND CLASS (last card) */
+.checkout-container .class-card:last-child {
+  width: var(--class-card-w-second) !important;
+}
+
+/* Electron-style overlap: pull subsequent cards to the left */
+.checkout-container .class-card + .class-card {
+  margin-left: -24px !important; /* moderate overlap */
+}
+
+/* Shift the whole class-card group left by pulling the first class card */
+/* Keeps subsequent overlap consistent via .class-card + .class-card */
+.checkout-container .show-row > :nth-child(2) {
+  margin-left: -30px !important;
+}
+
+/* Pull the first class card closer to the movie card */
+.checkout-container .show-row .relative + .class-card {
+  margin-left: -30px !important; /* overlap movie card and shift group */
+}
+
+/* Ultra-specific fallback to ensure first class card shifts left */
+.flex.flex-row.w-full.max-w-full.lg\:max-w-5xl.pt-0 > :nth-child(2) {
+  margin-left: -30px !important;
+}
+
+/* Raise hovered/active card above neighbors for cleaner overlap */
+.checkout-container .class-card:hover,
+.checkout-container .class-card:focus {
+  z-index: 2 !important;
 }
 
 .checkout-container .class-card:first-child {
@@ -31,7 +184,280 @@
 
 /* Keep the tickets panel from collapsing and causing visual gaps */
 .checkout-container .right-panel {
-  min-width: 340px;
+  min-width: 479.1px !important; /* +0.1px adjustment */
+  width: 479.1px !important;
+  align-self: stretch;
 }
+
+/* Expand seat map area, reduce inner padding and remove horizontal scrolling */
+.checkout-container .w-full.overflow-x-auto.hide-scrollbar {
+  overflow-x: hidden !important;
+}
+.checkout-container .bg-white.rounded-lg.shadow-sm.border.p-6 {
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+/* SeatGridPreview: Reduced width to align with class cards */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner {
+  height: 540px !important; /* Increased to accommodate legend */
+  max-height: 540px !important;
+  min-height: 540px !important;
+  width: 1254px !important; /* Reduced to align with class cards */
+  max-width: 1254px !important;
+  min-width: 1254px !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box !important;
+  padding: 8px !important; /* Reduce padding to maximize seat area */
+}
+
+/* Force content area to fill container with minimal padding */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .space-y-4 {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Seat buttons - Clean Electron-style with slightly larger size for web */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner button,
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .w-5,
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .h-5,
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .grid button {
+  width: 24px !important; /* Slightly larger than Electron's 20px for web visibility */
+  min-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border-radius: 4px !important; /* Less rounded */
+  margin-right: 0 !important; /* No margin, use gap instead */
+  margin-bottom: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important; /* Larger font for better readability */
+  line-height: 1 !important;
+  border: 1px solid #9ca3af !important; /* border-gray-400 */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important; /* Subtle shadow like Electron */
+}
+
+/* Grid gaps - Match Electron clean spacing */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .grid.gap-0\.5 {
+  gap: 2px !important; /* BOX rows - match Electron exactly */
+}
+
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .grid.gap-1 {
+  gap: 4px !important; /* Other rows - match Electron exactly */
+}
+
+/* Row spacing - Match Electron space-y-2 (8px) */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .space-y-2 > * + * {
+  margin-top: 8px !important;
+}
+
+/* Section spacing - Match Electron space-y-4 (16px) between sections */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .space-y-4 > * + * {
+  margin-top: 16px !important;
+}
+
+/* Section separators - Match Electron border-b my-4 */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .border-b.border-gray-200.my-4 {
+  margin-top: 16px !important;
+  margin-bottom: 16px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+/* Row labels - Match Electron w-16 (64px) */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .w-16 {
+  width: 64px !important;
+}
+
+/* Force full width usage */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .flex.justify-center.w-full,
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .flex.flex-row.items-center.w-full {
+  width: 100% !important;
+  justify-content: flex-start !important;
+}
+
+/* Force content area to fill container */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .space-y-4 {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Force inner scroller dimensions - adjusted to accommodate legend */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .flex-1.min-h-0.w-full.overflow-x-auto.overflow-y-auto.hide-scrollbar {
+  height: 520px !important; /* Slightly less than container to prevent overflow */
+  max-height: 520px !important;
+  min-height: 520px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  width: 100% !important;
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .flex-1.min-h-0.w-full.overflow-x-auto.overflow-y-auto.hide-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
+
+/* Layout: do not override row column structure – component controls it.
+   Only left-align for consistent visual width. */
+.checkout-container .bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner .grid {
+  justify-content: flex-start !important;
+  align-items: start !important;
+}
+/* Seat rows: left-align seats instead of centered to gain width */
+.checkout-container .flex.justify-center.w-full {
+  justify-content: flex-start !important;
+}
+
+/* Ensure seat map container doesn't overflow the page - NO SCROLLBAR, allow legend */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative {
+  /* Allow container to grow to fit content including legend */
+  min-height: 600px !important; /* Minimum height to ensure legend fits */
+  max-height: none !important; /* Remove max-height constraint */
+  overflow-y: hidden !important; /* NO scrollbar on outer container */
+  overflow-x: hidden !important;
+}
+
+/* Ensure SEAT MAP heading matches Electron exactly - larger font */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative h4 {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  font-size: 20px !important; /* Larger font to match Electron */
+  font-weight: bold !important;
+  color: #111827 !important; /* Match Electron text-gray-900 */
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.25 !important; /* Match Electron text-lg line-height */
+}
+
+/* Ensure header container is visible */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .flex.items-center.justify-between.mb-3.pb-2.border-b.border-gray-100 {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-bottom: 12px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+/* Ensure legend is visible - WEB ONLY */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .mt-3.pt-2.border-t.border-gray-100 {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-top: 12px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid #e5e7eb !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+}
+
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .grid.grid-cols-4.gap-3.text-xs {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  font-size: 12px !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+}
+
+/* Force legend items to be visible */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .flex.items-center.space-x-2 {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+}
+
+/* Force legend text to be visible */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .font-medium {
+  display: inline !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  font-weight: 500 !important;
+}
+
+/* Force legend color squares to be visible */
+.checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .w-3.h-3.rounded {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 4px !important;
+}
+
+/* Constrain any flex-row containers in checkout */
+.checkout-container .flex-row {
+  max-width: var(--show-row-max-w-web);
+  margin-left: auto;
+  margin-right: auto;
+  gap: var(--class-card-gap-web);
+}
+@media (min-width: 1024px) {
+  .checkout-container .flex-row { flex-wrap: nowrap; }
+}
+
+/* Sidebar: force full viewport height on web */
+/* Common selectors: aside, nav (role navigation), and classes that may represent sidebar */
+aside,
+nav[aria-label="Sidebar"],
+nav[role="navigation"],
+.sidebar,
+.left-sidebar {
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+/* Compensate for body zoom so sidebar matches content height */
+body[style*="zoom: 0.8"] aside,
+body[style*="zoom: 0.8"] nav[aria-label="Sidebar"],
+body[style*="zoom: 0.8"] nav[role="navigation"],
+body[style*="zoom: 0.8"] .sidebar,
+body[style*="zoom: 0.8"] .left-sidebar {
+  height: calc(100vh / 0.8) !important;
+  max-height: calc(100vh / 0.8) !important;
+}
+
+/* Compensate for body zoom: ensure min-h-screen fills the viewport */
+body[style*="zoom: 0.8"] .min-h-screen {
+  min-height: calc(100vh / 0.8) !important; /* 125vh */
+}
+
+/* Zoom-compensated height for Tailwind h-screen elements (sidebar) */
+body[style*="zoom: 0.8"] .h-screen,
+body[style*="zoom: 0.8"] [class*=" h-screen"],
+body[style*="zoom: 0.8"] [class^="h-screen"] {
+  height: calc(100vh / 0.8) !important;
+  max-height: calc(100vh / 0.8) !important;
+}
+
+@media (min-width: 1024px) {
+  .checkout-container {
+    gap: 8px !important; /* reduce excessive gap between left and right */
+  }
+  .checkout-container .show-row {
+    flex-wrap: nowrap;
+  }
+}
+
+/* TicketPrint card: force full width of right-panel and stable height */
+.checkout-container .right-panel > .bg-white.rounded-xl.shadow-lg.border.border-gray-200.relative.flex.flex-col.h-full.max-h-screen.overflow-hidden {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: calc(100vh / 0.8 - 140px) !important; /* compensate 80% zoom */
+  max-height: calc(100vh / 0.8 - 140px) !important;
+}
+
 
 

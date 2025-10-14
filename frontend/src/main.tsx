@@ -5,6 +5,304 @@ import './index.css'
 import '@fontsource/noto-sans-kannada/400.css'
 import '@fontsource/noto-sans-kannada/700.css'
 
+// Ensure web-only overrides are loaded in browser (never in Electron)
+try {
+  const isElectron = typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().includes(' electron/')
+    || !!(window as any).electronAPI
+    || !!(window as any).process?.versions?.electron;
+  if (!isElectron) {
+    // Inject as <link> for dev reliability; dynamic import remains as a backup below
+    const href = new URL('./web-overrides.css', import.meta.url).href;
+    const existing = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some(l => (l as HTMLLinkElement).href === href);
+    if (!existing) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    // Force initial 80% zoom on web (do not touch Electron)
+    try {
+      const ua = navigator.userAgent.toLowerCase();
+      const isFirefox = ua.includes('firefox');
+      console.log('[WEB] Detected browser UA:', ua);
+      if (!isFirefox) {
+        // Apply zoom to body instead of html to avoid viewport calculation issues
+        (document.body as HTMLElement).style.zoom = '0.8';
+        console.log('[WEB] Applied css zoom 0.8 on <body> (Chromium)');
+      } else {
+        // Firefox fallback using transform scaling
+        const style = document.createElement('style');
+        style.textContent = `
+          html, body { overflow-x: hidden; }
+          body { transform: scale(0.8); transform-origin: top left; width: 125%; }
+        `;
+        document.head.appendChild(style);
+        console.log('[WEB] Applied Firefox transform scale fallback');
+      }
+    } catch {}
+
+    // Force show and class card dimensions on web (runtime fallback)
+    const forceCheckoutCardSizes = () => {
+      const movieCard = document.querySelector('.flex.flex-col.border.border-gray-200.bg-white.w-\\[250px\\].min-h-\\[120px\\].px-6.py-2.relative.select-none.rounded-l-xl.shadow-md.cursor-pointer.hover\\:bg-gray-50') as HTMLElement | null;
+      if (movieCard) {
+        movieCard.style.width = '312.5px';
+        movieCard.style.height = '150px';
+        movieCard.style.maxHeight = '150px';
+        movieCard.style.minHeight = '120px';
+        movieCard.style.overflow = 'hidden';
+        movieCard.style.boxSizing = 'border-box';
+      }
+
+      document.querySelectorAll('.class-card').forEach((el) => {
+        const card = el as HTMLElement;
+        // Default width for most class cards
+        card.style.width = '198.5px';
+        card.style.height = '150px';
+        card.style.maxHeight = '150px';
+        card.style.overflow = 'hidden';
+        card.style.boxSizing = 'border-box';
+      });
+
+      // Make sure the last class card (SECOND CLASS) uses 210px
+      const classCards = document.querySelectorAll('.class-card');
+      if (classCards.length > 0) {
+        const last = classCards[classCards.length - 1] as HTMLElement;
+        last.style.width = '219.5px';
+      }
+
+      // Force SeatGridPreview dimensions (Electron match) - Correct specifications
+      const seatGridPreview = document.querySelector('.bg-gradient-to-br.from-gray-50.to-gray-100.p-3.rounded-lg.border.border-gray-200.shadow-inner');
+      if (seatGridPreview) {
+        const card = seatGridPreview as HTMLElement;
+        card.style.width = '1024px'; // Reduced width to align with class cards
+        card.style.minWidth = '1024px';
+        card.style.maxWidth = '1024px';
+        card.style.height = '540px'; // Increased to accommodate legend
+        card.style.minHeight = '540px';
+        card.style.maxHeight = '540px';
+        card.style.marginLeft = '0';
+        card.style.marginRight = '0';
+        card.style.boxSizing = 'border-box';
+
+        // Force ALL buttons to be 24px x 24px - Clean Electron-style with web visibility
+        const allButtons = card.querySelectorAll('button');
+        allButtons.forEach(btn => {
+          const button = btn as HTMLElement;
+          button.style.width = '24px';
+          button.style.height = '24px';
+          button.style.minWidth = '24px';
+          button.style.minHeight = '24px';
+          button.style.fontSize = '13px'; // Larger font for better readability
+          button.style.borderRadius = '4px'; // Less rounded
+          button.style.border = '1px solid #9ca3af'; // border-gray-400
+          button.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.05)'; // Subtle shadow
+          button.style.padding = '0';
+          button.style.marginRight = '0'; // Use gap instead
+          button.style.marginBottom = '0';
+          button.style.display = 'inline-flex';
+          button.style.alignItems = 'center';
+          button.style.justifyContent = 'center';
+        });
+
+        // Force w-5 h-5 elements to be 20px
+        const w5Elements = card.querySelectorAll('.w-5, .h-5');
+        w5Elements.forEach(el => {
+          const element = el as HTMLElement;
+          element.style.width = '20px';
+          element.style.height = '20px';
+          element.style.minWidth = '20px';
+          element.style.minHeight = '20px';
+        });
+        // Container padding reduction to maximize seat area
+        card.style.padding = '8px'; // Reduce padding to maximize seat area
+
+        // Force row spacing - Match Electron space-y-2 (8px)
+        const spaceY2 = card.querySelectorAll('.space-y-2 > *');
+        spaceY2.forEach((el, index) => {
+          if (index > 0) {
+            const element = el as HTMLElement;
+            element.style.marginTop = '8px';
+          }
+        });
+
+        // Force section spacing - Match Electron space-y-4 (16px)
+        const spaceY4 = card.querySelectorAll('.space-y-4 > *');
+        spaceY4.forEach((el, index) => {
+          if (index > 0) {
+            const element = el as HTMLElement;
+            element.style.marginTop = '16px';
+          }
+        });
+
+        // Force section separators - Match Electron border-b my-4
+        const separators = card.querySelectorAll('.border-b.border-gray-200.my-4');
+        separators.forEach(sep => {
+          const separator = sep as HTMLElement;
+          separator.style.marginTop = '16px';
+          separator.style.marginBottom = '16px';
+          separator.style.borderBottom = '1px solid #e5e7eb';
+        });
+
+        // Force row labels - Match Electron w-16 (64px)
+        const rowLabels = card.querySelectorAll('.w-16');
+        rowLabels.forEach(label => {
+          const labelEl = label as HTMLElement;
+          labelEl.style.width = '64px';
+        });
+
+        // Force full width usage
+        const flexElements = card.querySelectorAll('.flex.justify-center.w-full, .flex.flex-row.items-center.w-full');
+        flexElements.forEach(el => {
+          const element = el as HTMLElement;
+          element.style.width = '100%';
+          element.style.justifyContent = 'flex-start';
+        });
+
+        // Force content area to fill container
+        const spaceY4Container = card.querySelector('.space-y-4') as HTMLElement;
+        if (spaceY4Container) {
+          spaceY4Container.style.width = '100%';
+          spaceY4Container.style.maxWidth = 'none';
+        }
+
+        console.log('[WEB DEBUG] SeatGridPreview visuals applied (no structural overrides):', {
+          container: '1279px x 486px with 8px padding',
+          buttons: `${allButtons.length} buttons set to 20px x 20px with 6px radius`,
+          rows: `${spaceY2.length} rows with 8px spacing`,
+          sections: `${spaceY4.length} sections with 16px spacing`,
+          separators: `${separators.length} section separators`,
+          rowLabels: `${rowLabels.length} row labels (64px)`
+        });
+      }
+    };
+
+    // Initial apply + retry while content renders
+    forceCheckoutCardSizes();
+    let retries = 20;
+    const intervalId = window.setInterval(() => {
+      forceCheckoutCardSizes();
+      retries -= 1;
+      if (retries <= 0) window.clearInterval(intervalId);
+    }, 200);
+
+    // Reapply on DOM changes (route changes, list updates)
+    const observer = new MutationObserver(() => forceCheckoutCardSizes());
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Add debug logging for layout dimensions
+    setTimeout(() => {
+      // Try multiple selectors to find the container
+      const selectors = [
+        '.flex.flex-row.w-full.max-w-full.lg\\:max-w-5xl',
+        '.flex.flex-row.w-full.max-w-full',
+        '.lg\\:max-w-5xl',
+        '.flex.flex-row',
+        '[class*="flex-row"]',
+        '[class*="max-w-5xl"]'
+      ];
+      
+      let container = null;
+      let foundSelector = '';
+      
+      for (const selector of selectors) {
+        container = document.querySelector(selector);
+        if (container) {
+          foundSelector = selector;
+          break;
+        }
+      }
+      
+      if (container) {
+        const computedStyle = window.getComputedStyle(container);
+        console.log('[WEB DEBUG] Container found with selector:', foundSelector);
+        console.log('[WEB DEBUG] Container dimensions:', {
+          element: container,
+          classes: container.className,
+          computedWidth: computedStyle.width,
+          computedHeight: computedStyle.height,
+          computedMaxHeight: computedStyle.maxHeight,
+          computedMinHeight: computedStyle.minHeight,
+          computedGap: computedStyle.gap,
+          computedAlignItems: computedStyle.alignItems,
+          computedFlexShrink: computedStyle.flexShrink,
+          computedOverflow: computedStyle.overflow,
+          computedBoxSizing: computedStyle.boxSizing,
+          clientWidth: container.clientWidth,
+          clientHeight: container.clientHeight,
+          offsetWidth: container.offsetWidth,
+          offsetHeight: container.offsetHeight
+        });
+
+        // Check children
+        const children = Array.from(container.children);
+        children.forEach((child, index) => {
+          const childStyle = window.getComputedStyle(child);
+          console.log(`[WEB DEBUG] Child ${index}:`, {
+            element: child,
+            classes: child.className,
+            computedWidth: childStyle.width,
+            computedHeight: childStyle.height,
+            computedMaxHeight: childStyle.maxHeight,
+            computedMinHeight: childStyle.minHeight,
+            computedFlexShrink: childStyle.flexShrink,
+            computedOverflow: childStyle.overflow,
+            computedBoxSizing: childStyle.boxSizing,
+            clientWidth: child.clientWidth,
+            clientHeight: child.clientHeight,
+            offsetWidth: child.offsetWidth,
+            offsetHeight: child.offsetHeight
+          });
+        });
+      } else {
+        console.log('[WEB DEBUG] Container not found with any selector!');
+        console.log('[WEB DEBUG] Searching for checkout-related elements...');
+        
+        // Look for elements that might contain the show cards
+        const checkoutElements = document.querySelectorAll('[class*="checkout"], [class*="show"], [class*="class-card"], [class*="BOX"], [class*="STAR"]');
+        console.log('[WEB DEBUG] Checkout-related elements found:', checkoutElements.length);
+        checkoutElements.forEach((el, i) => {
+          if (i < 5) {
+            console.log(`Checkout Element ${i}:`, el.className, el);
+          }
+        });
+        
+        // Look for elements with specific classes we know exist
+        const specificSelectors = [
+          '[class*="w-[250px]"]',
+          '[class*="min-h-[120px]"]',
+          '[class*="class-card"]',
+          '[class*="bg-white"]',
+          '[class*="border-gray-200"]'
+        ];
+        
+        specificSelectors.forEach(selector => {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length > 0) {
+            console.log(`[WEB DEBUG] Found ${elements.length} elements with selector: ${selector}`);
+            elements.forEach((el, i) => {
+              if (i < 3) {
+                console.log(`  Element ${i}:`, el.className, el);
+              }
+            });
+          }
+        });
+        
+        // Look for any element containing "AVENGERS" text
+        const avengersElements = Array.from(document.querySelectorAll('*')).filter(el => 
+          el.textContent && el.textContent.includes('AVENGERS')
+        );
+        console.log('[WEB DEBUG] Elements containing "AVENGERS":', avengersElements.length);
+        avengersElements.forEach((el, i) => {
+          if (i < 3) {
+            console.log(`AVENGERS Element ${i}:`, el.className, el);
+          }
+        });
+      }
+    }, 1000);
+  }
+} catch {}
+
 // Start the app directly without strict environment validation
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
