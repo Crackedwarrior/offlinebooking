@@ -8,7 +8,7 @@
     "dev": "ts-node src/server.ts",
     "build": "npx tsc && npm run copy:db",
     "copy:db": "node scripts/copy-db.js",
-    "start:prod": "node dist/server.js",
+    "start:prod": "echo 'Starting server...' && node dist/server.js",
     "postinstall": "npx prisma generate"
   },
   "keywords": [],
