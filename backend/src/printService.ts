@@ -1,10 +1,23 @@
-import { Service } from 'node-windows';
 import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+
+// Platform detection
+const isWindows = process.platform === 'win32';
+
+// Conditional import for Windows-only modules
+let Service: any = null;
+if (isWindows) {
+  try {
+    const nodeWindows = require('node-windows');
+    Service = nodeWindows.Service;
+  } catch (error) {
+    console.warn('[PRINT] node-windows not available on this platform');
+  }
+}
 
 interface PrintJob {
   id: string;
@@ -23,12 +36,22 @@ class WindowsPrintService {
   private serviceInstallAttempted = false; // Prevent multiple install attempts
 
   constructor() {
-    console.log('[PRINT] Windows Print Service initialized');
+    if (isWindows) {
+      console.log('[PRINT] Windows Print Service initialized');
+    } else {
+      console.log('[PRINT] Print Service initialized (non-Windows platform)');
+    }
     // Don't auto-initialize service to prevent infinite loops
     // this.initializeService();
   }
 
   private initializeService() {
+    // Only initialize service on Windows
+    if (!isWindows || !Service) {
+      console.log('[PRINT] Service initialization skipped (non-Windows platform)');
+      return;
+    }
+    
     // Prevent multiple initialization attempts
     if (this.serviceInstallAttempted) {
       console.log('[PRINT] Service initialization already attempted, skipping...');
@@ -184,6 +207,12 @@ class WindowsPrintService {
   }
 
   private async printUsingWindowsAPI(ticketData: string, printerName: string): Promise<void> {
+    // Only use Windows-specific printing on Windows
+    if (!isWindows) {
+      console.log('[PRINT] Windows printing not available on this platform, creating manual print file...');
+      await this.createManualPrintFile(ticketData);
+      return;
+    }
     // Create temp file
     const tempDir = path.join(process.cwd(), 'temp');
     if (!fs.existsSync(tempDir)) {
@@ -259,6 +288,19 @@ class WindowsPrintService {
     }
   }
 
+  private async createManualPrintFile(ticketData: string): Promise<void> {
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const manualPrintFile = path.join(tempDir, `manual_print_${Date.now()}.txt`);
+    fs.writeFileSync(manualPrintFile, ticketData, 'utf8');
+    
+    console.log(`[PRINT] Manual print file created: ${manualPrintFile}`);
+    console.log('[PRINT] Please print this file manually or check printer connection');
+  }
+
   getQueueStatus() {
     return {
       queueLength: this.printQueue.length,
@@ -275,17 +317,23 @@ class WindowsPrintService {
 
   // Method to manually start the service (disabled by default)
   async startService() {
+    if (!isWindows || !Service) {
+      console.log('[PRINT] Service start skipped (non-Windows platform)');
+      return;
+    }
     console.log('[PRINT] Manually starting print service...');
     this.initializeService();
   }
 
   // Method to stop the service
   async stopService() {
-    if (this.service) {
-      console.log('[PRINT] Stopping print service...');
-      this.service.stop();
-      this.isServiceRunning = false;
+    if (!isWindows || !this.service) {
+      console.log('[PRINT] Service stop skipped (non-Windows platform)');
+      return;
     }
+    console.log('[PRINT] Stopping print service...');
+    this.service.stop();
+    this.isServiceRunning = false;
   }
 }
 
