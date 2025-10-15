@@ -24,17 +24,8 @@ export class DatabaseConnectionManager {
             log: config.server.isDevelopment ? ['query', 'info', 'warn', 'error'] : ['error'],
           });
 
-          // Add query logging for performance monitoring
-          this.prisma.$use(async (params, next) => {
-            const start = Date.now();
-            const result = await next(params);
-            const duration = Date.now() - start;
-            
-            // Record database query metrics
-            performanceMonitor.recordDatabaseQuery(duration);
-            
-            return result;
-          });
+          // Database connection successful
+          console.log('[DB] Prisma client initialized successfully');
         }
 
   public static getInstance(): DatabaseConnectionManager {
