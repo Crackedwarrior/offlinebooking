@@ -162,6 +162,26 @@ async stopService() {
 }
 ```
 
+#### Type Annotation Fix:
+**Before:**
+```typescript
+class WindowsPrintService {
+  private service: Service | null = null;
+}
+```
+
+**After:**
+```typescript
+class WindowsPrintService {
+  private service: any = null;  // Using 'any' since Service is conditionally imported
+}
+```
+
+**Reason:**
+- Since `Service` is conditionally imported at runtime, TypeScript doesn't recognize it as a type
+- Using `any` prevents TypeScript compilation errors while maintaining identical runtime behavior
+- This is purely a type annotation change - no impact on actual code execution
+
 #### Reason:
 - `node-windows` package only works on Windows
 - Railway runs on Linux servers

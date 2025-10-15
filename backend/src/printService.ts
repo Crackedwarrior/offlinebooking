@@ -31,7 +31,7 @@ interface PrintJob {
 class WindowsPrintService {
   private printQueue: PrintJob[] = [];
   private isProcessing = false;
-  private service: Service | null = null;
+  private service: any = null;  // Using 'any' since Service is conditionally imported
   private isServiceRunning = false;
   private serviceInstallAttempted = false; // Prevent multiple install attempts
 
