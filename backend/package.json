@@ -6,7 +6,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "dev": "ts-node src/server.ts",
-    "build": "tsc && npx prisma generate && npm run copy:db",
+    "build": "npx tsc && npx prisma generate && npm run copy:db",
     "copy:db": "cp prisma/dev.db dist/dev.db && cp -r prisma dist/",
     "start:prod": "node dist/server.js"
   },
@@ -21,14 +21,14 @@
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
-    "prettier": "^3.6.2",
-    "prisma": "^6.11.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "prettier": "^3.6.2"
   },
   "dependencies": {
     "@fontsource/noto-sans-kannada": "^5.2.6",
     "@prisma/client": "^6.11.1",
+    "typescript": "^5.8.3",
+    "ts-node": "^10.9.2",
+    "prisma": "^6.11.1",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
