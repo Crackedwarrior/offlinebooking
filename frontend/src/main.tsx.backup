@@ -175,6 +175,125 @@ try {
           rowLabels: `${rowLabels.length} row labels (64px)`
         });
       }
+
+    // Force Booking History Dashboard layout - NUCLEAR OPTION
+    // Inject CSS directly into the page
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Filter by Show - SPECIFIC to booking history only */
+      .booking-history-container div[class*="w-8"][class*="flex-shrink-0"] { 
+        margin-left: -120px !important; 
+      }
+      
+      .booking-history-container div[class*="sticky"][class*="top-4"] { 
+        height: 600px !important; 
+        max-height: 600px !important; 
+        min-height: 600px !important; 
+      }
+      
+      .booking-history-container div[class*="h-full"][class*="w-full"][class*="rounded-md"] { 
+        height: 600px !important; 
+        max-height: 600px !important; 
+        min-height: 600px !important; 
+      }
+      
+      /* Seats Booked by Class - SPECIFIC to booking history grid */
+      .booking-history-container div[class*="grid"][class*="grid-cols"] > div:first-child { 
+        width: 1460px !important; 
+        max-width: 1460px !important; 
+        min-width: 1460px !important; 
+        margin-left: -120px !important; 
+        flex: none !important; 
+      }
+      
+      /* Income Breakdown - SPECIFIC to booking history grid */
+      .booking-history-container div[class*="grid"][class*="grid-cols"] > div:last-child { 
+        width: 800px !important; 
+        max-width: 800px !important; 
+        min-width: 800px !important; 
+        flex: none !important; 
+      }
+    `;
+    document.head.appendChild(style);
+    console.log('[WEB] NUCLEAR CSS injected for booking history');
+
+    // Also try JavaScript targeting as backup
+    setTimeout(() => {
+      // Find Filter by Show sidebar by text content
+      const allElements = Array.from(document.querySelectorAll('*'));
+      const filterElement = allElements.find(el => el.textContent?.includes('Filter by Show'));
+      
+      if (filterElement) {
+        console.log('[WEB] Found Filter by Show element:', filterElement);
+        // Find the sidebar container
+        let parent = filterElement.parentElement;
+        while (parent && parent !== document.body) {
+          if (parent.className.includes('w-8') || parent.className.includes('flex-shrink-0')) {
+            parent.style.setProperty('margin-left', '-120px', 'important');
+            parent.style.setProperty('background-color', 'red', 'important'); // Debug
+            console.log('[WEB] Styled sidebar parent:', parent);
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        
+        // Find and style sticky box
+        const stickyBox = filterElement.closest('[class*="sticky"]');
+        if (stickyBox) {
+          (stickyBox as HTMLElement).style.setProperty('height', '600px', 'important');
+          (stickyBox as HTMLElement).style.setProperty('max-height', '600px', 'important');
+          (stickyBox as HTMLElement).style.setProperty('min-height', '600px', 'important');
+          console.log('[WEB] Styled sticky box');
+        }
+      }
+
+      // Find Seats Booked by Class by text content
+      const seatsElement = allElements.find(el => el.textContent?.includes('Seats Booked by Class'));
+      if (seatsElement) {
+        console.log('[WEB] Found Seats Booked by Class element:', seatsElement);
+        // Find the grid container
+        let parent = seatsElement.parentElement;
+        while (parent && parent !== document.body) {
+          if (parent.className.includes('grid')) {
+            const firstColumn = parent.querySelector(':scope > div:first-child');
+            if (firstColumn) {
+              (firstColumn as HTMLElement).style.setProperty('width', '1460px', 'important');
+              (firstColumn as HTMLElement).style.setProperty('max-width', '1460px', 'important');
+              (firstColumn as HTMLElement).style.setProperty('min-width', '1460px', 'important');
+              (firstColumn as HTMLElement).style.setProperty('margin-left', '-120px', 'important');
+              (firstColumn as HTMLElement).style.setProperty('flex', 'none', 'important');
+              (firstColumn as HTMLElement).style.setProperty('background-color', 'blue', 'important'); // Debug
+              console.log('[WEB] Styled seats column');
+              break;
+            }
+          }
+          parent = parent.parentElement;
+        }
+      }
+
+      // Find Income Breakdown by text content
+      const incomeElement = allElements.find(el => el.textContent?.includes('Income Breakdown'));
+      if (incomeElement) {
+        console.log('[WEB] Found Income Breakdown element:', incomeElement);
+        // Find the grid container
+        let parent = incomeElement.parentElement;
+        while (parent && parent !== document.body) {
+          if (parent.className.includes('grid')) {
+            const lastColumn = parent.querySelector(':scope > div:last-child');
+            if (lastColumn) {
+              (lastColumn as HTMLElement).style.setProperty('width', '800px', 'important');
+              (lastColumn as HTMLElement).style.setProperty('max-width', '800px', 'important');
+              (lastColumn as HTMLElement).style.setProperty('min-width', '800px', 'important');
+              (lastColumn as HTMLElement).style.setProperty('flex', 'none', 'important');
+              (lastColumn as HTMLElement).style.setProperty('background-color', 'green', 'important'); // Debug
+              console.log('[WEB] Styled income column');
+              break;
+            }
+          }
+          parent = parent.parentElement;
+        }
+      }
+    }, 1000);
     };
 
     // Initial apply + retry while content renders
@@ -237,11 +356,10 @@ try {
         // Check children
         const children = Array.from(container.children);
         children.forEach((child, index) => {
-          const childElement = child as HTMLElement;
-          const childStyle = window.getComputedStyle(childElement);
+          const childStyle = window.getComputedStyle(child);
           console.log(`[WEB DEBUG] Child ${index}:`, {
-            element: childElement,
-            classes: childElement.className,
+            element: child,
+            classes: child.className,
             computedWidth: childStyle.width,
             computedHeight: childStyle.height,
             computedMaxHeight: childStyle.maxHeight,
@@ -249,10 +367,10 @@ try {
             computedFlexShrink: childStyle.flexShrink,
             computedOverflow: childStyle.overflow,
             computedBoxSizing: childStyle.boxSizing,
-            clientWidth: childElement.clientWidth,
-            clientHeight: childElement.clientHeight,
-            offsetWidth: childElement.offsetWidth,
-            offsetHeight: childElement.offsetHeight
+            clientWidth: child.clientWidth,
+            clientHeight: child.clientHeight,
+            offsetWidth: child.offsetWidth,
+            offsetHeight: child.offsetHeight
           });
         });
       } else {

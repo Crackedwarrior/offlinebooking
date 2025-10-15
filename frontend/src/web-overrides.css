@@ -459,5 +459,155 @@ body[style*="zoom: 0.8"] [class^="h-screen"] {
   max-height: calc(100vh / 0.8 - 140px) !important;
 }
 
+/* ===== BOOKING HISTORY DASHBOARD SPREAD OUT LAYOUT ===== */
+/* Use more space and spread components out for web-only */
+
+/* Increase main container spacing */
+.booking-history-container .space-y-4 > * + * {
+  margin-top: 24px !important;
+}
+
+/* Increase show cards grid gaps */
+.booking-history-container .grid.gap-2 {
+  gap: 16px !important;
+}
+
+/* Increase gap between main columns */
+.booking-history-container .grid.gap-3 {
+  gap: 24px !important;
+}
+
+/* Increase card padding for more spacious layout */
+.booking-history-container .bg-white.border.border-gray-200.rounded-lg.p-4 {
+  padding: 20px !important;
+}
+
+/* Increase income breakdown spacing */
+.booking-history-container .space-y-3 > * + * {
+  margin-top: 16px !important;
+}
+
+/* Increase show card padding */
+.booking-history-container [data-show-card] {
+  padding: 12px !important;
+}
+
+/* Increase quick summary grid gaps */
+.booking-history-container .grid.gap-4 {
+  gap: 20px !important;
+}
+
+/* Increase table padding */
+.booking-history-container .px-4.py-3 {
+  padding: 16px 20px !important;
+}
+
+/* Increase income cards spacing */
+.booking-history-container .space-y-3 {
+  gap: 16px !important;
+}
+
+/* Increase income summary padding */
+.booking-history-container .p-3 {
+  padding: 16px !important;
+}
+
+/* Increase percentage grid gaps */
+.booking-history-container .grid.gap-3 {
+  gap: 16px !important;
+}
+
+/* Make show cards wider to use more horizontal space */
+.booking-history-container [data-show-card] {
+  min-width: 200px !important;
+  flex: 1 !important;
+}
+
+/* Make table wider to use more space */
+.booking-history-container table {
+  width: 100% !important;
+  min-width: 400px !important;
+}
+
+/* Make income breakdown cards wider */
+.booking-history-container .bg-white.border.border-gray-200.rounded-lg {
+  min-width: 300px !important;
+}
+
+/* Increase overall container max-width to use more screen space */
+.booking-history-container {
+  max-width: 95vw !important;
+  width: 95vw !important;
+}
+
+/* Filter by Show component - vertical height and left position */
+.booking-history-container div[class*="w-8"][class*="flex-shrink-0"] {
+  margin-left: -177px !important;
+}
+
+.booking-history-container div[class*="sticky"][class*="top-4"] {
+  height: 900px !important;
+  max-height: 900px !important;
+  min-height: 600px !important;
+}
+
+.booking-history-container div[class*="h-full"][class*="w-full"][class*="rounded-md"] {
+  height: 933px !important;
+  max-height: 933px !important;
+  min-height: 600px !important;
+}
+
+/* Seats Booked by Class - width control */
+.booking-history-container table {
+  width: 1100px !important;
+  max-width: 5000px !important;
+  min-width: 1100px !important;
+}
+
+.booking-history-container .bg-white.border.border-gray-200.rounded-lg {
+  width: 1100px !important;
+  max-width: 5000px !important;
+  min-width: 1100px !important;
+}
+
+/* Income Breakdown - width control */
+.booking-history-container .lg\:col-span-1 {
+  width: 605px !important;
+  max-width: 1000px !important;
+  min-width: 605px !important;
+  flex: none !important;
+}
+
+/* Income Breakdown section - specific targeting */
+.booking-history-container .lg\:col-span-1 .bg-white.border.border-gray-200.rounded-lg.p-4.shadow-sm {
+  width: 600px !important;
+  max-width: 1000px !important;
+  min-width: 600px !important;
+}
+
+/* Increase font size for show card text - calibrated for 80% zoom */
+.booking-history-container .text-xs {
+  font-size: 16.25px !important; /* 13px / 0.8 = 16.25px */
+}
+
+.booking-history-container .text-sm {
+  font-size: 17.5px !important; /* 14px / 0.8 = 17.5px */
+}
+
+/* Increase font size for Filter by Show text - calibrated for 80% zoom */
+.booking-history-container div[class*="h-full"][class*="w-full"][class*="rounded-md"] .text-\[11px\] {
+  font-size: 13.75px !important; /* 11px / 0.8 = 13.75px */
+}
+
+.booking-history-container div[class*="h-full"][class*="w-full"][class*="rounded-md"] .text-\[10px\] {
+  font-size: 12.5px !important; /* 10px / 0.8 = 12.5px */
+}
+
+/* Increase font size for SEAT MAP text in checkout page - calibrated for 80% zoom */
+.checkout-container h4 {
+  font-size: 30px !important; /* 20px / 0.8 = 25px */
+}
+
+
 
 

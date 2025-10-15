@@ -788,7 +788,7 @@ const BookingHistory = () => {
 
   // UI
   return (
-    <div className="p-4 max-w-[1400px] xl:max-w-[1600px] mx-auto">
+    <div className="booking-history-container p-4 max-w-[1400px] xl:max-w-[1600px] mx-auto">
       <div className="flex gap-4">
         {/* Left Vertical Info Strip (slim, vertical text) */}
         <div className="w-8 md:w-10 flex-shrink-0">
