@@ -6,7 +6,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "dev": "ts-node src/server.ts",
-    "build": "npx tsc && npm run copy:db",
+    "build": "npx tsc",
     "copy:db": "node scripts/copy-db.js",
     "start:prod": "echo 'Starting server...' && node dist/server.js",
     "postinstall": "npx prisma generate"
