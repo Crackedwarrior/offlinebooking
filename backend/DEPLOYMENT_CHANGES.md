@@ -373,6 +373,28 @@ NODE_PATH=../node_modules:$NODE_PATH node dist/server.js
 - Display Node.js module resolution paths
 - Use NODE_PATH to point to parent node_modules
 
+**CRITICAL DISCOVERY:**
+Build logs revealed the real issue:
+```
+zod not found in parent
+express-rate-limit not found
+src/config.ts(1,19): error TS2307: Cannot find module 'zod'
+```
+
+**Root Cause:** Dependencies are NOT being installed in parent node_modules during Railway's build process. The build is failing because TypeScript can't find the dependencies.
+
+**Solution Attempt:** Install dependencies in backend directory during build:
+```bash
+npm install && npx tsc
+```
+
+**Debug Strategy for Dependency Installation:**
+- Check backend package.json and dependencies
+- Verify parent node_modules contents
+- Check for specific modules (zod, express-rate-limit, @prisma)
+- Install backend dependencies locally
+- Run TypeScript compilation with local dependencies
+
 #### Reason:
 - Railway needs TypeScript and Prisma in production dependencies for build
 - Type definitions required for TypeScript compilation
