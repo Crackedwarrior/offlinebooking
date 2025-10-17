@@ -293,7 +293,7 @@ error TS2307: Cannot find module '@prisma/client' or its corresponding type decl
 
 **Root Cause:** TypeScript can't find dependencies because they're in the parent `node_modules` directory.
 
-**Solution:** Updated `tsconfig.json` to look for dependencies in parent directory:
+**Solution Attempt 1:** Updated `tsconfig.json` to look for dependencies in parent directory:
 ```json
 {
   "compilerOptions": {
@@ -306,6 +306,28 @@ error TS2307: Cannot find module '@prisma/client' or its corresponding type decl
   }
 }
 ```
+
+**Problem:** Still getting "Cannot find module 'zod'" error.
+
+**Solution Attempt 2:** Changed `baseUrl` to parent directory:
+```json
+{
+  "compilerOptions": {
+    "typeRoots": ["./node_modules/@types", "../node_modules/@types", "./src/types"],
+    "moduleResolution": "node",
+    "baseUrl": "../",
+    "paths": {
+      "*": ["node_modules/*", "backend/node_modules/*"]
+    }
+  }
+}
+```
+
+**Debug Strategy:** Added comprehensive debug logging to understand module resolution:
+- Check current directory and parent node_modules contents
+- Verify specific modules like 'zod' exist
+- Display tsconfig.json configuration
+- Use `--listFiles` to see what TypeScript is actually resolving
 
 #### Reason:
 - Railway needs TypeScript and Prisma in production dependencies for build

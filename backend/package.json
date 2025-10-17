@@ -6,7 +6,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "dev": "ts-node src/server.ts",
-    "build": "echo 'Debug: Finding TSC in parent...' && find ../node_modules -name 'tsc' -type f && echo 'Debug: Running TSC via node...' && node ../node_modules/typescript/bin/tsc",
+    "build": "echo '=== DEBUG: MODULE RESOLUTION ===' && echo 'Current directory:' && pwd && echo 'Checking parent node_modules:' && ls -la ../node_modules/ | head -5 && echo 'Checking for zod:' && ls -la ../node_modules/zod/ 2>/dev/null || echo 'zod not found in parent' && echo 'Checking tsconfig.json:' && cat tsconfig.json && echo '=== RUNNING TSC ===' && node ../node_modules/typescript/bin/tsc --listFiles | head -10",
     "copy:db": "node scripts/copy-db.js",
     "start:prod": "echo 'Starting server...' && node dist/server.js",
     "postinstall": "npx prisma generate"
