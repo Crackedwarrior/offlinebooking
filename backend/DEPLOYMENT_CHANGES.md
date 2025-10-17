@@ -352,6 +352,27 @@ npm error Missing script: "start:prod"
 - List available scripts in backend package.json
 - Run the actual start:prod command with full logging
 
+**New Issue Discovered:**
+After start command worked, server failed with:
+```
+Error: Cannot find module 'express-rate-limit'
+Require stack: /app/backend/dist/server.js
+```
+
+**Root Cause:** Node.js runtime can't find dependencies because they're in parent `node_modules` directory, but the compiled JavaScript is running from `/app/backend/` directory.
+
+**Solution Attempt:** Use NODE_PATH environment variable to tell Node.js where to find modules:
+```bash
+NODE_PATH=../node_modules:$NODE_PATH node dist/server.js
+```
+
+**Debug Strategy for Runtime Module Resolution:**
+- Check if node_modules exists in backend directory
+- Verify parent node_modules contents
+- Check for specific modules like express-rate-limit
+- Display Node.js module resolution paths
+- Use NODE_PATH to point to parent node_modules
+
 #### Reason:
 - Railway needs TypeScript and Prisma in production dependencies for build
 - Type definitions required for TypeScript compilation
