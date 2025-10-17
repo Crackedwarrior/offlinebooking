@@ -329,6 +329,29 @@ error TS2307: Cannot find module '@prisma/client' or its corresponding type decl
 - Display tsconfig.json configuration
 - Use `--listFiles` to see what TypeScript is actually resolving
 
+**New Issue Discovered:**
+After build succeeded, Railway deployment failed with:
+```
+npm error Missing script: "start:prod"
+```
+
+**Root Cause:** Railway is running `npm run start:prod` from the root directory, but the `start:prod` script is only defined in `backend/package.json`, not in the root `package.json`.
+
+**Solution:** Added `start:prod` script to root `package.json`:
+```json
+{
+  "scripts": {
+    "start:prod": "cd backend && npm run start:prod"
+  }
+}
+```
+
+**Debug Strategy for Start Command:**
+- Check current directory and verify we're in the right location
+- Change to backend directory and confirm navigation
+- List available scripts in backend package.json
+- Run the actual start:prod command with full logging
+
 #### Reason:
 - Railway needs TypeScript and Prisma in production dependencies for build
 - Type definitions required for TypeScript compilation

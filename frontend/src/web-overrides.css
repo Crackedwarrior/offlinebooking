@@ -560,20 +560,20 @@ body[style*="zoom: 0.8"] [class^="h-screen"] {
 /* Seats Booked by Class - width control */
 .booking-history-container table {
   width: 1100px !important;
-  max-width: 5000px !important;
+  max-width: 1100px !important;
   min-width: 1100px !important;
 }
 
 .booking-history-container .bg-white.border.border-gray-200.rounded-lg {
   width: 1100px !important;
-  max-width: 5000px !important;
+  max-width: 1100px !important;
   min-width: 1100px !important;
 }
 
 /* Income Breakdown - width control */
 .booking-history-container .lg\:col-span-1 {
   width: 605px !important;
-  max-width: 1000px !important;
+  max-width: 605px !important;
   min-width: 605px !important;
   flex: none !important;
 }
@@ -581,8 +581,11 @@ body[style*="zoom: 0.8"] [class^="h-screen"] {
 /* Income Breakdown section - specific targeting */
 .booking-history-container .lg\:col-span-1 .bg-white.border.border-gray-200.rounded-lg.p-4.shadow-sm {
   width: 600px !important;
-  max-width: 1000px !important;
+  max-width: 600px !important;
   min-width: 600px !important;
+  height: 698px !important;
+  max-height: 698px !important;
+  min-height: 500px !important;
 }
 
 /* Increase font size for show card text - calibrated for 80% zoom */

@@ -7,13 +7,14 @@
     "dev:desktop": "cd frontend && npm run electron:dev",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "cd backend && npm run build",
+    "build": "cd backend && npx tsc",
     "electron:dev": "cd frontend && npm run electron:dev",
     "electron:build": "cd frontend && npm run electron:build",
     "electron:pack": "cd frontend && npm run electron:pack",
     "electron:dist": "cd frontend && npm run electron:dist",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "start": "cd backend && npm start",
+    "start:prod": "echo '=== DEBUG: START COMMAND ===' && echo 'Current directory:' && pwd && echo 'Changing to backend...' && cd backend && echo 'Backend directory:' && pwd && echo 'Available scripts:' && npm run && echo 'Running start:prod...' && npm run start:prod",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
