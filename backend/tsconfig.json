@@ -6,7 +6,12 @@
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types", "../node_modules/@types", "./src/types"],
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["../node_modules/*", "./node_modules/*"]
+    }
   },
   "include": ["src/**/*"]
 } 

@@ -284,6 +284,29 @@ class WindowsPrintService {
 - Using `../node_modules/typescript/bin/tsc` points to the correct location
 - This bypasses all permission and symlink issues
 
+**New Issue Discovered:**
+After fixing the TSC path, TypeScript compilation failed with:
+```
+error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+```
+
+**Root Cause:** TypeScript can't find dependencies because they're in the parent `node_modules` directory.
+
+**Solution:** Updated `tsconfig.json` to look for dependencies in parent directory:
+```json
+{
+  "compilerOptions": {
+    "typeRoots": ["./node_modules/@types", "../node_modules/@types", "./src/types"],
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["../node_modules/*", "./node_modules/*"]
+    }
+  }
+}
+```
+
 #### Reason:
 - Railway needs TypeScript and Prisma in production dependencies for build
 - Type definitions required for TypeScript compilation
