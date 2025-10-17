@@ -6,7 +6,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "dev": "ts-node src/server.ts",
-    "build": "npx tsc",
+    "build": "echo 'Debug: Current directory' && pwd && echo 'Debug: TSC exists?' && ls -la node_modules/.bin/tsc && echo 'Debug: Setting permissions' && chmod +x node_modules/.bin/tsc && echo 'Debug: Running TSC' && node_modules/.bin/tsc",
     "copy:db": "node scripts/copy-db.js",
     "start:prod": "echo 'Starting server...' && node dist/server.js",
     "postinstall": "npx prisma generate"
