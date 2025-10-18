@@ -183,7 +183,7 @@ export class PrinterService {
       console.log('[PRINT] Printing tickets:', tickets.length);
       
       // Check if we're in web environment
-      if (typeof window !== 'undefined' && !window.electronAPI) {
+      if (typeof window !== 'undefined' && !(window as any).electronAPI) {
         // Web environment - use PDF generation
         return await this.printTicketsWeb(tickets);
       } else {
@@ -208,7 +208,7 @@ export class PrinterService {
         // Core ticket data (matching formatTicket method expectations)
         movie: tickets[0]?.film || 'Movie', // ✅ formatTicket looks for 'movie' first
         movieName: tickets[0]?.film || 'Movie', // ✅ fallback field
-        movieLanguage: tickets[0]?.movieLanguage || 'HINDI', // ✅ for movie name formatting
+        movieLanguage: 'HINDI', // ✅ Always use HINDI for KALANK
         show: 'EVENING', // ✅ formatTicket looks for 'show' field
         showTime: tickets[0]?.showtime || '6:00 PM', // ✅ formatTicket uses this
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],

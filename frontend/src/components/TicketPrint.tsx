@@ -7,6 +7,30 @@ import { getTheaterConfig } from '@/config/theaterConfig';
 import { PrintErrorBoundary } from './SpecializedErrorBoundaries';
 // import { toast } from '@/hooks/use-toast';
 
+// ✅ Copy working class detection from BookingHistory
+const getClassFromSeatId = (seatId: string): string | null => {
+  const rowPrefix = seatId.split('-')[0];
+  const classMapping: Record<string, string> = {
+    'BOX': 'BOX',
+    'SC': 'STAR CLASS',
+    'CB': 'CLASSIC',
+    'FC': 'FIRST CLASS',
+    'SC2': 'SECOND CLASS'
+  };
+  
+  if (classMapping[rowPrefix]) {
+    return classMapping[rowPrefix];
+  }
+  
+  for (const [prefix, classLabel] of Object.entries(classMapping)) {
+    if (rowPrefix.startsWith(prefix)) {
+      return classLabel;
+    }
+  }
+  
+  return null;
+};
+
 // Types for seat and ticket group
 interface Seat {
   id: string;
@@ -317,18 +341,29 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         // Prepare ticket data for web printing (matching TicketData interface)
         const ticketData = selectedSeats.map(seat => {
           const theaterConfig = getTheaterConfig();
-          const netAmount = seat.price;
-          const cgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% CGST
-          const sgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% SGST
-          const mc = 2.00; // Convenience fee
-          const totalAmount = netAmount + cgst + sgst + mc;
+          
+          // ✅ Get class label from seat ID (like Electron does)
+          const classLabel = getClassFromSeatId(seat.id);
+          
+          // ✅ Fetch price from settings store (like Electron does)
+          const price = getPriceForClass(classLabel);
+          
+          // ✅ Use SAME GST calculation as working Electron
+          const gstRate = 0.18;
+          const cgstRate = 0.09;
+          const sgstRate = 0.09;
+          const netAmount = price / (1 + gstRate);
+          const cgst = netAmount * cgstRate;
+          const sgst = netAmount * sgstRate;
+          const mc = 0; // ✅ Same as Electron
+          const totalAmount = price; // ✅ Same as Electron
           
           return {
             theaterName: printerConfig.theaterName || theaterConfig.name,
             location: printerConfig.location || theaterConfig.location,
             date: selectedDate,
-            film: currentMovie.name, // ✅ Correct field name
-            class: seat.classLabel, // ✅ Correct field name
+            film: currentMovie.name, // ✅ From settings store
+            class: classLabel, // ✅ "BOX" not "BOX-A"
             row: seat.row,
             seatNumber: seat.number,
             showtime: showtime,

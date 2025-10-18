@@ -163,7 +163,7 @@ class PdfPrintService {
     // In production, fonts are in the same directory as the service
     // In development, fonts are in the parent directory
     const isProduction = process.env.NODE_ENV === 'production';
-    const fontDir = isProduction ? path.join(__dirname, 'fonts') : path.join(__dirname, '..', 'fonts');
+    const fontDir = isProduction ? path.join(process.cwd(), 'fonts') : path.join(__dirname, '..', 'fonts');
     
     const regularFontPath = path.join(fontDir, 'NotoSansKannada-Regular.ttf');
     const boldFontPath = path.join(fontDir, 'NotoSansKannada-Bold.ttf');

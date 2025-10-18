@@ -1993,7 +1993,182 @@ width: 1600px !important;
 
 ---
 
-**Document Version:** 2.1  
+---
+
+## Latest Changes - Web PDF Generation Fixes (October 18, 2025)
+
+### **Fix Web Price Fetching and GST Calculation**
+
+**Problem:** Web version was showing incorrect pricing (₹0 instead of ₹200) and wrong GST calculations because it was using `seat.price` (which was 0) instead of fetching from settings store like Electron does.
+
+**File:** `frontend/src/components/TicketPrint.tsx`
+
+**BEFORE:**
+```typescript
+// Web environment - use PDF generation via backend
+const ticketData = selectedSeats.map(seat => {
+  const theaterConfig = getTheaterConfig();
+  const netAmount = seat.price; // ❌ Wrong: seat.price is 0
+  const cgst = Math.round((netAmount * 0.09) * 100) / 100; // ❌ Wrong calculation
+  const sgst = Math.round((netAmount * 0.09) * 100) / 100; // ❌ Wrong calculation
+  const mc = 2.00; // ❌ Wrong: should be 0 like Electron
+  const totalAmount = netAmount + cgst + sgst + mc; // ❌ Wrong total
+  
+  return {
+    // ...
+    class: seat.classLabel, // ❌ "BOX-A" instead of "BOX"
+    // ...
+  };
+});
+```
+
+**AFTER:**
+```typescript
+// Web environment - use PDF generation via backend
+const ticketData = selectedSeats.map(seat => {
+  const theaterConfig = getTheaterConfig();
+  
+  // ✅ Get class label from seat ID (like Electron does)
+  const classLabel = getClassFromSeatId(seat.id);
+  
+  // ✅ Fetch price from settings store (like Electron does)
+  const price = getPriceForClass(classLabel);
+  
+  // ✅ Use SAME GST calculation as working Electron
+  const gstRate = 0.18;
+  const cgstRate = 0.09;
+  const sgstRate = 0.09;
+  const netAmount = price / (1 + gstRate);
+  const cgst = netAmount * cgstRate;
+  const sgst = netAmount * sgstRate;
+  const mc = 0; // ✅ Same as Electron
+  const totalAmount = price; // ✅ Same as Electron
+  
+  return {
+    // ...
+    class: classLabel, // ✅ "BOX" not "BOX-A"
+    // ...
+  };
+});
+```
+
+### **Add Working Class Detection Function**
+
+**Problem:** Web version couldn't properly detect seat class from seat ID, resulting in "BOX-A" instead of "BOX".
+
+**File:** `frontend/src/components/TicketPrint.tsx`
+
+**BEFORE:**
+```typescript
+// No class detection function available
+```
+
+**AFTER:**
+```typescript
+// ✅ Copy working class detection from BookingHistory
+const getClassFromSeatId = (seatId: string): string | null => {
+  const rowPrefix = seatId.split('-')[0];
+  const classMapping: Record<string, string> = {
+    'BOX': 'BOX',
+    'SC': 'STAR CLASS',
+    'CB': 'CLASSIC',
+    'FC': 'FIRST CLASS',
+    'SC2': 'SECOND CLASS'
+  };
+  
+  if (classMapping[rowPrefix]) {
+    return classMapping[rowPrefix];
+  }
+  
+  for (const [prefix, classLabel] of Object.entries(classMapping)) {
+    if (rowPrefix.startsWith(prefix)) {
+      return classLabel;
+    }
+  }
+  
+  return null;
+};
+```
+
+### **Fix Default Pricing**
+
+**Problem:** Frontend default pricing was set to 0 for all classes, causing incorrect pricing.
+
+**File:** `frontend/src/store/settingsStore.ts`
+
+**BEFORE:**
+```typescript
+const defaultPricing: PricingSettings = {
+  'BOX': 0,        // ❌ Wrong: should be 200
+  'STAR CLASS': 0, // ❌ Wrong: should be 150
+  'CLASSIC': 0,    // ❌ Wrong: should be 100
+  'FIRST CLASS': 0,// ❌ Wrong: should be 80
+  'SECOND CLASS': 0// ❌ Wrong: should be 50
+};
+```
+
+**AFTER:**
+```typescript
+const defaultPricing: PricingSettings = {
+  'BOX': 200,        // ✅ Correct pricing
+  'STAR CLASS': 150, // ✅ Correct pricing
+  'CLASSIC': 100,    // ✅ Correct pricing
+  'FIRST CLASS': 80, // ✅ Correct pricing
+  'SECOND CLASS': 50 // ✅ Correct pricing
+};
+```
+
+### **Fix Font Path for Railway Deployment**
+
+**Problem:** Railway deployment couldn't find NotoSansKannada fonts, causing rupee symbol to not display properly.
+
+**File:** `backend/src/pdfPrintService.ts`
+
+**BEFORE:**
+```typescript
+const fontDir = isProduction ? path.join(__dirname, 'fonts') : path.join(__dirname, '..', 'fonts');
+```
+
+**AFTER:**
+```typescript
+const fontDir = isProduction ? path.join(process.cwd(), 'fonts') : path.join(__dirname, '..', 'fonts');
+```
+
+### **Fix Movie Language**
+
+**Problem:** Web version was trying to access undefined `movieLanguage` from ticket data.
+
+**File:** `frontend/src/services/printerService.ts`
+
+**BEFORE:**
+```typescript
+movieLanguage: tickets[0]?.movieLanguage || 'HINDI', // ❌ tickets[0]?.movieLanguage is undefined
+```
+
+**AFTER:**
+```typescript
+movieLanguage: 'HINDI', // ✅ Always use HINDI for KALANK
+```
+
+### **Fix TypeScript Linting Error**
+
+**Problem:** TypeScript error for `window.electronAPI` property.
+
+**File:** `frontend/src/services/printerService.ts`
+
+**BEFORE:**
+```typescript
+if (typeof window !== 'undefined' && !window.electronAPI) {
+```
+
+**AFTER:**
+```typescript
+if (typeof window !== 'undefined' && !(window as any).electronAPI) {
+```
+
+---
+
+**Document Version:** 2.2  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
 **Status:** ✅ Verified - No Electron Impact, Complete Before/After Documentation

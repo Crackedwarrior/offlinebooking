@@ -105,11 +105,11 @@ const defaultMovies: MovieSettings[] = [
 ];
 
 const defaultPricing: PricingSettings = {
-  'BOX': 0,
-  'STAR CLASS': 0,
-  'CLASSIC': 0,
-  'FIRST CLASS': 0,
-  'SECOND CLASS': 0
+  'BOX': 200,
+  'STAR CLASS': 150,
+  'CLASSIC': 100,
+  'FIRST CLASS': 80,
+  'SECOND CLASS': 50
 };
 
 
