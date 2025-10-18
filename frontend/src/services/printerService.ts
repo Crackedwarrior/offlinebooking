@@ -203,7 +203,7 @@ export class PrinterService {
       console.log('[PRINT] Generating PDF tickets for web:', tickets.length, 'tickets');
       console.log('[PRINT] Raw ticket data:', tickets);
       
-      // Convert tickets to booking format for PDF generation
+      // Convert tickets to booking format for PDF generation (matching PDF service expectations)
       const bookingData = {
         ticketId: `WEB-${Date.now()}`,
         customerName: 'Customer',
@@ -212,10 +212,17 @@ export class PrinterService {
         movieName: tickets[0]?.film || 'Movie',
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
         showTime: tickets[0]?.showtime || '2:30 PM',
-        showName: tickets[0]?.showtime || '2:30 PM', // Add show name
+        showClass: tickets[0]?.showtime || '2:30 PM', // ✅ PDF service expects showClass
+        seatClass: tickets[0]?.class || 'GENERAL', // ✅ PDF service expects seatClass
+        seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ PDF service expects seatInfo
+        individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ PDF service expects individualTicketPrice
+        net: tickets[0]?.netAmount || 0, // ✅ PDF service expects net
+        cgst: tickets[0]?.cgst || 0, // ✅ PDF service expects cgst
+        sgst: tickets[0]?.sgst || 0, // ✅ PDF service expects sgst
+        mc: tickets[0]?.mc || 0, // ✅ PDF service expects mc
         seats: tickets.map(ticket => ({
           seatId: `${ticket.row}${ticket.seatNumber}`,
-          class: ticket.class || 'GENERAL', // ✅ Fix undefined class
+          class: ticket.class || 'GENERAL',
           price: ticket.totalAmount,
           netAmount: ticket.netAmount,
           cgst: ticket.cgst,

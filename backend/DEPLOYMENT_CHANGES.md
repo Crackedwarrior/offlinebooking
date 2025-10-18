@@ -488,6 +488,90 @@ console.log('[PRINT] Formatted booking data for PDF:', bookingData);
 
 ---
 
+### 23. Fix PDF Service Field Mapping Issues
+**File:** `frontend/src/services/printerService.ts`
+
+#### Problem:
+- PDF was still showing "undefined" values despite previous fixes
+- Data structure mismatch between frontend and PDF service expectations
+- PDF service expected different field names than what frontend was sending
+- Missing critical fields: `showClass`, `seatClass`, `seatInfo`, `individualTicketPrice`
+
+#### Before:
+```typescript
+const bookingData = {
+  ticketId: `WEB-${Date.now()}`,
+  customerName: 'Customer',
+  phoneNumber: '',
+  email: '',
+  movieName: tickets[0]?.film || 'Movie',
+  date: tickets[0]?.date || new Date().toISOString().split('T')[0],
+  showTime: tickets[0]?.showtime || '2:30 PM',
+  showName: tickets[0]?.showtime || '2:30 PM', // ❌ Wrong field name
+  seats: tickets.map(ticket => ({
+    seatId: `${ticket.row}${ticket.seatNumber}`,
+    class: ticket.class || 'GENERAL',
+    price: ticket.totalAmount,
+    netAmount: ticket.netAmount,
+    cgst: ticket.cgst,
+    sgst: ticket.sgst,
+    mc: ticket.mc
+  })),
+  totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+  transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
+  theaterName: tickets[0]?.theaterName || 'Theater',
+  location: tickets[0]?.location || 'Location'
+};
+```
+
+#### After:
+```typescript
+const bookingData = {
+  ticketId: `WEB-${Date.now()}`,
+  customerName: 'Customer',
+  phoneNumber: '',
+  email: '',
+  movieName: tickets[0]?.film || 'Movie',
+  date: tickets[0]?.date || new Date().toISOString().split('T')[0],
+  showTime: tickets[0]?.showtime || '2:30 PM',
+  showClass: tickets[0]?.showtime || '2:30 PM', // ✅ PDF service expects showClass
+  seatClass: tickets[0]?.class || 'GENERAL', // ✅ PDF service expects seatClass
+  seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ PDF service expects seatInfo
+  individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ PDF service expects individualTicketPrice
+  net: tickets[0]?.netAmount || 0, // ✅ PDF service expects net
+  cgst: tickets[0]?.cgst || 0, // ✅ PDF service expects cgst
+  sgst: tickets[0]?.sgst || 0, // ✅ PDF service expects sgst
+  mc: tickets[0]?.mc || 0, // ✅ PDF service expects mc
+  seats: tickets.map(ticket => ({
+    seatId: `${ticket.row}${ticket.seatNumber}`,
+    class: ticket.class || 'GENERAL',
+    price: ticket.totalAmount,
+    netAmount: ticket.netAmount,
+    cgst: ticket.cgst,
+    sgst: ticket.sgst,
+    mc: ticket.mc
+  })),
+  totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+  transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
+  theaterName: tickets[0]?.theaterName || 'Theater',
+  location: tickets[0]?.location || 'Location'
+};
+```
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Only affects web PDF generation
+- ✅ All Electron functionality preserved
+
+#### Impact on Web:
+- ✅ **FIXED** - PDF service now receives correct field names
+- ✅ **FIXED** - No more "undefined" values in show class and seat class
+- ✅ **FIXED** - Proper seat information display
+- ✅ **FIXED** - Correct individual ticket price calculation
+- ✅ **FIXED** - Proper tax breakdown (net, cgst, sgst, mc)
+- ✅ **IMPROVED** - Complete data mapping between frontend and PDF service
+
+---
+
 ## Changes Summary
 
 ### 1. Database Connection Manager
