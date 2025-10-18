@@ -265,6 +265,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
     
     try {
       console.log('[PRINT] Starting print process...');
+      console.log('[PRINT] Environment check:', typeof window !== 'undefined' ? 'BROWSER' : 'NODE');
+      console.log('[PRINT] Electron API available:', typeof window !== 'undefined' && !!window.electronAPI);
       console.log('[PRINT] Selected seats:', selectedSeats);
       console.log('[PRINT] Selected date:', selectedDate);
       console.log('[PRINT] Selected show:', selectedShow);
@@ -304,83 +306,89 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         return;
       }
 
-      // Use Electron printer service
-      const electronPrinterService = ElectronPrinterService.getInstance();
+      // Check if we're in web or Electron environment
+      const isWebEnvironment = typeof window !== 'undefined' && !window.electronAPI;
+      console.log('[PRINT] Environment detection:', isWebEnvironment ? 'WEB' : 'ELECTRON');
       
-      // Prepare grouped ticket data
-      const ticketGroups = groups.map(group => ({
-        theaterName: printerConfig.theaterName || getTheaterConfig().name,
-        location: printerConfig.location || getTheaterConfig().location,
-        date: selectedDate,
-        showTime: showtime,
-        showKey: selectedShow,
-        movieName: currentMovie.name,
-        movieLanguage: currentMovie.language, // Add language information
-        classLabel: group.classLabel,
-        row: group.row,
-        seatRange: formatSeatNumbers(group.seats),
-        seatCount: group.seats.length,
-        individualPrice: group.price / group.seats.length,
-        totalPrice: group.price,
-        isDecoupled: group.seatIds.some(id => decoupledSeatIds.includes(id)),
-        seatIds: group.seatIds,
-        transactionId: 'TXN' + Date.now()
-      }));
-
-      console.log('[PRINT] Preparing to print grouped tickets via Electron:', ticketGroups);
-      
-      // 🚀 FRONTEND DEBUG: Log which service will be used
-      console.log('[PRINT] FRONTEND DEBUG: Movie language:', currentMovie.language);
-      console.log('[PRINT] FRONTEND DEBUG: Movie printInKannada setting:', currentMovie.printInKannada);
-      if (currentMovie.printInKannada) {
-        console.log('[PRINT] FRONTEND DEBUG: This movie will use FastKannadaPrintService (wkhtmltopdf)');
-        console.log('[PRINT] FRONTEND DEBUG: Expected performance: 3-5x faster than Puppeteer');
-      } else {
-        console.log('[PRINT] FRONTEND DEBUG: This movie will use PdfPrintService (PDFKit) for English');
-      }
-
-      // Print each ticket group using Electron
-      let allPrinted = true;
-      for (const ticketGroup of ticketGroups) {
-        const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
-        console.log('[PRINT] FRONTEND DEBUG: About to print ticket group:', ticketGroup.seatRange);
-        console.log('[PRINT] FRONTEND DEBUG: Movie data being sent:', currentMovie);
+      if (isWebEnvironment) {
+        // Web environment - use PDF generation via backend
+        console.log('[PRINT] Using web PDF generation...');
         
-        // 🚀 FRONTEND DEBUG: Start timing for performance measurement
-        const startTime = Date.now();
-        console.log('[PRINT] FRONTEND DEBUG: Starting print at:', new Date().toISOString());
+        // Prepare ticket data for web printing
+        const ticketData = selectedSeats.map(seat => ({
+          seatId: seat.id,
+          row: seat.row,
+          seatNumber: seat.number,
+          classLabel: seat.classLabel,
+          price: seat.price,
+          date: selectedDate,
+          showtime: showtime,
+          movieName: currentMovie.name,
+          movieLanguage: currentMovie.language,
+          theaterName: printerConfig.theaterName || getTheaterConfig().name,
+          location: printerConfig.location || getTheaterConfig().location,
+          transactionId: 'TXN' + Date.now()
+        }));
         
-        const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
+        console.log('[PRINT] Web ticket data:', ticketData);
         
-        // 🚀 FRONTEND DEBUG: End timing and log performance
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        console.log('[PRINT] FRONTEND DEBUG: Print completed at:', new Date().toISOString());
-        console.log('[PRINT] FRONTEND DEBUG: Print duration:', duration + 'ms');
-        
-        if (currentMovie.printInKannada) {
-          console.log('[PRINT] FRONTEND DEBUG: FastKannadaPrintService (wkhtmltopdf) performance:', duration + 'ms');
-          if (duration < 2000) {
-            console.log('[PRINT] FRONTEND DEBUG: Excellent performance - under 2 seconds');
-          } else if (duration < 5000) {
-            console.log('[PRINT] FRONTEND DEBUG: Good performance - under 5 seconds');
-          } else {
-            console.log('[WARN] FRONTEND DEBUG: Performance could be better. Consider checking wkhtmltopdf setup');
-          }
-        } else {
-          console.log('[PRINT] FRONTEND DEBUG: PdfPrintService (PDFKit) performance:', duration + 'ms');
-        }
+        // Use the printer service which handles web vs Electron automatically
+        const printSuccess = await printerInstance.printTickets(ticketData);
         
         if (!printSuccess) {
-          console.error('[ERROR] Failed to print ticket group:', ticketGroup.seatRange);
-          allPrinted = false;
-          break;
+          console.error('[ERROR] Failed to generate PDF tickets');
+          return;
         }
-      }
-      
-      if (!allPrinted) {
-        console.error('[ERROR] Failed to print all tickets');
-        return;
+        
+        console.log('[PRINT] PDF tickets generated successfully');
+        
+      } else {
+        // Electron environment - use native printing
+        console.log('[PRINT] Using Electron native printing...');
+        
+        const electronPrinterService = ElectronPrinterService.getInstance();
+        
+        // Prepare grouped ticket data
+        const ticketGroups = groups.map(group => ({
+          theaterName: printerConfig.theaterName || getTheaterConfig().name,
+          location: printerConfig.location || getTheaterConfig().location,
+          date: selectedDate,
+          showTime: showtime,
+          showKey: selectedShow,
+          movieName: currentMovie.name,
+          movieLanguage: currentMovie.language,
+          classLabel: group.classLabel,
+          row: group.row,
+          seatRange: formatSeatNumbers(group.seats),
+          seatCount: group.seats.length,
+          individualPrice: group.price / group.seats.length,
+          totalPrice: group.price,
+          isDecoupled: group.seatIds.some(id => decoupledSeatIds.includes(id)),
+          seatIds: group.seatIds,
+          transactionId: 'TXN' + Date.now()
+        }));
+
+        console.log('[PRINT] Preparing to print grouped tickets via Electron:', ticketGroups);
+        
+        // Print each ticket group using Electron
+        let allPrinted = true;
+        for (const ticketGroup of ticketGroups) {
+          const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
+          console.log('[PRINT] About to print ticket group:', ticketGroup.seatRange);
+          
+          const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
+          
+          if (!printSuccess) {
+            console.error('[ERROR] Failed to print ticket group:', ticketGroup.seatRange);
+            allPrinted = false;
+            break;
+          }
+        }
+        
+        if (!allPrinted) {
+          console.error('[ERROR] Failed to print all tickets');
+          return;
+        }
       }
 
       // If printing is successful, save booking to backend

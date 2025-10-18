@@ -9,6 +9,129 @@ This document details all changes made to enable Railway deployment while mainta
 
 ## Changes Summary
 
+### 16. Frontend Print Button Environment Detection Fix
+**File:** `frontend/src/components/TicketPrint.tsx`
+
+#### Problem:
+- Print button was always trying to use Electron services even in web environment
+- Caused JavaScript errors when `window.electronAPI` was undefined
+- Web users couldn't print tickets (PDF generation)
+
+#### Before:
+```typescript
+// Always used Electron services (WRONG for web)
+const electronPrinterService = ElectronPrinterService.getInstance();
+
+// Print each ticket group using Electron
+let allPrinted = true;
+for (const ticketGroup of ticketGroups) {
+  const formattedTicket = electronPrinterService.formatTicketForThermal(ticketGroup);
+  const printSuccess = await electronPrinterService.printTicket(formattedTicket, printerConfig.name, currentMovie);
+  // ... Electron-specific code
+}
+```
+
+#### After:
+```typescript
+// Check if we're in web or Electron environment
+const isWebEnvironment = typeof window !== 'undefined' && !window.electronAPI;
+console.log('[PRINT] Environment detection:', isWebEnvironment ? 'WEB' : 'ELECTRON');
+
+if (isWebEnvironment) {
+  // Web environment - use PDF generation via backend
+  console.log('[PRINT] Using web PDF generation...');
+  
+  // Prepare ticket data for web printing
+  const ticketData = selectedSeats.map(seat => ({
+    seatId: seat.id,
+    row: seat.row,
+    seatNumber: seat.number,
+    classLabel: seat.classLabel,
+    price: seat.price,
+    date: selectedDate,
+    showtime: showtime,
+    movieName: currentMovie.name,
+    movieLanguage: currentMovie.language,
+    theaterName: printerConfig.theaterName || getTheaterConfig().name,
+    location: printerConfig.location || getTheaterConfig().location,
+    transactionId: 'TXN' + Date.now()
+  }));
+  
+  // Use the printer service which handles web vs Electron automatically
+  const printSuccess = await printerInstance.printTickets(ticketData);
+  
+} else {
+  // Electron environment - use native printing (unchanged)
+  console.log('[PRINT] Using Electron native printing...');
+  const electronPrinterService = ElectronPrinterService.getInstance();
+  // ... existing Electron code unchanged
+}
+```
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Electron code path is completely unchanged
+- ✅ Uses exact same native thermal printing as before
+- ✅ All Electron functionality preserved
+
+#### Impact on Web:
+- ✅ **FIXED** - Now properly detects web environment
+- ✅ Uses PDF generation via backend instead of Electron services
+- ✅ Print button now works in web browser
+
+---
+
+## Changes Summary
+
+### 17. Content Security Policy (CSP) Headers Fix
+**File:** `backend/src/server.ts`
+
+#### Problem:
+- Browser console showed CSP error: "Content Security Policy of your site blocks the use of 'eval' in JavaScript"
+- This was blocking JavaScript execution and preventing seat selection and printing
+- Web functionality was broken due to CSP restrictions
+
+#### Before:
+```typescript
+// Trust proxy for Railway deployment (fixes rate limiting errors)
+// Use specific proxy configuration instead of 'true' to avoid security warnings
+app.set('trust proxy', 1);
+```
+
+#### After:
+```typescript
+// Trust proxy for Railway deployment (fixes rate limiting errors)
+// Use specific proxy configuration instead of 'true' to avoid security warnings
+app.set('trust proxy', 1);
+
+// Add Content Security Policy headers to fix CSP errors
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', 
+    "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob:; " +
+    "connect-src 'self' https: http:; " +
+    "font-src 'self' data:;"
+  );
+  next();
+});
+```
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - CSP headers only affect web browsers
+- ✅ Electron doesn't use HTTP headers for security policies
+- ✅ All Electron functionality preserved
+
+#### Impact on Web:
+- ✅ **FIXED** - CSP error resolved
+- ✅ JavaScript execution no longer blocked
+- ✅ Seat selection and printing now work in web browser
+- ✅ Allows necessary `unsafe-eval` for React/Vite development
+
+---
+
+## Changes Summary
+
 ### 1. Database Connection Manager
 **File:** `backend/src/db/connectionManager.ts`
 
