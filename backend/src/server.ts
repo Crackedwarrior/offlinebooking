@@ -320,32 +320,10 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Add security headers
+// Add security headers (CSP is already set above, so we skip it here)
 app.use((req: Request, res: Response, next) => {
-  // Content Security Policy - More restrictive for production
-  const cspPolicy = config.server.isProduction
-    ? "default-src 'self'; " +
-      "script-src 'self'; " +
-      "style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data: blob:; " +
-      "font-src 'self' data:; " +
-      "connect-src 'self' http://localhost:* ws://localhost:*; " +
-      "frame-ancestors 'none'; " +
-      "base-uri 'self'; " +
-      "form-action 'self'; " +
-      "object-src 'none'; " +
-      "media-src 'self';"
-    : "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-      "style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data: blob:; " +
-      "font-src 'self' data:; " +
-      "connect-src 'self' http://localhost:* ws://localhost:*; " +
-      "frame-ancestors 'none'; " +
-      "base-uri 'self'; " +
-      "form-action 'self';";
-
-  res.setHeader('Content-Security-Policy', cspPolicy);
+  // Skip CSP header - already set above with proper unsafe-eval support
+  // This prevents conflicting CSP headers that block JavaScript execution
   
   // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');

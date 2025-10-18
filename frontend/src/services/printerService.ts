@@ -48,9 +48,32 @@ export class PrinterService {
       if (savedConfig) {
         this.printerConfig = JSON.parse(savedConfig);
         console.log('[PRINT] Printer configuration loaded:', this.printerConfig);
+      } else {
+        // Fallback configuration for web environment
+        const theaterConfig = getTheaterConfig();
+        this.printerConfig = {
+          name: 'web-pdf-printer',
+          port: 'web',
+          theaterName: theaterConfig.name,
+          location: theaterConfig.location,
+          gstin: theaterConfig.gstin || 'DEFAULT_GSTIN',
+          printerType: 'pdf'
+        };
+        console.log('[PRINT] Using fallback printer configuration for web:', this.printerConfig);
       }
     } catch (error) {
       console.error('[ERROR] Failed to load printer configuration:', error);
+      // Fallback configuration on error
+      const theaterConfig = getTheaterConfig();
+      this.printerConfig = {
+        name: 'web-pdf-printer',
+        port: 'web',
+        theaterName: theaterConfig.name,
+        location: theaterConfig.location,
+        gstin: theaterConfig.gstin || 'DEFAULT_GSTIN',
+        printerType: 'pdf'
+      };
+      console.log('[PRINT] Using error fallback printer configuration:', this.printerConfig);
     }
   }
 

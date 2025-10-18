@@ -621,11 +621,19 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
             className={`flex-1 flex flex-col items-center justify-center transition-all duration-200 ${canPrint ? 'bg-green-50 hover:bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
           onClick={() => {
             console.log('[PRINT] Print button clicked');
+            console.log('[PRINT] canPrint:', canPrint);
+            console.log('[PRINT] hasMovieAssigned:', hasMovieAssigned);
+            console.log('[PRINT] hasTicketsSelected:', hasTicketsSelected);
+            console.log('[PRINT] selectedSeats.length:', selectedSeats.length);
+            console.log('[PRINT] selectedShow:', selectedShow);
+            
             if (!canPrint) {
               if (!hasMovieAssigned) console.log('[ERROR] Cannot print: No movie assigned to the current show');
               else if (!hasTicketsSelected) console.log('[WARN] No tickets to print');
               return;
             }
+            
+            console.log('[PRINT] Calling handleConfirmPrint...');
             handleConfirmPrint();
           }}
           disabled={!canPrint}
