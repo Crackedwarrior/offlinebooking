@@ -304,8 +304,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         return;
       }
 
-      // Get show time details from settings store
-      const { getShowTimes } = useSettingsStore.getState();
+      // Get show time details and pricing from settings store
+      const { getShowTimes, getPriceForClass } = useSettingsStore.getState();
       const showTimes = getShowTimes();
       const currentShowTime = showTimes.find(show => show.key === selectedShow);
       
@@ -325,8 +325,11 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       const printerInstance = printerService.getInstance();
       const printerConfig = printerInstance.getPrinterConfig();
       
+      console.log('[PRINT] Printer config:', printerConfig);
+      
       if (!printerConfig || !printerConfig.name) {
         console.error('[ERROR] No printer configured');
+        console.error('[ERROR] Printer config details:', { printerConfig, hasName: !!printerConfig?.name });
         return;
       }
 
@@ -381,10 +384,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         console.log('[PRINT] Web ticket data:', ticketData);
         
         // Use the printer service which handles web vs Electron automatically
+        console.log('[PRINT] Calling printerInstance.printTickets...');
         const printSuccess = await printerInstance.printTickets(ticketData);
+        console.log('[PRINT] printTickets result:', printSuccess);
         
         if (!printSuccess) {
           console.error('[ERROR] Failed to generate PDF tickets');
+          console.error('[ERROR] printTickets returned false');
           return;
         }
         
@@ -493,10 +499,13 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
     } catch (error) {
       console.error('[ERROR] Error in handleConfirmPrint:', error);
       console.error('[ERROR] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
+        message: error?.message || 'Unknown error',
+        stack: error?.stack || 'No stack trace',
+        name: error?.name || 'Unknown error type'
       });
+      
+      // Show user-friendly error message
+      alert('Failed to generate PDF ticket. Please check the console for details.');
     }
   };
 

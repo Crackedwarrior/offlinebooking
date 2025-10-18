@@ -2494,8 +2494,133 @@ const bookingData = {
 
 ---
 
-**Document Version:** 2.4  
+---
+
+## Change #25: Enhanced Print Button Debugging and Error Handling (October 18, 2025)
+
+### Problem
+User reported that clicking the "Print Now" button was not generating PDF tickets and the page remained static. No calls were being made to the backend PDF generation endpoint.
+
+### Root Cause Analysis
+1. **Missing Function Import**: `getPriceForClass` function was not imported from settings store
+2. **Insufficient Error Handling**: Print function could fail silently without proper error reporting
+3. **Limited Debug Logging**: Not enough console logs to trace the print flow
+
+### Solution
+Enhanced the print button functionality with comprehensive debugging and error handling.
+
+### Changes Made
+
+#### 1. Fixed Missing Function Import in TicketPrint.tsx
+
+**BEFORE:**
+```typescript
+// Get show time details from settings store
+const { getShowTimes } = useSettingsStore.getState();
+```
+
+**AFTER:**
+```typescript
+// Get show time details and pricing from settings store
+const { getShowTimes, getPriceForClass } = useSettingsStore.getState();
+```
+
+#### 2. Enhanced Printer Configuration Debugging
+
+**BEFORE:**
+```typescript
+if (!printerConfig || !printerConfig.name) {
+  console.error('[ERROR] No printer configured');
+  return;
+}
+```
+
+**AFTER:**
+```typescript
+console.log('[PRINT] Printer config:', printerConfig);
+
+if (!printerConfig || !printerConfig.name) {
+  console.error('[ERROR] No printer configured');
+  console.error('[ERROR] Printer config details:', { printerConfig, hasName: !!printerConfig?.name });
+  return;
+}
+```
+
+#### 3. Enhanced Print Service Call Debugging
+
+**BEFORE:**
+```typescript
+console.log('[PRINT] Web ticket data:', ticketData);
+
+// Use the printer service which handles web vs Electron automatically
+const printSuccess = await printerInstance.printTickets(ticketData);
+
+if (!printSuccess) {
+  console.error('[ERROR] Failed to generate PDF tickets');
+  return;
+}
+```
+
+**AFTER:**
+```typescript
+console.log('[PRINT] Web ticket data:', ticketData);
+
+// Use the printer service which handles web vs Electron automatically
+console.log('[PRINT] Calling printerInstance.printTickets...');
+const printSuccess = await printerInstance.printTickets(ticketData);
+console.log('[PRINT] printTickets result:', printSuccess);
+
+if (!printSuccess) {
+  console.error('[ERROR] Failed to generate PDF tickets');
+  console.error('[ERROR] printTickets returned false');
+  return;
+}
+```
+
+#### 4. Enhanced Error Handling with User Feedback
+
+**BEFORE:**
+```typescript
+} catch (error) {
+  console.error('[ERROR] Error in handleConfirmPrint:', error);
+  console.error('[ERROR] Error details:', {
+    message: error.message,
+    stack: error.stack,
+    name: error.name
+  });
+}
+```
+
+**AFTER:**
+```typescript
+} catch (error) {
+  console.error('[ERROR] Error in handleConfirmPrint:', error);
+  console.error('[ERROR] Error details:', {
+    message: error?.message || 'Unknown error',
+    stack: error?.stack || 'No stack trace',
+    name: error?.name || 'Unknown error type'
+  });
+  
+  // Show user-friendly error message
+  alert('Failed to generate PDF ticket. Please check the console for details.');
+}
+```
+
+### Impact
+- **Debugging**: Comprehensive logging to trace print flow from button click to PDF generation
+- **Error Handling**: Better error reporting with user-friendly messages
+- **Functionality**: Fixed missing function import that could cause silent failures
+- **User Experience**: Users will now see error messages if PDF generation fails
+
+### Testing
+- Print button click should now show detailed console logs
+- Any errors will be properly caught and displayed to user
+- Missing function import issue resolved
+
+---
+
+**Document Version:** 2.5  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ PDF Generation Fixed - Correct Movie Data Now Used
+**Status:** ✅ Enhanced Print Button Debugging and Error Handling
 
