@@ -253,13 +253,19 @@ export class PrinterService {
       
       console.log('[PRINT] Formatted booking data for PDF:', bookingData);
       
-      // Call backend PDF generation API
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/print/pdf`, {
+      // Call backend PDF generation API (use the proper endpoint that handles both English and Kannada)
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/thermal-printer/print`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ bookingData }),
+        body: JSON.stringify({ 
+          ticketData: bookingData,
+          printerName: 'web-pdf-printer',
+          movieSettings: {
+            printInKannada: currentMovieLanguage === 'KANNADA' // ✅ Check if movie is in Kannada
+          }
+        }),
       });
       
       if (!response.ok) {

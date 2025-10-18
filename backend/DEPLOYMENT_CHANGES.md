@@ -2699,8 +2699,76 @@ NIGHT SHOW (10:06 PM)
 
 ---
 
-**Document Version:** 2.6  
+---
+
+## Change #27: Fixed Web PDF to Use Proper Endpoint with Kannada Support (October 18, 2025)
+
+### Problem
+User reported two critical issues:
+1. **Wrong Format**: Web PDF was not following the exact ticket format shown in the reference image
+2. **Missing Kannada Support**: Web version was not using Kannada font for rupee symbol like the English version
+
+### Root Cause Analysis
+1. **Wrong API Endpoint**: Web version was calling `/api/print/pdf` instead of `/api/thermal-printer/print`
+2. **No Language Detection**: The `/api/print/pdf` endpoint doesn't check for Kannada language
+3. **Missing Kannada Service**: Web version wasn't using the proper endpoint that switches between English and Kannada services
+
+### Solution
+Updated web version to use the proper endpoint that handles both English and Kannada printing with correct format.
+
+### Changes Made
+
+#### Fixed API Endpoint and Added Kannada Support in printerService.ts
+
+**BEFORE:**
+```typescript
+// Call backend PDF generation API
+const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/print/pdf`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ bookingData }),
+```
+
+**AFTER:**
+```typescript
+// Call backend PDF generation API (use the proper endpoint that handles both English and Kannada)
+const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/thermal-printer/print`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ 
+    ticketData: bookingData,
+    printerName: 'web-pdf-printer',
+    movieSettings: {
+      printInKannada: currentMovieLanguage === 'KANNADA' // ✅ Check if movie is in Kannada
+    }
+  }),
+```
+
+### Impact
+- **Correct Format**: Web PDF now uses the same endpoint as Electron, ensuring identical format
+- **Kannada Support**: Web version now properly detects Kannada movies and uses Kannada PDF service
+- **Rupee Symbol**: Kannada font (NotoSansKannada) will be used for ₹ symbol in Kannada movies
+- **Language Detection**: Automatic switching between English and Kannada services based on movie language
+
+### Expected Result
+- **English Movies**: Will use English PDF service with proper format
+- **Kannada Movies**: Will use Kannada PDF service with Kannada font for ₹ symbol
+- **Seat Format**: Will show "SEAT : A 16, 17, 18 (3)" exactly like the reference image
+- **Class Format**: Will show "CLASS : STAR CLASS" exactly like the reference image
+
+### Testing
+- Test with English movie (e.g., AVENGERS: ENDGAME) - should use English service
+- Test with Kannada movie - should use Kannada service with proper ₹ symbol
+- Verify seat format matches reference image exactly
+
+---
+
+**Document Version:** 2.7  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Web PDF Format Now Matches Electron Format Exactly
+**Status:** ✅ Web PDF Now Uses Proper Endpoint with Kannada Support
 
