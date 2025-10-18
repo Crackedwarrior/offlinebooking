@@ -345,6 +345,12 @@ div#elementTooltip,
   border-bottom: 1px solid #e5e7eb !important;
 }
 
+/* Fix bottom checkout tile to touch sidebar (not overlap) */
+.fixed.bottom-0.z-\[9999\].bg-white.border-t.border-gray-200.flex.flex-row.items-center.justify-between.px-6.py-8.shadow-lg.animate-fade-in.transition-all.duration-300 {
+  left: 4rem !important; /* Start right after the sidebar (64px = 4rem) */
+  right: 0 !important;
+}
+
 /* Ensure legend is visible - WEB ONLY */
 .checkout-container .mt-4.p-3.bg-white.border.border-gray-200.rounded-xl.shadow-md.hover\:shadow-lg.transition-shadow.duration-300.w-full.flex.flex-col.flex-1.min-h-0.overflow-x-hidden.relative .mt-3.pt-2.border-t.border-gray-100 {
   display: block !important;
