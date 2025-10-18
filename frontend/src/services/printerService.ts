@@ -213,6 +213,14 @@ export class PrinterService {
       console.log('[PRINT] Current show from ticket data:', currentShow);
       console.log('[PRINT] Current movie language from ticket data:', currentMovieLanguage);
       
+      // Get movie settings to check if Kannada printing is enabled
+      const { getMovieForShow } = useSettingsStore.getState();
+      const currentMovieSettings = getMovieForShow(currentShow);
+      const shouldPrintInKannada = currentMovieSettings?.printInKannada || false;
+      
+      console.log('[PRINT] Current movie settings:', currentMovieSettings);
+      console.log('[PRINT] Should print in Kannada:', shouldPrintInKannada);
+      
       // Convert tickets to format that matches the working formatTicket method expectations
       const bookingData = {
         // Core ticket data (matching formatTicket method expectations)
@@ -251,22 +259,22 @@ export class PrinterService {
         location: tickets[0]?.location || 'Location'
       };
       
-      console.log('[PRINT] Formatted booking data for PDF:', bookingData);
-      
-      // Call backend PDF generation API (use the proper endpoint that handles both English and Kannada)
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/thermal-printer/print`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          ticketData: bookingData,
-          printerName: 'web-pdf-printer',
-          movieSettings: {
-            printInKannada: currentMovieLanguage === 'KANNADA' // ✅ Check if movie is in Kannada
-          }
-        }),
-      });
+        console.log('[PRINT] Formatted booking data for PDF:', bookingData);
+        
+        // Call backend PDF generation API (use the proper endpoint that handles both English and Kannada)
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/thermal-printer/print`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            ticketData: bookingData,
+            printerName: 'web-pdf-printer',
+            movieSettings: {
+              printInKannada: shouldPrintInKannada // ✅ Check if movie is set to print in Kannada
+            }
+          }),
+        });
       
       if (!response.ok) {
         throw new Error(`PDF generation failed: ${response.statusText}`);

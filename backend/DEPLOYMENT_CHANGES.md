@@ -2718,7 +2718,37 @@ Updated web version to use the proper endpoint that handles both English and Kan
 
 ### Changes Made
 
-#### Fixed API Endpoint and Added Kannada Support in printerService.ts
+#### 1. Added Kannada Language Detection in printerService.ts
+
+**BEFORE:**
+```typescript
+// Get current movie and show from ticket data
+const currentShow = tickets[0]?.show || 'NIGHT';
+const currentMovieLanguage = tickets[0]?.movieLanguage || 'HINDI';
+
+console.log('[PRINT] Current show from ticket data:', currentShow);
+console.log('[PRINT] Current movie language from ticket data:', currentMovieLanguage);
+```
+
+**AFTER:**
+```typescript
+// Get current movie and show from ticket data
+const currentShow = tickets[0]?.show || 'NIGHT';
+const currentMovieLanguage = tickets[0]?.movieLanguage || 'HINDI';
+
+console.log('[PRINT] Current show from ticket data:', currentShow);
+console.log('[PRINT] Current movie language from ticket data:', currentMovieLanguage);
+
+// Get movie settings to check if Kannada printing is enabled
+const { getMovieForShow } = useSettingsStore.getState();
+const currentMovieSettings = getMovieForShow(currentShow);
+const shouldPrintInKannada = currentMovieSettings?.printInKannada || false;
+
+console.log('[PRINT] Current movie settings:', currentMovieSettings);
+console.log('[PRINT] Should print in Kannada:', shouldPrintInKannada);
+```
+
+#### 2. Fixed API Endpoint and Added Kannada Support
 
 **BEFORE:**
 ```typescript
@@ -2729,6 +2759,7 @@ const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://loc
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({ bookingData }),
+});
 ```
 
 **AFTER:**
@@ -2743,27 +2774,31 @@ const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://loc
     ticketData: bookingData,
     printerName: 'web-pdf-printer',
     movieSettings: {
-      printInKannada: currentMovieLanguage === 'KANNADA' // ✅ Check if movie is in Kannada
+      printInKannada: shouldPrintInKannada // ✅ Check if movie is set to print in Kannada
     }
   }),
+});
 ```
 
 ### Impact
 - **Correct Format**: Web PDF now uses the same endpoint as Electron, ensuring identical format
 - **Kannada Support**: Web version now properly detects Kannada movies and uses Kannada PDF service
 - **Rupee Symbol**: Kannada font (NotoSansKannada) will be used for ₹ symbol in Kannada movies
-- **Language Detection**: Automatic switching between English and Kannada services based on movie language
+- **Language Detection**: Automatic switching between English and Kannada services based on movie settings
+- **Settings Integration**: Web version now reads the `printInKannada` flag from movie settings
 
 ### Expected Result
-- **English Movies**: Will use English PDF service with proper format
+- **English Movies**: Will use English PDF service with proper format matching reference image
 - **Kannada Movies**: Will use Kannada PDF service with Kannada font for ₹ symbol
 - **Seat Format**: Will show "SEAT : A 16, 17, 18 (3)" exactly like the reference image
 - **Class Format**: Will show "CLASS : STAR CLASS" exactly like the reference image
+- **Settings Control**: Users can toggle Kannada printing in movie settings, just like Electron
 
 ### Testing
 - Test with English movie (e.g., AVENGERS: ENDGAME) - should use English service
-- Test with Kannada movie - should use Kannada service with proper ₹ symbol
+- Test with Kannada movie with `printInKannada: true` - should use Kannada service with proper ₹ symbol
 - Verify seat format matches reference image exactly
+- Verify settings integration works (toggle Kannada printing in movie settings)
 
 ---
 
