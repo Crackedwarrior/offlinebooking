@@ -266,6 +266,19 @@ const kannadaPdfKitService = new KannadaPdfKitService();
 // Use specific proxy configuration instead of 'true' to avoid security warnings
 app.set('trust proxy', 1);
 
+// Add Content Security Policy headers to fix CSP errors
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', 
+    "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob:; " +
+    "connect-src 'self' https: http:; " +
+    "font-src 'self' data:;"
+  );
+  next();
+});
+
 // Configure CORS with proper origin restrictions
 app.use(cors({
   origin: (origin, callback) => {
