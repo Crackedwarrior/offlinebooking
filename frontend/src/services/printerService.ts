@@ -202,7 +202,7 @@ export class PrinterService {
       }));
       
       // Send to backend printing service
-      const response = await fetch('http://localhost:3001/api/printer/print', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/printer/print`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

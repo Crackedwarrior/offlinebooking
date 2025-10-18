@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SEAT_CLASSES, SHOW_TIMES } from '@/lib/config';
+import { SettingsApiService } from '@/services/settingsApi';
 
 export interface MovieSettings {
   id: string;
@@ -55,6 +56,10 @@ export interface SettingsState {
   getTotalMovies: () => number;
   getEnabledMovies: () => MovieSettings[];
   getPricingSummary: () => { min: number; max: number; average: number };
+  
+  // Backend sync methods
+  loadSettingsFromBackend: () => Promise<void>;
+  saveSettingsToBackend: () => Promise<void>;
 }
 
 const defaultMovies: MovieSettings[] = [
@@ -359,6 +364,61 @@ export const useSettingsStore = create<SettingsState>()(
         const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
         
         return { min, max, average };
+      },
+
+      // Backend sync methods
+      loadSettingsFromBackend: async () => {
+        try {
+          const settingsApi = SettingsApiService.getInstance();
+          const backendAvailable = await settingsApi.isBackendAvailable();
+          
+          if (backendAvailable) {
+            console.log('[SETTINGS] Backend available, loading settings from API');
+            const backendSettings = await settingsApi.loadSettings();
+            
+            if (backendSettings) {
+              set({
+                movies: backendSettings.movies,
+                pricing: backendSettings.pricing,
+                showTimes: backendSettings.showTimes
+              });
+              console.log('[SETTINGS] Settings loaded from backend successfully');
+            } else {
+              console.log('[SETTINGS] Failed to load from backend, using local defaults');
+            }
+          } else {
+            console.log('[SETTINGS] Backend not available, using local settings');
+          }
+        } catch (error) {
+          console.error('[ERROR] Failed to load settings from backend:', error);
+        }
+      },
+
+      saveSettingsToBackend: async () => {
+        try {
+          const state = get();
+          const settingsApi = SettingsApiService.getInstance();
+          const backendAvailable = await settingsApi.isBackendAvailable();
+          
+          if (backendAvailable) {
+            console.log('[SETTINGS] Backend available, saving settings to API');
+            const success = await settingsApi.saveSettings({
+              movies: state.movies,
+              pricing: state.pricing,
+              showTimes: state.showTimes
+            });
+            
+            if (success) {
+              console.log('[SETTINGS] Settings saved to backend successfully');
+            } else {
+              console.log('[SETTINGS] Failed to save to backend');
+            }
+          } else {
+            console.log('[SETTINGS] Backend not available, settings saved locally only');
+          }
+        } catch (error) {
+          console.error('[ERROR] Failed to save settings to backend:', error);
+        }
       }
     }),
     {

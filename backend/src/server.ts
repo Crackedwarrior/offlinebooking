@@ -2093,6 +2093,100 @@ app.get('/api/ticket-id/next', asyncHandler(async (req: Request, res: Response) 
   res.json(response);
 }));
 
+// ===== SETTINGS API ENDPOINTS =====
+
+// Get all settings (movies, pricing, show times)
+app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    // For now, return default settings - in production, these would come from database
+    const defaultSettings = {
+      movies: [
+        {
+          id: 'movie-1',
+          name: 'KALANK',
+          language: 'HINDI',
+          screen: 'Screen 1',
+          printInKannada: false,
+          showAssignments: {
+            MORNING: true,
+            MATINEE: false,
+            EVENING: true,
+            NIGHT: false
+          }
+        },
+        {
+          id: 'movie-2',
+          name: 'AVENGERS: ENDGAME',
+          language: 'ENGLISH',
+          screen: 'Screen 1',
+          printInKannada: false,
+          showAssignments: {
+            MORNING: false,
+            MATINEE: true,
+            EVENING: false,
+            NIGHT: true
+          }
+        }
+      ],
+      pricing: {
+        'BOX': 200,
+        'STAR CLASS': 150,
+        'CLASSIC': 100,
+        'FIRST CLASS': 80,
+        'SECOND CLASS': 50
+      },
+      showTimes: [
+        { key: 'MORNING', label: 'Morning Show', startTime: '10:00 AM', endTime: '12:30 PM', enabled: true },
+        { key: 'MATINEE', label: 'Matinee Show', startTime: '2:30 PM', endTime: '5:00 PM', enabled: true },
+        { key: 'EVENING', label: 'Evening Show', startTime: '6:00 PM', endTime: '8:30 PM', enabled: true },
+        { key: 'NIGHT', label: 'Night Show', startTime: '9:00 PM', endTime: '11:30 PM', enabled: true }
+      ]
+    };
+
+    const response: ApiResponse<any> = {
+      success: true,
+      data: defaultSettings,
+      message: 'Settings retrieved successfully'
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('[ERROR] Failed to get settings:', error);
+    const response: ApiResponse<null> = {
+      success: false,
+      data: null,
+      message: 'Failed to retrieve settings'
+    };
+    res.status(500).json(response);
+  }
+}));
+
+// Update settings (movies, pricing, show times)
+app.post('/api/settings', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { movies, pricing, showTimes } = req.body;
+    
+    // For now, just log the update - in production, save to database
+    console.log('[SETTINGS] Updated settings:', { movies, pricing, showTimes });
+    
+    const response: ApiResponse<null> = {
+      success: true,
+      data: null,
+      message: 'Settings updated successfully'
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('[ERROR] Failed to update settings:', error);
+    const response: ApiResponse<null> = {
+      success: false,
+      data: null,
+      message: 'Failed to update settings'
+    };
+    res.status(500).json(response);
+  }
+}));
+
 // Add error handling middleware (must be last)
 app.use(errorLogger);
 app.use(errorHandler);

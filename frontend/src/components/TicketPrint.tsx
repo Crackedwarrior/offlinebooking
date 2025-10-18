@@ -124,7 +124,7 @@ const classColorMap: Record<string, string> = {
 // Save booking to backend
 async function saveBookingToBackend(bookingData: any) {
   try {
-    const response = await fetch('http://localhost:3001/api/bookings', {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/bookings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -411,7 +411,7 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
       };
       
       console.log('[BOOKING] Saving booking to backend:', bookingData);
-      console.log('[BOOKING] Backend URL: http://localhost:3001');
+      console.log('[BOOKING] Backend URL:', import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001');
       
       const response = await saveBookingToBackend(bookingData);
       console.log('[BOOKING] Backend response:', response);

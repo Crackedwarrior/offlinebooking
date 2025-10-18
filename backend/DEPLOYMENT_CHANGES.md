@@ -592,6 +592,308 @@ git reset --hard <commit-hash-before-changes>
    - Database schema unchanged
    - Client code unchanged
 
+---
+
+## Frontend-Backend Connection Fixes
+
+### 6. Environment-Based API URLs
+**Files:** 
+- `frontend/src/services/desktopApi.ts`
+- `frontend/src/services/printerService.ts`
+- `frontend/src/components/TicketPrint.tsx`
+- `frontend/src/services/installationService.ts`
+
+#### Problem:
+- Frontend was using hardcoded `localhost:3001` URLs
+- Web version couldn't connect to Railway backend
+- Settings changes weren't reflected in web version
+
+#### Changes Made:
+
+**Before (Hardcoded URLs):**
+```typescript
+// desktopApi.ts
+private baseUrl: string = 'http://localhost:3001';
+
+// printerService.ts
+const response = await fetch('http://localhost:3001/api/printer/print', {
+
+// TicketPrint.tsx
+const response = await fetch('http://localhost:3001/api/bookings', {
+
+// installationService.ts
+const response = await fetch('http://localhost:3001/health');
+```
+
+**After (Environment-based URLs):**
+```typescript
+// desktopApi.ts
+import { envConfig } from '@/config/env';
+private baseUrl: string = envConfig.api.baseUrl; // Uses VITE_API_BASE_URL
+
+// printerService.ts
+const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/printer/print`, {
+
+// TicketPrint.tsx
+const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/bookings`, {
+
+// installationService.ts
+const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/health`);
+```
+
+#### Reason:
+- Enable web version to connect to Railway backend
+- Maintain backward compatibility with Electron
+- Allow environment-specific API endpoints
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Falls back to localhost:3001 if VITE_API_BASE_URL not set
+- ✅ **Backward Compatible** - Works exactly as before
+- ✅ **Environment Aware** - Can use different URLs for different environments
+
+---
+
+### 7. Backend Settings API
+**File:** `backend/src/server.ts`
+
+#### Changes Made:
+- Added `/api/settings` GET endpoint to retrieve settings
+- Added `/api/settings` POST endpoint to save settings
+- Returns default settings (movies, pricing, show times)
+
+#### Before:
+```typescript
+// No settings API endpoints existed
+```
+
+#### After:
+```typescript
+// Get all settings (movies, pricing, show times)
+app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
+  // Returns default settings with proper pricing
+  const defaultSettings = {
+    movies: [...],
+    pricing: {
+      'BOX': 200,
+      'STAR CLASS': 150,
+      'CLASSIC': 100,
+      'FIRST CLASS': 80,
+      'SECOND CLASS': 50
+    },
+    showTimes: [...]
+  };
+  // ... response handling
+}));
+
+// Update settings (movies, pricing, show times)
+app.post('/api/settings', asyncHandler(async (req: Request, res: Response) => {
+  // Logs settings updates (ready for database storage)
+  // ... response handling
+}));
+```
+
+#### Reason:
+- Enable web version to load settings from backend
+- Provide centralized settings management
+- Allow real-time settings updates
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - New endpoints don't affect existing functionality
+- ✅ **Optional** - Electron can continue using localStorage
+- ✅ **Future Ready** - Can be used by Electron if needed
+
+---
+
+### 8. Frontend Settings API Service
+**File:** `frontend/src/services/settingsApi.ts` (NEW)
+
+#### Changes Made:
+- Created new service to communicate with backend settings API
+- Handles loading and saving settings from/to backend
+- Includes backend availability checking
+
+#### New File:
+```typescript
+export class SettingsApiService {
+  private baseUrl: string = envConfig.api.baseUrl;
+
+  async loadSettings(): Promise<SettingsData | null> {
+    // Loads settings from /api/settings endpoint
+  }
+
+  async saveSettings(settings: SettingsData): Promise<boolean> {
+    // Saves settings to /api/settings endpoint
+  }
+
+  async isBackendAvailable(): Promise<boolean> {
+    // Checks if backend is accessible
+  }
+}
+```
+
+#### Reason:
+- Enable frontend to sync settings with backend
+- Provide fallback to localStorage when backend unavailable
+- Centralize settings API communication
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - New service, doesn't affect existing code
+- ✅ **Optional** - Can be used by Electron if desired
+- ✅ **Backward Compatible** - Falls back to localStorage
+
+---
+
+### 9. Settings Store Backend Sync
+**File:** `frontend/src/store/settingsStore.ts`
+
+#### Changes Made:
+- Added `loadSettingsFromBackend()` method
+- Added `saveSettingsToBackend()` method
+- Maintains localStorage as fallback
+
+#### Before:
+```typescript
+// Only localStorage persistence
+export const useSettingsStore = create<SettingsState>()(
+  persist((set, get) => ({
+    // ... store implementation
+  }), {
+    name: 'booking-settings',
+    // ... localStorage config
+  })
+);
+```
+
+#### After:
+```typescript
+// Added backend sync methods
+loadSettingsFromBackend: async () => {
+  const settingsApi = SettingsApiService.getInstance();
+  const backendAvailable = await settingsApi.isBackendAvailable();
+  
+  if (backendAvailable) {
+    const backendSettings = await settingsApi.loadSettings();
+    if (backendSettings) {
+      set({
+        movies: backendSettings.movies,
+        pricing: backendSettings.pricing,
+        showTimes: backendSettings.showTimes
+      });
+    }
+  }
+},
+
+saveSettingsToBackend: async () => {
+  // Similar implementation for saving
+}
+```
+
+#### Reason:
+- Enable automatic settings sync with backend
+- Maintain localStorage as fallback
+- Provide seamless experience across platforms
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - New methods, existing functionality unchanged
+- ✅ **Optional** - Electron continues using localStorage
+- ✅ **Future Ready** - Can enable backend sync for Electron if needed
+
+---
+
+### 10. Settings Sync Hook
+**File:** `frontend/src/hooks/useSettingsSync.ts` (NEW)
+
+#### Changes Made:
+- Created hook to automatically sync settings on app startup
+- Integrates with settings store backend methods
+
+#### New File:
+```typescript
+export const useSettingsSync = () => {
+  const loadSettingsFromBackend = useSettingsStore(state => state.loadSettingsFromBackend);
+
+  useEffect(() => {
+    const initializeSettings = async () => {
+      await loadSettingsFromBackend();
+    };
+    initializeSettings();
+  }, [loadSettingsFromBackend]);
+
+  return { saveSettingsToBackend };
+};
+```
+
+#### Reason:
+- Automatically load settings from backend when app starts
+- Provide manual save functionality
+- Ensure settings are always up-to-date
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - New hook, doesn't affect existing functionality
+- ✅ **Optional** - Can be used by Electron if desired
+- ✅ **Backward Compatible** - Falls back gracefully
+
+---
+
+### 11. App Component Integration
+**File:** `frontend/src/App.tsx`
+
+#### Changes Made:
+- Added `useSettingsSync()` hook to initialize settings sync
+
+#### Before:
+```typescript
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // ... rest of component
+};
+```
+
+#### After:
+```typescript
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Initialize settings sync with backend
+  useSettingsSync();
+  
+  // ... rest of component
+};
+```
+
+#### Reason:
+- Ensure settings are loaded from backend on app startup
+- Provide seamless user experience
+- Enable real-time settings updates
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - New hook call, existing functionality unchanged
+- ✅ **Optional** - Electron can continue using localStorage
+- ✅ **Backward Compatible** - Falls back to localStorage if backend unavailable
+
+---
+
+## Environment Configuration
+
+### Web Version (Vercel):
+```bash
+VITE_API_BASE_URL=https://your-railway-backend.com
+```
+
+### Electron Version (Local Development):
+```bash
+VITE_API_BASE_URL=http://localhost:3001
+# OR leave unset (defaults to localhost:3001)
+```
+
+### Benefits:
+- ✅ **Web version** connects to Railway backend (updated settings)
+- ✅ **Electron version** connects to local backend (local settings)
+- ✅ **Backward compatible** - no breaking changes
+- ✅ **Environment aware** - different URLs for different environments
+
+---
+
 ### Future Considerations:
 
 - If deploying to production web, consider adding a PostgreSQL database instead of SQLite

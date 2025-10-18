@@ -56,7 +56,7 @@ export class InstallationService {
   static async checkFirstRun(): Promise<boolean> {
     try {
       // Check if backend is accessible
-      const response = await fetch('http://localhost:3001/health');
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/health`);
       return !response.ok; // If health check fails, might need installation
     } catch (error) {
       console.log('[INSTALL] First run detected - backend not accessible');

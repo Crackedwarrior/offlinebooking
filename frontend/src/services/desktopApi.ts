@@ -1,9 +1,10 @@
 // Electron API for desktop operations
+import { envConfig } from '@/config/env';
 
 // Desktop-specific API service
 export class DesktopApiService {
   private static instance: DesktopApiService;
-  private baseUrl: string = 'http://localhost:3001'; // Backend will run on this port
+  private baseUrl: string = envConfig.api.baseUrl; // Use environment config
 
   private constructor() {}
 
