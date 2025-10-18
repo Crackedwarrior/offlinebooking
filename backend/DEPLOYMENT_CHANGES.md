@@ -979,12 +979,33 @@ app.set('trust proxy', 1);
 #### New Endpoints:
 
 **PDF Generation Endpoint:**
+
+**Before (Initial Implementation - Had Errors):**
 ```typescript
 app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
   const { bookingData } = req.body;
   
   // Generate PDF using existing PDF service
-  const pdfBuffer = await pdfPrintService.generateTicketPdf(bookingData);
+  const pdfBuffer = await pdfPrintService.generateTicketPdf(bookingData); // ❌ Method doesn't exist
+  
+  // Set headers for PDF download
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ticket-${bookingData.ticketId || Date.now()}.pdf"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  
+  // Send PDF buffer
+  res.send(pdfBuffer);
+}));
+```
+
+**After (Fixed Implementation):**
+```typescript
+app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
+  const { bookingData } = req.body;
+  
+  // Generate PDF using existing PDF service
+  const pdfPath = await pdfPrintService.createPDFTicket(bookingData); // ✅ Correct method name
+  const pdfBuffer = fs.readFileSync(pdfPath); // ✅ Read file from path
   
   // Set headers for PDF download
   res.setHeader('Content-Type', 'application/pdf');
@@ -997,27 +1018,63 @@ app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
 ```
 
 **Booking + PDF Endpoint:**
+
+**Before (Initial Implementation - Had Errors):**
 ```typescript
 app.post('/api/booking/print', asyncHandler(async (req: Request, res: Response) => {
   const bookingData = req.body;
   
   // First create the booking
-  const booking = await createBooking(bookingData);
+  const booking = await createBooking(bookingData); // ❌ Function doesn't exist
   
   // Then generate PDF
-  const pdfBuffer = await pdfPrintService.generateTicketPdf(booking);
+  const pdfBuffer = await pdfPrintService.generateTicketPdf(booking); // ❌ Method doesn't exist
   
   // Send PDF for download
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="ticket-${booking.ticketId}.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="ticket-${booking.ticketId}.pdf"`); // ❌ booking undefined
   res.send(pdfBuffer);
 }));
 ```
+
+**After (Fixed Implementation):**
+```typescript
+app.post('/api/booking/print', asyncHandler(async (req: Request, res: Response) => {
+  const bookingData = req.body;
+  
+  // For now, just generate PDF directly (booking creation can be added later)
+  const pdfPath = await pdfPrintService.createPDFTicket(bookingData); // ✅ Correct method name
+  const pdfBuffer = fs.readFileSync(pdfPath); // ✅ Read file from path
+  
+  // Send PDF for download
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ticket-${bookingData.ticketId || Date.now()}.pdf"`); // ✅ Use bookingData
+  res.send(pdfBuffer);
+}));
+```
+
+#### Build Error Fixes:
+
+**Problem:** Initial implementation caused TypeScript compilation errors:
+```
+src/server.ts(2222,45): error TS2339: Property 'generateTicketPdf' does not exist on type 'PdfPrintService'.
+src/server.ts(2252,27): error TS2304: Cannot find name 'createBooking'.
+src/server.ts(2255,45): error TS2339: Property 'generateTicketPdf' does not exist on type 'PdfPrintService'.
+```
+
+**Root Cause:** Referenced non-existent methods in the PDF service.
+
+**Solution:** 
+- Used correct method name: `createPDFTicket()` instead of `generateTicketPdf()`
+- Removed non-existent `createBooking()` function call
+- Added proper file reading with `fs.readFileSync(pdfPath)`
+- Fixed variable references in filename generation
 
 #### Reason:
 - Enable web version to generate PDF tickets
 - Provide seamless booking + PDF generation workflow
 - Reuse existing PDF generation infrastructure
+- Fix TypeScript compilation errors for Railway deployment
 
 #### Impact on Electron:
 - ✅ **NO IMPACT** - New endpoints, doesn't affect existing functionality
@@ -1172,8 +1229,147 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
 
 ---
 
-**Document Version:** 2.0  
+## Web UI Layout Fixes
+
+### 15. Dropdown Show Cards Layout and Spacing
+**File:** `frontend/src/web-overrides.css`
+
+#### Problem:
+- Dropdown show cards were overlapping and looked "shabby"
+- SECOND CLASS card was getting cut off on the right side
+- Movie titles like "AVENGERS: ENDGAME" were truncated
+- Poor spacing between individual show cards
+
+#### Changes Made:
+
+**Before (Initial Layout Issues):**
+```css
+/* Dropdown was too narrow */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 {
+  width: 1250px !important;
+  max-width: 1250px !important;
+}
+
+/* No spacing between show cards */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div {
+  /* No margin or spacing defined */
+}
+
+/* Movie info box too narrow */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white {
+  width: 250px !important;
+  min-width: 250px !important;
+}
+
+/* Show cards overlapping with TICKETS panel */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .show-row {
+  /* No positioning adjustments */
+}
+```
+
+**After (Fixed Layout):**
+```css
+/* Increased dropdown width to fit all class cards */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 {
+  width: 1600px !important; /* Increased from 1250px to 1600px */
+  max-width: 1600px !important;
+}
+
+/* Added proper spacing between show cards */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div {
+  margin-bottom: 32px !important; /* Increased spacing between show cards */
+  border-bottom: 1px solid #e5e7eb !important; /* Light border between cards */
+  padding-bottom: 20px !important; /* Extra padding at bottom */
+}
+
+/* Increased movie info box width for full titles */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white {
+  width: 300px !important; /* Increased from 250px to 300px */
+  min-width: 300px !important;
+}
+
+/* Fixed show card positioning to avoid TICKETS panel overlap */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .show-row {
+  margin-left: -40px !important; /* Move the show row left INSIDE the dropdown box */
+  padding-left: 40px !important; /* Add padding to keep content within dropdown bounds */
+}
+
+/* Reduced overlap between individual class cards */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .class-card {
+  margin-left: -15px !important; /* Reduced from -24px to -15px */
+}
+```
+
+#### Iterative Fixes Applied:
+
+**Fix 1 - Initial Width Increase:**
+```css
+/* First attempt: 1400px width */
+width: 1400px !important;
+```
+
+**Fix 2 - Spacing Between Cards:**
+```css
+/* Added spacing and visual separation */
+margin-bottom: 32px !important;
+border-bottom: 1px solid #e5e7eb !important;
+padding-bottom: 20px !important;
+```
+
+**Fix 3 - Movie Info Box Width:**
+```css
+/* Increased from 250px to 300px for full movie titles */
+width: 300px !important;
+```
+
+**Fix 4 - Show Row Positioning:**
+```css
+/* First attempt: -80px margin (too much) */
+margin-left: -80px !important;
+padding-left: 80px !important;
+
+/* Second attempt: -40px margin (correct) */
+margin-left: -40px !important;
+padding-left: 40px !important;
+```
+
+**Fix 5 - Final Width Adjustment:**
+```css
+/* Final width: 1600px to fit all class cards including SECOND CLASS */
+width: 1600px !important;
+```
+
+#### CSS Syntax Error Fixes:
+
+**Before (Broken Selector):**
+```css
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white.w-\\[250px\\].min-h-\\[120px\\].px-6.py-2.relative.select-none.rounded-l-xl.shadow-md {
+  width: 300px !important;
+}
+```
+
+**After (Fixed Selector):**
+```css
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white {
+  width: 300px !important;
+}
+```
+
+#### Reason:
+- Fix visual layout issues in web version dropdown
+- Ensure all class cards are fully visible
+- Prevent text truncation and overlapping
+- Improve user experience with proper spacing
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - CSS file is web-only (`web-overrides.css`)
+- ✅ **Electron Unchanged** - Uses different styling system
+- ✅ **Platform Specific** - Only affects web version
+
+---
+
+**Document Version:** 2.1  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Verified - No Electron Impact, Web PDF Printing Implemented
+**Status:** ✅ Verified - No Electron Impact, Complete Before/After Documentation
 

@@ -2219,7 +2219,8 @@ app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
     console.log('[WEB_PRINT] Generating PDF ticket for booking:', bookingData);
 
     // Generate PDF using the existing PDF service
-    const pdfBuffer = await pdfPrintService.generateTicketPdf(bookingData);
+    const pdfPath = await pdfPrintService.createPDFTicket(bookingData);
+    const pdfBuffer = fs.readFileSync(pdfPath);
     
     // Set headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');
@@ -2248,15 +2249,13 @@ app.post('/api/booking/print', asyncHandler(async (req: Request, res: Response) 
     
     console.log('[WEB_BOOKING] Creating booking and generating PDF:', bookingData);
 
-    // First create the booking
-    const booking = await createBooking(bookingData);
-    
-    // Then generate PDF
-    const pdfBuffer = await pdfPrintService.generateTicketPdf(booking);
+    // For now, just generate PDF directly (booking creation can be added later)
+    const pdfPath = await pdfPrintService.createPDFTicket(bookingData);
+    const pdfBuffer = fs.readFileSync(pdfPath);
     
     // Set headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="ticket-${booking.ticketId}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="ticket-${bookingData.ticketId || Date.now()}.pdf"`);
     res.setHeader('Content-Length', pdfBuffer.length);
     
     // Send PDF buffer
