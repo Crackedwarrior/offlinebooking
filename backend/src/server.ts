@@ -262,6 +262,9 @@ const thermalPrintService = new ThermalPrintService();
 const pdfPrintService = new PdfPrintService();
 const kannadaPdfKitService = new KannadaPdfKitService();
 
+// Trust proxy for Railway deployment (fixes rate limiting errors)
+app.set('trust proxy', true);
+
 // Configure CORS with proper origin restrictions
 app.use(cors({
   origin: (origin, callback) => {

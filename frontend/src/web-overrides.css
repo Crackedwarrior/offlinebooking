@@ -576,6 +576,57 @@ body[style*="zoom: 0.8"] [class^="h-screen"] {
   min-width: 1100px !important;
 }
 
+/* ===== DROPDOWN SHOW CARDS SPACING FIX ===== */
+
+/* Increase dropdown width to accommodate full movie titles */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 {
+  width: 1600px !important; /* Increased to fit all class cards including SECOND CLASS */
+  max-width: 1600px !important;
+}
+
+/* Fix spacing between dropdown show cards - using correct selectors */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div {
+  margin-bottom: 32px !important; /* Increased spacing between show cards */
+}
+
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div:last-child {
+  margin-bottom: 0 !important; /* Remove margin from last card */
+}
+
+/* Add visual separation between show cards */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div {
+  border-bottom: 1px solid #e5e7eb !important; /* Light border between cards */
+  padding-bottom: 20px !important; /* Extra padding at bottom */
+}
+
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .max-h-80.overflow-y-auto.p-3.hide-scrollbar > div:last-child {
+  border-bottom: none !important; /* Remove border from last card */
+  padding-bottom: 0 !important; /* Remove extra padding from last card */
+}
+
+/* Ensure show card headers have proper padding */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .p-3.rounded-t-lg.border {
+  padding: 20px !important; /* Increased padding for better spacing */
+  margin-bottom: 12px !important; /* Space between header and show row */
+}
+
+/* Fix show card positioning - move individual cards to the left INSIDE the dropdown */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .show-row {
+  margin-left: -40px !important; /* Move the show row left INSIDE the dropdown box */
+  padding-left: 40px !important; /* Add padding to keep content within dropdown bounds */
+}
+
+/* Fix movie info box width and positioning */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white {
+  width: 300px !important; /* Increased width for full movie titles */
+  min-width: 300px !important;
+}
+
+/* Adjust class card positioning to reduce overlap */
+.absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .class-card {
+  margin-left: -15px !important; /* Reduce overlap between class cards */
+}
+
 /* Income Breakdown - width control */
 .booking-history-container .lg\:col-span-1 {
   width: 605px !important;
