@@ -2619,8 +2619,88 @@ if (!printSuccess) {
 
 ---
 
-**Document Version:** 2.5  
+---
+
+## Change #26: Fixed Web PDF Format to Match Electron Format Exactly (October 18, 2025)
+
+### Problem
+User provided the exact Electron ticket format showing:
+- **Header**: "NIGHT SHOW (10:06 PM)"
+- **Box with border** containing:
+  - **CLASS : BOX**
+  - **SEAT : C 1 - 8**
+
+The web version was not generating tickets in this exact format, causing inconsistencies between Electron and web PDF generation.
+
+### Root Cause Analysis
+The web version was missing critical fields that the `formatTicket` function in `pdfPrintService.ts` expects:
+1. **Missing `seatCount`**: Required for proper range formatting (e.g., "C 1 - 8")
+2. **Missing `totalPrice`**: Required for correct price calculation in formatTicket
+
+### Solution
+Updated the web PDF generation to send the exact same data format as the Electron version.
+
+### Changes Made
+
+#### Fixed Missing Fields in printerService.ts
+
+**BEFORE:**
+```typescript
+// Seat and class data
+classLabel: tickets[0]?.class || 'BOX',
+seatClass: tickets[0]?.class || 'BOX',
+row: tickets[0]?.row || 'A',
+seatRange: tickets.map(t => t.seatNumber).join(', '),
+seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '),
+
+// Price data
+price: tickets[0]?.totalAmount || 0,
+total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+```
+
+**AFTER:**
+```typescript
+// Seat and class data
+classLabel: tickets[0]?.class || 'BOX',
+seatClass: tickets[0]?.class || 'BOX',
+row: tickets[0]?.row || 'A',
+seatRange: tickets.map(t => t.seatNumber).join(', '),
+seatCount: tickets.length, // ✅ formatTicket needs this for range formatting
+seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '),
+
+// Price data
+price: tickets[0]?.totalAmount || 0,
+totalPrice: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ formatTicket looks for 'totalPrice'
+total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+```
+
+### Impact
+- **Format Consistency**: Web PDF tickets now match Electron format exactly
+- **Seat Display**: Will show "C 1 - 8" instead of "C1, C2, C3, C4, C5, C6, C7, C8"
+- **Price Calculation**: Correct total price calculation in formatTicket function
+- **User Experience**: Identical ticket appearance across Electron and web platforms
+
+### Expected Result
+Web PDF tickets will now display:
+```
+NIGHT SHOW (10:06 PM)
+┌─────────────────────┐
+│ CLASS : BOX         │
+│ SEAT  : C 1 - 8     │
+└─────────────────────┘
+```
+
+### Testing
+- Select multiple seats (e.g., BOX C 1-8)
+- Click "Print Now"
+- PDF should show exact same format as Electron version
+
+---
+
+**Document Version:** 2.6  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Enhanced Print Button Debugging and Error Handling
+**Status:** ✅ Web PDF Format Now Matches Electron Format Exactly
 

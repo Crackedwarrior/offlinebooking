@@ -228,10 +228,12 @@ export class PrinterService {
         seatClass: tickets[0]?.class || 'BOX', // ✅ fallback field
         row: tickets[0]?.row || 'A', // ✅ formatTicket uses this for seat formatting
         seatRange: tickets.map(t => t.seatNumber).join(', '), // ✅ formatTicket uses this
+        seatCount: tickets.length, // ✅ formatTicket needs this for range formatting
         seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ fallback field
         
         // Price data (matching formatTicket expectations)
         price: tickets[0]?.totalAmount || 0, // ✅ formatTicket looks for 'price' first
+        totalPrice: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ formatTicket looks for 'totalPrice'
         total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
         totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
         individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ for PDF rendering
