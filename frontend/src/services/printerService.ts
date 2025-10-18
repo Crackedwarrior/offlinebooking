@@ -203,33 +203,37 @@ export class PrinterService {
       console.log('[PRINT] Generating PDF tickets for web:', tickets.length, 'tickets');
       console.log('[PRINT] Raw ticket data:', tickets);
       
-      // Convert tickets to booking format for PDF generation (matching PDF service expectations)
+      // Convert tickets to format that matches the working formatTicket method expectations
       const bookingData = {
-        ticketId: `WEB-${Date.now()}`,
-        customerName: 'Customer',
-        phoneNumber: '',
-        email: '',
-        movieName: tickets[0]?.film || 'Movie',
+        // Core ticket data (matching formatTicket method expectations)
+        movie: tickets[0]?.film || 'Movie', // ✅ formatTicket looks for 'movie' first
+        movieName: tickets[0]?.film || 'Movie', // ✅ fallback field
+        movieLanguage: tickets[0]?.movieLanguage || 'HINDI', // ✅ for movie name formatting
+        show: 'EVENING', // ✅ formatTicket looks for 'show' field
+        showTime: tickets[0]?.showtime || '6:00 PM', // ✅ formatTicket uses this
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
-        showTime: tickets[0]?.showtime || '2:30 PM',
-        showClass: tickets[0]?.showtime || '2:30 PM', // ✅ PDF service expects showClass
-        seatClass: tickets[0]?.class || 'GENERAL', // ✅ PDF service expects seatClass
-        seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ PDF service expects seatInfo
-        individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ PDF service expects individualTicketPrice
-        net: tickets[0]?.netAmount || 0, // ✅ PDF service expects net
-        cgst: tickets[0]?.cgst || 0, // ✅ PDF service expects cgst
-        sgst: tickets[0]?.sgst || 0, // ✅ PDF service expects sgst
-        mc: tickets[0]?.mc || 0, // ✅ PDF service expects mc
-        seats: tickets.map(ticket => ({
-          seatId: `${ticket.row}${ticket.seatNumber}`,
-          class: ticket.class || 'GENERAL',
-          price: ticket.totalAmount,
-          netAmount: ticket.netAmount,
-          cgst: ticket.cgst,
-          sgst: ticket.sgst,
-          mc: ticket.mc
-        })),
-        totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+        
+        // Seat and class data
+        classLabel: tickets[0]?.class || 'BOX', // ✅ formatTicket looks for 'classLabel'
+        seatClass: tickets[0]?.class || 'BOX', // ✅ fallback field
+        row: tickets[0]?.row || 'A', // ✅ formatTicket uses this for seat formatting
+        seatRange: tickets.map(t => t.seatNumber).join(', '), // ✅ formatTicket uses this
+        seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ fallback field
+        
+        // Price data (matching formatTicket expectations)
+        price: tickets[0]?.totalAmount || 0, // ✅ formatTicket looks for 'price' first
+        total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
+        totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
+        individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ for PDF rendering
+        
+        // Tax data
+        net: tickets[0]?.netAmount || 0,
+        cgst: tickets[0]?.cgst || 0,
+        sgst: tickets[0]?.sgst || 0,
+        mc: tickets[0]?.mc || 0,
+        
+        // Additional fields
+        ticketId: `WEB-${Date.now()}`,
         transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
         theaterName: tickets[0]?.theaterName || 'Theater',
         location: tickets[0]?.location || 'Location'

@@ -2209,8 +2209,13 @@ app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
 
     console.log('[WEB_PRINT] Generating PDF ticket for booking:', bookingData);
 
-    // Generate PDF using the existing PDF service
-    const pdfPath = await pdfPrintService.createPDFTicket(bookingData);
+    // Use the same logic as the working thermal-printer endpoint
+    // Format the ticket data first (this is the key step that was missing!)
+    const formattedTicket = pdfPrintService.formatTicket(bookingData);
+    console.log('[WEB_PRINT] Formatted ticket data:', formattedTicket);
+    
+    // Generate PDF using the formatted data
+    const pdfPath = await pdfPrintService.createPDFTicket(formattedTicket);
     const pdfBuffer = fs.readFileSync(pdfPath);
     
     // Set headers for PDF download
