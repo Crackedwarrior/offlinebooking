@@ -159,11 +159,73 @@ export class PrinterService {
     try {
       console.log('[PRINT] Printing tickets:', tickets.length);
       
-      // Always use native desktop printing for desktop app
-      return await this.printTicketsNative(tickets);
+      // Check if we're in web environment
+      if (typeof window !== 'undefined' && !window.electronAPI) {
+        // Web environment - use PDF generation
+        return await this.printTicketsWeb(tickets);
+      } else {
+        // Desktop environment - use native printing
+        return await this.printTicketsNative(tickets);
+      }
       
     } catch (error) {
       console.error('[ERROR] Failed to print tickets:', error);
+      return false;
+    }
+  }
+
+  // Print tickets for web environment (PDF generation)
+  private async printTicketsWeb(tickets: TicketData[]): Promise<boolean> {
+    try {
+      console.log('[PRINT] Generating PDF tickets for web:', tickets.length, 'tickets');
+      
+      // Convert tickets to booking format for PDF generation
+      const bookingData = {
+        ticketId: `WEB-${Date.now()}`,
+        customerName: 'Customer',
+        phoneNumber: '',
+        email: '',
+        movieName: tickets[0]?.film || 'Movie',
+        date: tickets[0]?.date || new Date().toISOString().split('T')[0],
+        showTime: tickets[0]?.showtime || '2:30 PM',
+        seats: tickets.map(ticket => ({
+          seatId: `${ticket.row}-${ticket.seatNumber}`,
+          class: ticket.class,
+          price: ticket.totalAmount
+        })),
+        totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+        transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`
+      };
+      
+      // Call backend PDF generation API
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/print/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookingData }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`PDF generation failed: ${response.statusText}`);
+      }
+      
+      // Get PDF blob and trigger download
+      const pdfBlob = await response.blob();
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ticket-${bookingData.ticketId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('[PRINT] PDF tickets generated and downloaded successfully');
+      return true;
+      
+    } catch (error) {
+      console.error('[ERROR] Failed to generate PDF tickets:', error);
       return false;
     }
   }

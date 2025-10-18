@@ -263,7 +263,8 @@ const pdfPrintService = new PdfPrintService();
 const kannadaPdfKitService = new KannadaPdfKitService();
 
 // Trust proxy for Railway deployment (fixes rate limiting errors)
-app.set('trust proxy', true);
+// Use specific proxy configuration instead of 'true' to avoid security warnings
+app.set('trust proxy', 1);
 
 // Configure CORS with proper origin restrictions
 app.use(cors({
@@ -2194,6 +2195,80 @@ app.post('/api/settings', asyncHandler(async (req: Request, res: Response) => {
       success: false,
       data: null,
       message: 'Failed to update settings'
+    };
+    res.status(500).json(response);
+  }
+}));
+
+// ===== WEB PRINTING API ENDPOINTS =====
+
+// Generate PDF ticket for web version
+app.post('/api/print/pdf', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { bookingData } = req.body;
+    
+    if (!bookingData) {
+      const response: ApiResponse<null> = {
+        success: false,
+        data: null,
+        message: 'Booking data is required'
+      };
+      return res.status(400).json(response);
+    }
+
+    console.log('[WEB_PRINT] Generating PDF ticket for booking:', bookingData);
+
+    // Generate PDF using the existing PDF service
+    const pdfBuffer = await pdfPrintService.generateTicketPdf(bookingData);
+    
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="ticket-${bookingData.ticketId || Date.now()}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    // Send PDF buffer
+    res.send(pdfBuffer);
+    
+    console.log('[WEB_PRINT] PDF ticket generated successfully');
+  } catch (error) {
+    console.error('[WEB_PRINT] Error generating PDF ticket:', error);
+    const response: ApiResponse<null> = {
+      success: false,
+      data: null,
+      message: 'Failed to generate PDF ticket'
+    };
+    res.status(500).json(response);
+  }
+}));
+
+// Create booking and generate PDF in one request
+app.post('/api/booking/print', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const bookingData = req.body;
+    
+    console.log('[WEB_BOOKING] Creating booking and generating PDF:', bookingData);
+
+    // First create the booking
+    const booking = await createBooking(bookingData);
+    
+    // Then generate PDF
+    const pdfBuffer = await pdfPrintService.generateTicketPdf(booking);
+    
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="ticket-${booking.ticketId}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    // Send PDF buffer
+    res.send(pdfBuffer);
+    
+    console.log('[WEB_BOOKING] Booking created and PDF generated successfully');
+  } catch (error) {
+    console.error('[WEB_BOOKING] Error creating booking and generating PDF:', error);
+    const response: ApiResponse<null> = {
+      success: false,
+      data: null,
+      message: 'Failed to create booking and generate PDF'
     };
     res.status(500).json(response);
   }
