@@ -2168,8 +2168,137 @@ if (typeof window !== 'undefined' && !(window as any).electronAPI) {
 
 ---
 
-**Document Version:** 2.2  
+---
+
+## **Latest Changes (October 18, 2025) - Settings Sync Fix**
+
+### **Issue Identified:**
+The automatic settings sync was overriding user changes on page refresh. When users changed show times (e.g., from 9:00 PM to 8:45 PM), the page refresh would automatically load backend defaults and overwrite the user's changes.
+
+### **Root Cause:**
+The `useSettingsSync()` hook was calling `loadSettingsFromBackend()` on every page refresh, which loaded hardcoded backend defaults and overwrote local user changes.
+
+### **Solution:**
+Remove automatic settings sync while keeping backend endpoints available for manual use.
+
+---
+
+### **Change #1: Remove Automatic Settings Sync from App Component**
+**File:** `frontend/src/App.tsx`
+
+#### Before:
+```typescript
+import { useSettingsSync } from "./hooks/useSettingsSync";
+
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Initialize settings sync with backend
+  useSettingsSync();
+  
+  // ... rest of component
+};
+```
+
+#### After:
+```typescript
+// Removed useSettingsSync import
+
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Removed automatic settings sync
+  
+  // ... rest of component
+};
+```
+
+#### Reason:
+- Prevents automatic backend sync on page refresh
+- Preserves user changes (e.g., 8:45 PM stays 8:45 PM)
+- Backend endpoints remain available for manual use
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Electron never used this sync
+- ✅ **RESTORED** - Electron behavior is exactly as it was before
+
+#### Impact on Website:
+- ✅ **FIXED** - User settings no longer get overridden
+- ✅ **IMPROVED** - Settings persist across page refreshes
+- ✅ **FLEXIBLE** - Backend endpoints still available when needed
+
+---
+
+### **Change #2: Remove Settings Sync Hook**
+**File:** `frontend/src/hooks/useSettingsSync.ts` (DELETED)
+
+#### Before:
+```typescript
+// Hook to automatically sync settings with backend
+import { useEffect } from 'react';
+import { useSettingsStore } from '@/store/settingsStore';
+
+export const useSettingsSync = () => {
+  const loadSettingsFromBackend = useSettingsStore(state => state.loadSettingsFromBackend);
+  const saveSettingsToBackend = useSettingsStore(state => state.saveSettingsToBackend);
+
+  useEffect(() => {
+    // Load settings from backend when component mounts
+    const initializeSettings = async () => {
+      console.log('[SETTINGS] Initializing settings sync...');
+      await loadSettingsFromBackend();
+    };
+
+    initializeSettings();
+  }, [loadSettingsFromBackend]);
+
+  // Return the save function for manual saves
+  return {
+    saveSettingsToBackend
+  };
+};
+
+export default useSettingsSync;
+```
+
+#### After:
+```typescript
+// File deleted - no automatic settings sync
+```
+
+#### Reason:
+- Eliminates automatic backend loading on app startup
+- Prevents override of user settings
+- Simplifies settings management
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Electron never used this hook
+- ✅ **RESTORED** - Electron behavior unchanged
+
+#### Impact on Website:
+- ✅ **FIXED** - No more automatic overrides
+- ✅ **IMPROVED** - User changes are preserved
+- ✅ **CLEAN** - Simpler, more predictable behavior
+
+---
+
+### **What Remains Available:**
+- ✅ Backend `/api/settings` GET endpoint (for manual loading)
+- ✅ Backend `/api/settings` POST endpoint (for manual saving)
+- ✅ `SettingsApiService` (for manual API calls)
+- ✅ `loadSettingsFromBackend()` and `saveSettingsToBackend()` in settings store
+- ✅ All existing functionality, just no automatic sync
+
+### **Result:**
+- **Electron:** Works exactly like it did before (local storage only)
+- **Website:** Uses local storage like Electron, but can still access Railway backend when needed
+- **User Settings:** No longer get overridden on page refresh
+- **Show Times:** User changes (8:45 PM) persist instead of reverting to defaults (9:00 PM)
+
+---
+
+**Document Version:** 2.3  
 **Last Updated:** October 18, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Verified - No Electron Impact, Complete Before/After Documentation
+**Status:** ✅ Settings Sync Issue Fixed - Electron Restored, Website Improved
 

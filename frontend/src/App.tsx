@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 import desktopApi from "./services/desktopApi";
 import AuthPage from "./components/AuthPage";
 import { AUTH_CONFIG } from "./config/auth";
-import { useSettingsSync } from "./hooks/useSettingsSync";
 
 
 
@@ -22,8 +21,6 @@ const queryClient = new QueryClient();
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // Initialize settings sync with backend
-  useSettingsSync();
 
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
