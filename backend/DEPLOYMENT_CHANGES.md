@@ -345,6 +345,151 @@ onClick={() => {
 
 ## Changes Summary
 
+### 21. Fix PDF Data Mapping Issues
+**File:** `frontend/src/components/TicketPrint.tsx`
+
+#### Problem:
+- PDF was generating but showing "undefined" values for class, show name, and ticket cost
+- Data structure mismatch between TicketPrint component and PrinterService
+- Wrong field names: `classLabel` vs `class`, `movieName` vs `film`
+- Missing tax calculations (CGST, SGST, MC)
+
+#### Before:
+```typescript
+// Wrong data structure - field names don't match TicketData interface
+const ticketData = selectedSeats.map(seat => ({
+  seatId: seat.id,
+  row: seat.row,
+  seatNumber: seat.number,
+  classLabel: seat.classLabel, // ❌ Wrong field name
+  price: seat.price,
+  date: selectedDate,
+  showtime: showtime,
+  movieName: currentMovie.name, // ❌ Wrong field name
+  movieLanguage: currentMovie.language,
+  theaterName: printerConfig.theaterName || getTheaterConfig().name,
+  location: printerConfig.location || getTheaterConfig().location,
+  transactionId: 'TXN' + Date.now()
+}));
+```
+
+#### After:
+```typescript
+// Correct data structure matching TicketData interface
+const ticketData = selectedSeats.map(seat => {
+  const theaterConfig = getTheaterConfig();
+  const netAmount = seat.price;
+  const cgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% CGST
+  const sgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% SGST
+  const mc = 2.00; // Convenience fee
+  const totalAmount = netAmount + cgst + sgst + mc;
+  
+  return {
+    theaterName: printerConfig.theaterName || theaterConfig.name,
+    location: printerConfig.location || theaterConfig.location,
+    date: selectedDate,
+    film: currentMovie.name, // ✅ Correct field name
+    class: seat.classLabel, // ✅ Correct field name
+    row: seat.row,
+    seatNumber: seat.number,
+    showtime: showtime,
+    netAmount: netAmount,
+    cgst: cgst,
+    sgst: sgst,
+    mc: mc,
+    totalAmount: totalAmount,
+    transactionId: 'TXN' + Date.now()
+  };
+});
+```
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Only affects web PDF generation
+- ✅ Electron uses different printing path
+- ✅ All Electron functionality preserved
+
+#### Impact on Web:
+- ✅ **FIXED** - PDF now shows correct class names instead of "undefined"
+- ✅ **FIXED** - Movie name displays properly instead of generic "Movie"
+- ✅ **FIXED** - Proper tax calculations (CGST, SGST, MC)
+- ✅ **FIXED** - Correct ticket cost per seat
+- ✅ **IMPROVED** - Better data structure and field mapping
+
+---
+
+### 22. Enhanced PDF Generation Data Formatting
+**File:** `frontend/src/services/printerService.ts`
+
+#### Problem:
+- PDF generation was receiving incomplete or incorrectly formatted data
+- Missing show name and class information
+- No fallback values for undefined fields
+- Insufficient debug logging
+
+#### Before:
+```typescript
+const bookingData = {
+  ticketId: `WEB-${Date.now()}`,
+  customerName: 'Customer',
+  phoneNumber: '',
+  email: '',
+  movieName: tickets[0]?.film || 'Movie',
+  date: tickets[0]?.date || new Date().toISOString().split('T')[0],
+  showTime: tickets[0]?.showtime || '2:30 PM',
+  seats: tickets.map(ticket => ({
+    seatId: `${ticket.row}-${ticket.seatNumber}`,
+    class: ticket.class, // ❌ Could be undefined
+    price: ticket.totalAmount
+  })),
+  totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+  transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`
+};
+```
+
+#### After:
+```typescript
+const bookingData = {
+  ticketId: `WEB-${Date.now()}`,
+  customerName: 'Customer',
+  phoneNumber: '',
+  email: '',
+  movieName: tickets[0]?.film || 'Movie',
+  date: tickets[0]?.date || new Date().toISOString().split('T')[0],
+  showTime: tickets[0]?.showtime || '2:30 PM',
+  showName: tickets[0]?.showtime || '2:30 PM', // ✅ Add show name
+  seats: tickets.map(ticket => ({
+    seatId: `${ticket.row}${ticket.seatNumber}`,
+    class: ticket.class || 'GENERAL', // ✅ Fix undefined class
+    price: ticket.totalAmount,
+    netAmount: ticket.netAmount,
+    cgst: ticket.cgst,
+    sgst: ticket.sgst,
+    mc: ticket.mc
+  })),
+  totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
+  transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
+  theaterName: tickets[0]?.theaterName || 'Theater',
+  location: tickets[0]?.location || 'Location'
+};
+
+console.log('[PRINT] Formatted booking data for PDF:', bookingData);
+```
+
+#### Impact on Electron:
+- ✅ **NO IMPACT** - Only affects web PDF generation
+- ✅ All Electron functionality preserved
+
+#### Impact on Web:
+- ✅ **FIXED** - No more "undefined" values in PDF
+- ✅ **FIXED** - Proper class names and show information
+- ✅ **IMPROVED** - Better fallback values for missing data
+- ✅ **IMPROVED** - Enhanced debug logging for troubleshooting
+- ✅ **IMPROVED** - Complete tax breakdown in PDF
+
+---
+
+## Changes Summary
+
 ### 1. Database Connection Manager
 **File:** `backend/src/db/connectionManager.ts`
 

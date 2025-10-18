@@ -314,21 +314,32 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
         // Web environment - use PDF generation via backend
         console.log('[PRINT] Using web PDF generation...');
         
-        // Prepare ticket data for web printing
-        const ticketData = selectedSeats.map(seat => ({
-          seatId: seat.id,
-          row: seat.row,
-          seatNumber: seat.number,
-          classLabel: seat.classLabel,
-          price: seat.price,
-          date: selectedDate,
-          showtime: showtime,
-          movieName: currentMovie.name,
-          movieLanguage: currentMovie.language,
-          theaterName: printerConfig.theaterName || getTheaterConfig().name,
-          location: printerConfig.location || getTheaterConfig().location,
-          transactionId: 'TXN' + Date.now()
-        }));
+        // Prepare ticket data for web printing (matching TicketData interface)
+        const ticketData = selectedSeats.map(seat => {
+          const theaterConfig = getTheaterConfig();
+          const netAmount = seat.price;
+          const cgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% CGST
+          const sgst = Math.round((netAmount * 0.09) * 100) / 100; // 9% SGST
+          const mc = 2.00; // Convenience fee
+          const totalAmount = netAmount + cgst + sgst + mc;
+          
+          return {
+            theaterName: printerConfig.theaterName || theaterConfig.name,
+            location: printerConfig.location || theaterConfig.location,
+            date: selectedDate,
+            film: currentMovie.name, // ✅ Correct field name
+            class: seat.classLabel, // ✅ Correct field name
+            row: seat.row,
+            seatNumber: seat.number,
+            showtime: showtime,
+            netAmount: netAmount,
+            cgst: cgst,
+            sgst: sgst,
+            mc: mc,
+            totalAmount: totalAmount,
+            transactionId: 'TXN' + Date.now()
+          };
+        });
         
         console.log('[PRINT] Web ticket data:', ticketData);
         

@@ -201,6 +201,7 @@ export class PrinterService {
   private async printTicketsWeb(tickets: TicketData[]): Promise<boolean> {
     try {
       console.log('[PRINT] Generating PDF tickets for web:', tickets.length, 'tickets');
+      console.log('[PRINT] Raw ticket data:', tickets);
       
       // Convert tickets to booking format for PDF generation
       const bookingData = {
@@ -211,14 +212,23 @@ export class PrinterService {
         movieName: tickets[0]?.film || 'Movie',
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
         showTime: tickets[0]?.showtime || '2:30 PM',
+        showName: tickets[0]?.showtime || '2:30 PM', // Add show name
         seats: tickets.map(ticket => ({
-          seatId: `${ticket.row}-${ticket.seatNumber}`,
-          class: ticket.class,
-          price: ticket.totalAmount
+          seatId: `${ticket.row}${ticket.seatNumber}`,
+          class: ticket.class || 'GENERAL', // ✅ Fix undefined class
+          price: ticket.totalAmount,
+          netAmount: ticket.netAmount,
+          cgst: ticket.cgst,
+          sgst: ticket.sgst,
+          mc: ticket.mc
         })),
         totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0),
-        transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`
+        transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
+        theaterName: tickets[0]?.theaterName || 'Theater',
+        location: tickets[0]?.location || 'Location'
       };
+      
+      console.log('[PRINT] Formatted booking data for PDF:', bookingData);
       
       // Call backend PDF generation API
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/print/pdf`, {
