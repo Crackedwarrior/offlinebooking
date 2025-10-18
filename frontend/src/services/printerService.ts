@@ -1,5 +1,6 @@
 import { TicketPdfGenerator } from '../utils/ticketPdfGenerator';
 import { getTheaterConfig } from '../config/theaterConfig';
+import { useSettingsStore } from '../store/settingsStore';
 
 export interface TicketData {
   theaterName: string;
@@ -10,6 +11,8 @@ export interface TicketData {
   row: string;
   seatNumber: string;
   showtime: string;
+  show?: string; // ✅ Add show information
+  movieLanguage?: string; // ✅ Add movie language
   netAmount: number;
   cgst: number;
   sgst: number;
@@ -203,13 +206,20 @@ export class PrinterService {
       console.log('[PRINT] Generating PDF tickets for web:', tickets.length, 'tickets');
       console.log('[PRINT] Raw ticket data:', tickets);
       
+      // Get current movie and show from ticket data
+      const currentShow = tickets[0]?.show || 'NIGHT'; // Get from ticket data
+      const currentMovieLanguage = tickets[0]?.movieLanguage || 'HINDI'; // Get from ticket data
+      
+      console.log('[PRINT] Current show from ticket data:', currentShow);
+      console.log('[PRINT] Current movie language from ticket data:', currentMovieLanguage);
+      
       // Convert tickets to format that matches the working formatTicket method expectations
       const bookingData = {
         // Core ticket data (matching formatTicket method expectations)
-        movie: tickets[0]?.film || 'Movie', // ✅ formatTicket looks for 'movie' first
-        movieName: tickets[0]?.film || 'Movie', // ✅ fallback field
-        movieLanguage: 'HINDI', // ✅ Always use HINDI for KALANK
-        show: 'EVENING', // ✅ formatTicket looks for 'show' field
+        movie: tickets[0]?.film || 'Movie', // ✅ Get from ticket data
+        movieName: tickets[0]?.film || 'Movie', // ✅ Get from ticket data
+        movieLanguage: currentMovieLanguage, // ✅ Get from ticket data
+        show: currentShow, // ✅ Get from ticket data
         showTime: tickets[0]?.showtime || '6:00 PM', // ✅ formatTicket uses this
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
         

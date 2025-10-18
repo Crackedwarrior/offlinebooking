@@ -367,6 +367,8 @@ const TicketPrint: React.FC<TicketPrintProps> = ({
             row: seat.row,
             seatNumber: seat.number,
             showtime: showtime,
+            show: selectedShow, // ✅ Add show information
+            movieLanguage: currentMovie.language, // ✅ Add movie language
             netAmount: netAmount,
             cgst: cgst,
             sgst: sgst,
