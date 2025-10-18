@@ -274,13 +274,22 @@ app.use(cors({
       'http://localhost:3000',    // Alternative dev port
       'http://127.0.0.1:8080',    // Localhost alternative
       'http://127.0.0.1:3000',    // Localhost alternative
-      // Add production origins here when deploying
-      // 'https://yourdomain.com',
-      // 'https://www.yourdomain.com'
+      // Vercel frontend domains
+      'https://offlinebooking.vercel.app',  // Vercel production
+      'https://offlinebooking-git-main.vercel.app',  // Vercel preview
+      'https://offlinebooking-git-develop.vercel.app',  // Vercel branch
+      // Allow all Vercel preview deployments
+      ...(origin && origin.includes('.vercel.app') ? [origin] : [])
     ];
     
     // Check if origin is allowed
     if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all origins for testing
+    if (config.server.nodeEnv === 'development') {
+      console.log(`[CORS] Development mode: Allowing origin: ${origin}`);
       return callback(null, true);
     }
     
