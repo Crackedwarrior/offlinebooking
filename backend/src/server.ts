@@ -832,6 +832,59 @@ app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Re
   console.log('[PRICE] ticketData.individualPrice:', ticketData.individualPrice);
   console.log('[PRICE] ticketData.totalPrice:', ticketData.totalPrice);
 
+  // Check if this is a web request (printerName is 'web-pdf-printer')
+  const isWebRequest = printerName === 'web-pdf-printer';
+  console.log('[PRINT] Is web request:', isWebRequest);
+  
+  if (isWebRequest) {
+    // For web requests, generate PDF and return it directly
+    console.log('[PRINT] Web request detected - generating PDF for download');
+    
+    try {
+      // Use appropriate service based on language setting
+      console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'} for web PDF`);
+      
+      let pdfPath: string;
+      if (shouldPrintInKannada) {
+        // For Kannada, use the createPDFTicket method directly
+        const formattedTicket = kannadaPdfKitService.formatTicket(ticketData);
+        pdfPath = await kannadaPdfKitService.createPDFTicket(formattedTicket);
+      } else {
+        // For English, use the createPDFTicket method directly
+        const formattedTicket = pdfPrintService.formatTicket(ticketData);
+        pdfPath = await pdfPrintService.createPDFTicket(formattedTicket);
+      }
+      
+      console.log('[PRINT] PDF generated for web download:', pdfPath);
+      
+      // Read PDF file and send as response
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="ticket-${ticketData.ticketId || Date.now()}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      
+      // Send PDF buffer
+      res.send(pdfBuffer);
+      
+      console.log('[PRINT] PDF sent to web client successfully');
+      return;
+      
+    } catch (error) {
+      console.error('[PRINT] Error generating PDF for web:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate PDF for web download',
+        details: error.message
+      });
+      return;
+    }
+  }
+  
+  // For desktop requests, use the original printing logic
+  console.log('[PRINT] Desktop request detected - using print service');
+  
   // Use appropriate service based on language setting
   console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
   

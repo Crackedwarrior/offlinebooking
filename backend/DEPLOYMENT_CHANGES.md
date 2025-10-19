@@ -2802,8 +2802,151 @@ const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://loc
 
 ---
 
-**Document Version:** 2.7  
-**Last Updated:** October 18, 2025  
+**Document Version:** 2.8  
+**Last Updated:** October 19, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Web PDF Now Uses Proper Endpoint with Kannada Support
+**Status:** ✅ Fixed Web PDF Generation - Backend Now Returns PDF Files
+
+---
+
+## **Change #28: Fixed Web PDF Generation - Backend Now Returns PDF Files**
+
+**Date:** October 19, 2025  
+**Issue:** Web PDF generation was failing because the backend was trying to use SumatraPDF and the `start` command which are not available in the Linux environment (Railway). The backend was returning JSON responses instead of PDF files for web requests.
+
+**Root Cause:** The `/api/thermal-printer/print` endpoint was designed for desktop printing and was trying to print locally instead of returning the PDF file for web download.
+
+**Solution:** Modified the `/api/thermal-printer/print` endpoint to detect web requests (when `printerName` is `'web-pdf-printer'`) and return the PDF file directly instead of trying to print it locally.
+
+### **Files Modified:**
+
+#### **`backend/src/server.ts`**
+- **Lines 835-883**: Added web request detection and PDF file response logic
+- **Lines 885-907**: Preserved original desktop printing logic
+
+### **Before (lines 835-855, original logic):**
+```typescript
+// Use appropriate service based on language setting
+console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
+
+const result = shouldPrintInKannada 
+  ? await kannadaPdfKitService.printTicket(ticketData, printerName)
+  : await pdfPrintService.printTicket(ticketData, printerName);
+
+if (result.success) {
+  res.json({
+    success: true,
+    message: result.message,
+    printer: result.printer
+  });
+} else {
+  res.status(500).json({
+    success: false,
+    error: result.error,
+    printer: result.printer
+  });
+}
+```
+
+### **After (lines 835-907, enhanced with web support):**
+```typescript
+// Check if this is a web request (printerName is 'web-pdf-printer')
+const isWebRequest = printerName === 'web-pdf-printer';
+console.log('[PRINT] Is web request:', isWebRequest);
+
+if (isWebRequest) {
+  // For web requests, generate PDF and return it directly
+  console.log('[PRINT] Web request detected - generating PDF for download');
+  
+  try {
+    // Use appropriate service based on language setting
+    console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'} for web PDF`);
+    
+    let pdfPath: string;
+    if (shouldPrintInKannada) {
+      // For Kannada, use the createPDFTicket method directly
+      const formattedTicket = kannadaPdfKitService.formatTicket(ticketData);
+      pdfPath = await kannadaPdfKitService.createPDFTicket(formattedTicket);
+    } else {
+      // For English, use the createPDFTicket method directly
+      const formattedTicket = pdfPrintService.formatTicket(ticketData);
+      pdfPath = await pdfPrintService.createPDFTicket(formattedTicket);
+    }
+    
+    console.log('[PRINT] PDF generated for web download:', pdfPath);
+    
+    // Read PDF file and send as response
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="ticket-${ticketData.ticketId || Date.now()}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    // Send PDF buffer
+    res.send(pdfBuffer);
+    
+    console.log('[PRINT] PDF sent to web client successfully');
+    return;
+    
+  } catch (error) {
+    console.error('[PRINT] Error generating PDF for web:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate PDF for web download',
+      details: error.message
+    });
+    return;
+  }
+}
+
+// For desktop requests, use the original printing logic
+console.log('[PRINT] Desktop request detected - using print service');
+
+// Use appropriate service based on language setting
+console.log(`[PRINT] About to call ${shouldPrintInKannada ? 'KannadaPdfKitService' : 'PdfPrintService'}`);
+
+const result = shouldPrintInKannada 
+  ? await kannadaPdfKitService.printTicket(ticketData, printerName)
+  : await pdfPrintService.printTicket(ticketData, printerName);
+
+if (result.success) {
+  res.json({
+    success: true,
+    message: result.message,
+    printer: result.printer
+  });
+} else {
+  res.status(500).json({
+    success: false,
+    error: result.error,
+    printer: result.printer
+  });
+}
+```
+
+### **Key Changes:**
+1. **Web Request Detection**: Added check for `printerName === 'web-pdf-printer'` to identify web requests
+2. **Direct PDF Generation**: For web requests, use `createPDFTicket` method directly instead of `printTicket`
+3. **PDF File Response**: Return PDF file with proper headers (`Content-Type: application/pdf`, `Content-Disposition: attachment`)
+4. **Desktop Compatibility**: Preserved original printing logic for desktop requests
+5. **Error Handling**: Added specific error handling for web PDF generation
+
+### **Impact:**
+- ✅ **Web PDF Generation**: Now works correctly - PDF files are generated and downloaded
+- ✅ **Desktop Printing**: Unchanged - still works as before
+- ✅ **Kannada Support**: Both English and Kannada PDFs work for web requests
+- ✅ **Error Handling**: Better error messages for web PDF generation failures
+
+### **Testing:**
+- Web requests with `printerName: 'web-pdf-printer'` now return PDF files
+- Desktop requests with actual printer names still use the original printing logic
+- Both English and Kannada PDFs are generated correctly for web requests
+
+---
+
+**Document Version:** 2.8  
+**Last Updated:** October 19, 2025  
+**Author:** AI Assistant  
+**Status:** ✅ Fixed Web PDF Generation - Backend Now Returns PDF Files
 
