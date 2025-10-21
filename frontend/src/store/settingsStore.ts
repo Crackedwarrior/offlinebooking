@@ -43,6 +43,7 @@ export interface SettingsState {
   getMovieForShow: (showKey: string) => MovieSettings | null; // Keep for backward compatibility
   updatePricing: (classLabel: string, price: number) => void;
   updateShowTime: (key: string, settings: Partial<ShowTimeSettings>) => void;
+  addShowTime: (showTime: ShowTimeSettings) => void;
   deleteShowTime: (key: string) => void;
   resetToDefaults: () => void;
   getPriceForClass: (classLabel: string) => number;
@@ -212,6 +213,17 @@ export const useSettingsStore = create<SettingsState>()(
           );
           
           console.log('🏪 SETTINGS STORE: updated showTimes:', updatedShowTimes);
+          return { showTimes: updatedShowTimes };
+        });
+      },
+
+      addShowTime: (showTime) => {
+        console.log('🏪 SETTINGS STORE: addShowTime called');
+        console.log('🏪 SETTINGS STORE: new show time:', showTime);
+        
+        set((state) => {
+          const updatedShowTimes = [...state.showTimes, showTime];
+          console.log('🏪 SETTINGS STORE: added showTime, total count:', updatedShowTimes.length);
           return { showTimes: updatedShowTimes };
         });
       },

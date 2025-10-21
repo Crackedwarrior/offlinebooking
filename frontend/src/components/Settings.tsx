@@ -35,7 +35,7 @@ type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' 
 
 const Settings = () => {
   // Removed debug render counting - performance optimization
-  const { pricing, showTimes, movies, updatePricing, updateShowTime, deleteShowTime, resetToDefaults } = useSettingsStore();
+  const { pricing, showTimes, movies, updatePricing, updateShowTime, addShowTime, deleteShowTime, resetToDefaults } = useSettingsStore();
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +178,28 @@ const Settings = () => {
     hasChangesRef.current = true;
     setShowSaveButton(true);
   }, [computeOverlapErrors]);
+
+  // Handle adding new show time
+  const handleAddShowTime = useCallback(() => {
+    const newShowTime: ShowTimeSettings = {
+      key: `SHOW_${Date.now()}`, // Generate unique key
+      label: 'New Show',
+      startTime: '10:00 AM',
+      endTime: '12:00 PM',
+      enabled: true
+    };
+
+    addShowTime(newShowTime);
+    setLocalShowTimes(prev => {
+      const next = [...prev, newShowTime];
+      setOverlapErrors(computeOverlapErrors(next));
+      return next;
+    });
+    
+    // Track changes and show save button
+    hasChangesRef.current = true;
+    setShowSaveButton(true);
+  }, [addShowTime, computeOverlapErrors]);
 
 
   // Handle deleting show time
@@ -434,6 +456,13 @@ const Settings = () => {
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Show Times ({localShowTimes.length})</h3>
+            <Button
+              onClick={handleAddShowTime}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Clock className="w-4 h-4 mr-2" />
+              Add Show Time
+            </Button>
           </div>
 
           {overlapErrors.length > 0 && (

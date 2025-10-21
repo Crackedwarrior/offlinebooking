@@ -3269,8 +3269,135 @@ max-height: none !important; /* Remove height restriction */
 
 ---
 
-**Document Version:** 3.2  
+## **🔧 HARDCODED VALUES REMOVAL FIX #13: Make Web Version Purely Backend-Driven**
+
+**Date:** October 21, 2025  
+**Issue:** Web version had hardcoded values that overrode user settings  
+**Problem:** Show timings, movie names, and prices were hardcoded in multiple places
+
+### **Root Cause:**
+- Frontend config had hardcoded SHOW_TIMES, MOVIE_CONFIG
+- Settings store had hardcoded defaultMovies, defaultPricing, defaultShowTimes
+- Printer service had hardcoded fallbacks for show, movie, timing, class, theater
+- Backend /api/settings returned hardcoded defaults instead of empty values
+- Settings component was missing "Add Show Time" functionality
+
+### **Solution Applied:**
+
+#### **1. Frontend Config (`frontend/src/lib/config.ts`):**
+```typescript
+// Before (hardcoded):
+export const SHOW_TIMES: ShowTime[] = [
+  { key: 'MORNING', timing: '10:00 AM - 12:00 PM', ... },
+  { key: 'MATINEE', timing: '2:00 PM - 5:00 PM', ... },
+  // ... more hardcoded timings
+];
+
+// After (empty):
+export const SHOW_TIMES: ShowTime[] = []; // Empty - will be loaded from backend
+```
+
+#### **2. Settings Store (`frontend/src/store/settingsStore.ts`):**
+```typescript
+// Before (hardcoded):
+const defaultMovies: MovieSettings[] = [
+  { id: 'movie-1', name: 'KALANK', language: 'HINDI', ... },
+  { id: 'movie-2', name: 'AVENGERS: ENDGAME', language: 'ENGLISH', ... },
+  // ... more hardcoded movies
+];
+
+// After (empty):
+const defaultMovies: MovieSettings[] = []; // Empty - will be loaded from backend
+const defaultPricing: PricingSettings = {}; // Empty - will be loaded from backend
+const defaultShowTimes: ShowTimeSettings[] = []; // Empty - will be loaded from backend
+```
+
+#### **3. Printer Service (`frontend/src/services/printerService.ts`):**
+```typescript
+// Before (hardcoded fallbacks):
+const currentShow = tickets[0]?.show || 'NIGHT';
+showTime: tickets[0]?.showtime || '6:00 PM',
+movie: tickets[0]?.film || 'Movie',
+
+// After (no fallbacks):
+const currentShow = tickets[0]?.show || '';
+showTime: tickets[0]?.showtime || '',
+movie: tickets[0]?.film || '',
+```
+
+#### **4. Backend Settings API (`backend/src/server.ts`):**
+```typescript
+// Before (hardcoded defaults):
+const defaultSettings = {
+  movies: [
+    { id: 'movie-1', name: 'KALANK', language: 'HINDI', ... },
+    // ... more hardcoded movies
+  ],
+  pricing: { 'BOX': 200, 'STAR CLASS': 150, ... },
+  showTimes: [
+    { key: 'MORNING', startTime: '10:00 AM', endTime: '12:30 PM', ... },
+    // ... more hardcoded timings
+  ]
+};
+
+// After (empty defaults):
+const defaultSettings = {
+  movies: [],
+  pricing: {},
+  showTimes: []
+};
+```
+
+#### **5. Missing Add Show Time Functionality:**
+```typescript
+// Added to settings store:
+addShowTime: (showTime) => {
+  set((state) => {
+    const updatedShowTimes = [...state.showTimes, showTime];
+    return { showTimes: updatedShowTimes };
+  });
+},
+
+// Added to Settings component:
+const handleAddShowTime = useCallback(() => {
+  const newShowTime: ShowTimeSettings = {
+    key: `SHOW_${Date.now()}`,
+    label: 'New Show',
+    startTime: '10:00 AM',
+    endTime: '12:00 PM',
+    enabled: true
+  };
+  addShowTime(newShowTime);
+  // ... state management
+}, [addShowTime, computeOverlapErrors]);
+```
+
+### **Files Modified:**
+- `frontend/src/lib/config.ts` - Empty SHOW_TIMES array, empty MOVIE_CONFIG
+- `frontend/src/store/settingsStore.ts` - Empty defaults, added addShowTime function
+- `frontend/src/services/printerService.ts` - Removed hardcoded fallbacks
+- `frontend/src/hooks/useTicketOperations.ts` - Removed hardcoded movie fallback
+- `frontend/src/components/Settings.tsx` - Added Add Show Time button and handler
+- `backend/src/server.ts` - /api/settings returns empty arrays/objects
+
+### **Testing:**
+- ✅ Web version now purely fetches data from Railway backend
+- ✅ No more hardcoded fallbacks that override user settings
+- ✅ Settings store starts empty and loads from backend
+- ✅ Users can add new show times dynamically
+- ✅ Printer service uses actual ticket data without fallbacks
+- ✅ Electron app functionality completely untouched
+
+### **Impact:**
+- **Web Version:** Now purely backend-driven, no hardcoded overrides
+- **Electron App:** Completely unaffected, maintains all existing functionality
+- **User Experience:** Settings changes now persist properly without being overridden
+- **Backend Connection:** Vercel frontend connects to Railway backend via VITE_API_BASE_URL
+
+---
+
+**Document Version:** 3.3  
 **Last Updated:** October 21, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Fixed Dynamic Card Height - Web Cards Now Match Electron App Behavior
+**Status:** ✅ Removed All Hardcoded Values - Web Version Now Purely Backend-Driven
 
