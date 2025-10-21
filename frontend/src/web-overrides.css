@@ -99,12 +99,12 @@ div#elementTooltip,
   width: var(--show-tile-w-web) !important;
 }
 
-/* Target the EXACT container from DevTools */
+/* Target the EXACT container from DevTools - DYNAMIC HEIGHT */
 .flex.flex-row.w-full.max-w-full.lg\:max-w-5xl.pt-0 {
   max-width: 1210px !important; /* keep original row width */
   width: 1210px !important;
-  height: 150px !important; /* match card height */
-  min-height: 150px !important;
+  min-height: 150px !important; /* minimum height */
+  height: auto !important; /* Allow dynamic height like Electron app */
   margin-left: 0 !important; /* align hard-left */
   margin-right: auto !important;
   gap: var(--class-card-gap-web) !important;
@@ -112,30 +112,30 @@ div#elementTooltip,
   justify-content: flex-start !important;
 }
 
-/* Target the movie card with simpler selector */
+/* Target the movie card with simpler selector - DYNAMIC HEIGHT like Electron */
 .checkout-container .show-row > div:first-child,
 .checkout-container .show-row .relative:first-child,
 .flex.flex-col.border.border-gray-200.bg-white.w-\[250px\].min-h-\[120px\].px-6.py-2.relative.select-none.rounded-l-xl.shadow-md.cursor-pointer.hover\:bg-gray-50 {
   width: 312.5px !important;
-  height: 150px !important;
-  max-height: 150px !important;
   min-height: 120px !important;
-  overflow: hidden !important;
+  height: auto !important; /* Allow dynamic height like Electron app */
+  max-height: none !important; /* Remove height restriction */
+  overflow: visible !important; /* Allow content to show fully */
   box-sizing: border-box !important;
 }
 
 
-/* Normalize class card styling to exact measured inner size */
+/* Normalize class card styling to exact measured inner size - DYNAMIC HEIGHT */
 .class-card {
   margin-left: 0 !important; /* neutralize Tailwind -ml-2 used in desktop */
   border-radius: 0 !important;
   width: var(--class-card-w-rest) !important;
-  height: 150px !important; /* 120px effective at 80% zoom */
-  max-height: 150px !important;
-  overflow: hidden !important;
+  min-height: 150px !important; /* Minimum height to match movie card */
+  height: auto !important; /* Allow dynamic height like movie card */
+  max-height: none !important; /* Remove height restriction */
+  overflow: visible !important; /* Allow content to show fully */
   box-sizing: border-box !important;
   flex-shrink: 0 !important;
-  min-height: 0 !important;
   position: relative !important; /* enable z-index stacking for overlap */
   z-index: 1 !important;
 }
@@ -616,10 +616,13 @@ body[style*="zoom: 0.8"] [class^="h-screen"] {
   padding-left: 40px !important; /* Add padding to keep content within dropdown bounds */
 }
 
-/* Fix movie info box width and positioning */
+/* Fix movie info box width and positioning - DYNAMIC HEIGHT */
 .absolute.top-full.left-0.mt-1.bg-white.border.border-gray-200.rounded-lg.shadow-lg.z-50 .flex.flex-col.border.border-gray-200.bg-white {
   width: 300px !important; /* Increased width for full movie titles */
   min-width: 300px !important;
+  min-height: 120px !important;
+  height: auto !important; /* Allow dynamic height like main card */
+  max-height: none !important; /* Remove height restriction */
 }
 
 /* Adjust class card positioning to reduce overlap */

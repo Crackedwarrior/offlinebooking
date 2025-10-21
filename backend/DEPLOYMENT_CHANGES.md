@@ -3190,8 +3190,87 @@ doc.text(ticketCostLabel, ticketCostCenterX, currentY);
 
 ---
 
-**Document Version:** 3.1  
+## **🎫 DYNAMIC CARD HEIGHT FIX #12: Web Cards Now Match Electron App Behavior**
+
+**Date:** October 21, 2025  
+**Issue:** Web version movie information cards had fixed height constraints, preventing dynamic height adjustment for long movie names  
+**Problem:** Unlike Electron app, web cards couldn't grow taller to accommodate longer movie titles
+
+### **Root Cause:**
+- Web version had hardcoded CSS height constraints: `height: 150px !important` and `max-height: 150px !important`
+- Cards used `overflow: hidden !important` which clipped long movie names
+- Electron app naturally adjusts card height based on content, but web version was locked to fixed dimensions
+
+### **Solution Applied:**
+
+#### **1. Movie Information Card - Dynamic Height:**
+```css
+/* Before (fixed height): */
+height: 150px !important;
+max-height: 150px !important;
+overflow: hidden !important;
+
+/* After (dynamic height like Electron): */
+height: auto !important; /* Allow dynamic height like Electron app */
+max-height: none !important; /* Remove height restriction */
+overflow: visible !important; /* Allow content to show fully */
+min-height: 120px !important; /* Maintain minimum height */
+```
+
+#### **2. Class Cards - Dynamic Height:**
+```css
+/* Before (fixed height): */
+height: 150px !important;
+max-height: 150px !important;
+overflow: hidden !important;
+
+/* After (dynamic height): */
+height: auto !important; /* Allow dynamic height like movie card */
+max-height: none !important; /* Remove height restriction */
+overflow: visible !important; /* Allow content to show fully */
+min-height: 150px !important; /* Minimum height to match movie card */
+```
+
+#### **3. Main Container - Dynamic Height:**
+```css
+/* Before (fixed height): */
+height: 150px !important;
+
+/* After (dynamic height): */
+height: auto !important; /* Allow dynamic height like Electron app */
+min-height: 150px !important; /* minimum height */
+```
+
+#### **4. Dropdown Movie Cards - Dynamic Height:**
+```css
+/* Added dynamic height support: */
+min-height: 120px !important;
+height: auto !important; /* Allow dynamic height like main card */
+max-height: none !important; /* Remove height restriction */
+```
+
+### **Files Modified:**
+- `frontend/src/web-overrides.css` - Updated all card height constraints to be dynamic
+
+### **Testing:**
+- ✅ Long movie names like "KANTARA CHAPTER 1: A LEGEND" now expand card height
+- ✅ Short movie names maintain minimum height (120px)
+- ✅ Class cards adjust height to match movie card height
+- ✅ Dropdown cards also have dynamic height
+- ✅ Cards now behave exactly like Electron app
+- ✅ No content clipping or overflow issues
+
+### **Impact:**
+- **Visual Consistency:** Web cards now match Electron app's dynamic height behavior
+- **Better UX:** Long movie names display fully without truncation
+- **Responsive Design:** Cards adapt to content length automatically
+- **Professional Appearance:** Consistent card behavior across platforms
+- **No Electron Impact:** Desktop app remains completely unchanged
+
+---
+
+**Document Version:** 3.2  
 **Last Updated:** October 21, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Fixed PDF Text Alignment - Web Tickets Now Perfectly Centered Like Electron
+**Status:** ✅ Fixed Dynamic Card Height - Web Cards Now Match Electron App Behavior
 
