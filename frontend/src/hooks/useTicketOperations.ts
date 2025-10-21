@@ -81,7 +81,7 @@ export const useTicketOperations = () => {
     setBookingCompleted(true);
     
     // Prepare booking data for confirmation
-    const movieMeta = getMovieForShow(selectedShow) || { name: 'KALANK', screen: 'Screen 1' } as any;
+    const movieMeta = getMovieForShow(selectedShow) || { name: '', screen: '' } as any;
     const bookingData = {
       date: selectedDate,
       show: selectedShow,

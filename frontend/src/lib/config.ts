@@ -54,33 +54,8 @@ export const SEAT_CLASSES: SeatClass[] = [
   }
 ];
 
-// Show time configuration
-export const SHOW_TIMES: ShowTime[] = [
-  {
-    key: 'MORNING',
-    label: 'Morning Show',
-    timing: '10:00 AM - 12:00 PM',
-    enumValue: 'MORNING'
-  },
-  {
-    key: 'MATINEE',
-    label: 'Matinee Show',
-    timing: '2:00 PM - 5:00 PM',
-    enumValue: 'MATINEE'
-  },
-  {
-    key: 'EVENING',
-    label: 'Evening Show',
-    timing: '6:00 PM - 9:00 PM',
-    enumValue: 'EVENING'
-  },
-  {
-    key: 'NIGHT',
-    label: 'Night Show',
-    timing: '9:30 PM - 12:30 AM',
-    enumValue: 'NIGHT'
-  }
-];
+// Show time configuration - now empty, will be loaded from backend
+export const SHOW_TIMES: ShowTime[] = [];
 
 // Helper functions - All pricing now uses dynamic settings store
 export function getSeatPrice(row: string): number {
@@ -134,11 +109,11 @@ export function getPricingMap(): Record<string, number> {
 // Legacy static pricing map (deprecated - use getPricingMap() instead)
 export const PRICING_MAP: Record<string, number> = {};
 
-// Movie configuration
+// Movie configuration - now empty, will be loaded from backend
 export const MOVIE_CONFIG = {
-  name: 'KALANK',
-  language: 'HINDI',
-  screen: 'Screen 1'
+  name: '',
+  language: '',
+  screen: ''
 };
 
  

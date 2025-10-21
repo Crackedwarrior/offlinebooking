@@ -62,70 +62,12 @@ export interface SettingsState {
   saveSettingsToBackend: () => Promise<void>;
 }
 
-const defaultMovies: MovieSettings[] = [
-  {
-    id: 'movie-1',
-    name: 'KALANK',
-    language: 'HINDI',
-    screen: 'Screen 1',
-    printInKannada: false,
-    showAssignments: {
-      MORNING: true,
-      MATINEE: false,
-      EVENING: true,
-      NIGHT: false
-    }
-  },
-  {
-    id: 'movie-2',
-    name: 'AVENGERS: ENDGAME',
-    language: 'ENGLISH',
-    screen: 'Screen 1',
-    printInKannada: false,
-    showAssignments: {
-      MORNING: false,
-      MATINEE: true,
-      EVENING: false,
-      NIGHT: true
-    }
-  },
-  {
-    id: 'movie-3',
-    name: 'PUSHPA',
-    language: 'TELUGU',
-    screen: 'Screen 1',
-    printInKannada: false,
-    showAssignments: {
-      MORNING: false,
-      MATINEE: false,
-      EVENING: false,
-      NIGHT: false
-    }
-  }
-];
+const defaultMovies: MovieSettings[] = []; // Empty - will be loaded from backend
 
-const defaultPricing: PricingSettings = {
-  'BOX': 200,
-  'STAR CLASS': 150,
-  'CLASSIC': 100,
-  'FIRST CLASS': 80,
-  'SECOND CLASS': 50
-};
+const defaultPricing: PricingSettings = {}; // Empty - will be loaded from backend
 
 
-const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
-  const timeParts = show.timing.split(' - ');
-  const startTime = timeParts[0] || '10:00 AM';
-  const endTime = timeParts[1] || '12:00 PM';
-  
-  return {
-    key: show.key,
-    label: show.label,
-    startTime: startTime.trim(),
-    endTime: endTime.trim(),
-    enabled: true
-  };
-});
+const defaultShowTimes: ShowTimeSettings[] = []; // Empty - will be loaded from backend
 
 export const useSettingsStore = create<SettingsState>()(
   persist(

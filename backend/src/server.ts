@@ -2155,49 +2155,11 @@ app.get('/api/ticket-id/next', asyncHandler(async (req: Request, res: Response) 
 // Get all settings (movies, pricing, show times)
 app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
   try {
-    // For now, return default settings - in production, these would come from database
+    // For now, return empty settings - web version should load from database
     const defaultSettings = {
-      movies: [
-        {
-          id: 'movie-1',
-          name: 'KALANK',
-          language: 'HINDI',
-          screen: 'Screen 1',
-          printInKannada: false,
-          showAssignments: {
-            MORNING: true,
-            MATINEE: false,
-            EVENING: true,
-            NIGHT: false
-          }
-        },
-        {
-          id: 'movie-2',
-          name: 'AVENGERS: ENDGAME',
-          language: 'ENGLISH',
-          screen: 'Screen 1',
-          printInKannada: false,
-          showAssignments: {
-            MORNING: false,
-            MATINEE: true,
-            EVENING: false,
-            NIGHT: true
-          }
-        }
-      ],
-      pricing: {
-        'BOX': 200,
-        'STAR CLASS': 150,
-        'CLASSIC': 100,
-        'FIRST CLASS': 80,
-        'SECOND CLASS': 50
-      },
-      showTimes: [
-        { key: 'MORNING', label: 'Morning Show', startTime: '10:00 AM', endTime: '12:30 PM', enabled: true },
-        { key: 'MATINEE', label: 'Matinee Show', startTime: '2:30 PM', endTime: '5:00 PM', enabled: true },
-        { key: 'EVENING', label: 'Evening Show', startTime: '6:00 PM', endTime: '8:30 PM', enabled: true },
-        { key: 'NIGHT', label: 'Night Show', startTime: '9:00 PM', endTime: '11:30 PM', enabled: true }
-      ]
+      movies: [],
+      pricing: {},
+      showTimes: []
     };
 
     const response: ApiResponse<any> = {

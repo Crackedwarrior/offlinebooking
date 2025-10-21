@@ -247,8 +247,8 @@ export class PrinterService {
       console.log('[PRINT] Raw ticket data:', tickets);
       
       // Get current movie and show from ticket data
-      const currentShow = tickets[0]?.show || 'NIGHT'; // Get from ticket data
-      const currentMovieLanguage = tickets[0]?.movieLanguage || 'HINDI'; // Get from ticket data
+      const currentShow = tickets[0]?.show || ''; // No hardcoded fallback
+      const currentMovieLanguage = tickets[0]?.movieLanguage || ''; // No hardcoded fallback
       
       console.log('[PRINT] Current show from ticket data:', currentShow);
       console.log('[PRINT] Current movie language from ticket data:', currentMovieLanguage);
@@ -264,17 +264,17 @@ export class PrinterService {
       // Convert tickets to format that matches the working formatTicket method expectations
       const bookingData = {
         // Core ticket data (matching formatTicket method expectations)
-        movie: tickets[0]?.film || 'Movie', // ✅ Get from ticket data
-        movieName: tickets[0]?.film || 'Movie', // ✅ Get from ticket data
+        movie: tickets[0]?.film || '', // No hardcoded fallback
+        movieName: tickets[0]?.film || '', // No hardcoded fallback
         movieLanguage: currentMovieLanguage, // ✅ Get from ticket data
         show: currentShow, // ✅ Get from ticket data
-        showTime: tickets[0]?.showtime || '6:00 PM', // ✅ formatTicket uses this
+        showTime: tickets[0]?.showtime || '', // No hardcoded fallback
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
         
         // Seat and class data
-        classLabel: tickets[0]?.class || 'BOX', // ✅ formatTicket looks for 'classLabel'
-        seatClass: tickets[0]?.class || 'BOX', // ✅ fallback field
-        row: tickets[0]?.row || 'A', // ✅ formatTicket uses this for seat formatting
+        classLabel: tickets[0]?.class || '', // No hardcoded fallback
+        seatClass: tickets[0]?.class || '', // No hardcoded fallback
+        row: tickets[0]?.row || '', // No hardcoded fallback
         seatRange: formatSeatNumbers(tickets.map(t => parseInt(t.seatNumber))), // ✅ formatTicket uses this - proper range format
         seatCount: tickets.length, // ✅ formatTicket needs this for range formatting
         seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ fallback field
@@ -295,8 +295,8 @@ export class PrinterService {
         // Additional fields
         ticketId: `WEB-${Date.now()}`,
         transactionId: tickets[0]?.transactionId || `TXN${Date.now()}`,
-        theaterName: tickets[0]?.theaterName || 'Theater',
-        location: tickets[0]?.location || 'Location'
+        theaterName: tickets[0]?.theaterName || '',
+        location: tickets[0]?.location || ''
       };
       
         console.log('[PRINT] Formatted booking data for PDF:', bookingData);
