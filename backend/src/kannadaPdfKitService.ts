@@ -64,13 +64,38 @@ class KannadaPdfKitService {
   private boldFontPath: string;
 
   constructor() {
-    // In production, fonts are in the same directory as the service
-    // In development, fonts are in the parent directory
-    const isProduction = process.env.NODE_ENV === 'production';
-    const fontDir = isProduction ? path.join(__dirname, 'fonts') : path.join(__dirname, '..', 'fonts');
+    // Try multiple possible font locations for different deployment environments
+    const possibleFontDirs = [
+      path.join(__dirname, 'fonts'), // Production: same directory as service
+      path.join(__dirname, '..', 'fonts'), // Development: parent directory
+      path.join(process.cwd(), 'fonts'), // Railway/web: current working directory
+      path.join(process.cwd(), 'backend', 'fonts'), // Alternative web path
+      path.join(__dirname, '..', '..', 'fonts'), // Another possible location
+    ];
+    
+    let fontDir = possibleFontDirs[0]; // Default fallback
+    
+    // Find the first directory that contains the Kannada fonts
+    for (const dir of possibleFontDirs) {
+      const regularPath = path.join(dir, 'NotoSansKannada-Regular.ttf');
+      const boldPath = path.join(dir, 'NotoSansKannada-Bold.ttf');
+      
+      if (fs.existsSync(regularPath) && fs.existsSync(boldPath)) {
+        fontDir = dir;
+        console.log('[PRINT] Found Kannada fonts in directory:', dir);
+        break;
+      }
+    }
     
     this.regularFontPath = path.join(fontDir, 'NotoSansKannada-Regular.ttf');
     this.boldFontPath = path.join(fontDir, 'NotoSansKannada-Bold.ttf');
+    
+    console.log('[PRINT] Kannada font paths:', {
+      regular: this.regularFontPath,
+      bold: this.boldFontPath,
+      regularExists: fs.existsSync(this.regularFontPath),
+      boldExists: fs.existsSync(this.boldFontPath)
+    });
   }
 
   // Get list of thermal printers (same as English service)
@@ -224,24 +249,28 @@ class KannadaPdfKitService {
         try {
           doc.registerFont('NotoSansKannada', this.regularFontPath);
           regularFontRegistered = true;
-          console.log('[PRINT] Registered NotoSansKannada font');
+          console.log('[PRINT] ✅ Successfully registered NotoSansKannada font from:', this.regularFontPath);
         } catch (error) {
-          console.log('[ERROR] Failed to register NotoSansKannada font:', (error as Error).message);
+          console.log('[ERROR] ❌ Failed to register NotoSansKannada font:', (error as Error).message);
+          console.log('[ERROR] Font path attempted:', this.regularFontPath);
         }
       } else {
-        console.log('[ERROR] Regular font not found!');
+        console.log('[ERROR] ❌ Regular font not found at:', this.regularFontPath);
+        console.log('[ERROR] Current working directory:', process.cwd());
+        console.log('[ERROR] __dirname:', __dirname);
       }
       
       if (fs.existsSync(this.boldFontPath)) {
         try {
           doc.registerFont('NotoSansKannada-Bold', this.boldFontPath);
           boldFontRegistered = true;
-          console.log('[PRINT] Registered NotoSansKannada-Bold font');
+          console.log('[PRINT] ✅ Successfully registered NotoSansKannada-Bold font from:', this.boldFontPath);
         } catch (error) {
-          console.log('[ERROR] Failed to register NotoSansKannada-Bold font:', (error as Error).message);
+          console.log('[ERROR] ❌ Failed to register NotoSansKannada-Bold font:', (error as Error).message);
+          console.log('[ERROR] Font path attempted:', this.boldFontPath);
         }
       } else {
-        console.log('[ERROR] Bold font not found!');
+        console.log('[ERROR] ❌ Bold font not found at:', this.boldFontPath);
       }
       
       // Helper function to get safe font
@@ -251,9 +280,17 @@ class KannadaPdfKitService {
         } else if (regularFontRegistered) {
           return 'NotoSansKannada';
         } else {
+          console.log('[WARNING] ⚠️ Kannada fonts not available, falling back to Helvetica');
           return isBold ? 'Helvetica-Bold' : 'Helvetica';
         }
       };
+      
+      // Log font registration status
+      console.log('[PRINT] Font registration status:', {
+        regularFontRegistered,
+        boldFontRegistered,
+        fallbackToEnglish: !regularFontRegistered
+      });
       
       // Start from TOP of the page
       let currentY = 20;

@@ -2,6 +2,46 @@ import { TicketPdfGenerator } from '../utils/ticketPdfGenerator';
 import { getTheaterConfig } from '../config/theaterConfig';
 import { useSettingsStore } from '../store/settingsStore';
 
+// Helper: format seat numbers as range format (e.g., "4 - 6" instead of "4,5,6")
+function formatSeatNumbers(seats: number[]): string {
+  if (seats.length === 1) return seats[0].toString();
+  
+  // Sort seats to ensure proper range detection
+  const sortedSeats = [...seats].sort((a, b) => a - b);
+  
+  // Check if seats are continuous
+  const isContinuous = sortedSeats.every((seat, index) => {
+    if (index === 0) return true;
+    return seat === sortedSeats[index - 1] + 1;
+  });
+  
+  if (isContinuous) {
+    // All seats are continuous - use range format
+    return `${sortedSeats[0]} - ${sortedSeats[sortedSeats.length - 1]}`;
+  } else {
+    // Non-continuous seats - group into ranges
+    let ranges: string[] = [];
+    let start = sortedSeats[0], end = sortedSeats[0];
+    
+    for (let i = 1; i <= sortedSeats.length; i++) {
+      if (i < sortedSeats.length && sortedSeats[i] === end + 1) {
+        end = sortedSeats[i];
+      } else {
+        if (start === end) {
+          ranges.push(`${start}`);
+        } else {
+          ranges.push(`${start} - ${end}`);
+        }
+        if (i < sortedSeats.length) {
+          start = sortedSeats[i];
+          end = sortedSeats[i];
+        }
+      }
+    }
+    return ranges.join(', ');
+  }
+}
+
 export interface TicketData {
   theaterName: string;
   location: string;
@@ -235,7 +275,7 @@ export class PrinterService {
         classLabel: tickets[0]?.class || 'BOX', // ✅ formatTicket looks for 'classLabel'
         seatClass: tickets[0]?.class || 'BOX', // ✅ fallback field
         row: tickets[0]?.row || 'A', // ✅ formatTicket uses this for seat formatting
-        seatRange: tickets.map(t => t.seatNumber).join(', '), // ✅ formatTicket uses this
+        seatRange: formatSeatNumbers(tickets.map(t => parseInt(t.seatNumber))), // ✅ formatTicket uses this - proper range format
         seatCount: tickets.length, // ✅ formatTicket needs this for range formatting
         seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ fallback field
         
