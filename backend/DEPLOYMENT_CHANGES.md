@@ -3793,3 +3793,163 @@ Phone: Sees "AVENGERS" movie ✅
 
 ---
 
+## **🔧 SETTINGS SYNC FIX #18: Load Settings on App Startup & Save Movies to Backend**
+
+**Date:** October 21, 2025  
+**Status:** ✅ **COMPLETED**  
+**Priority:** Critical  
+
+### **Problem:**
+1. Settings were not loading from backend on app startup, causing empty values on mobile devices
+2. Movie changes were not being saved to backend database, only to localStorage
+
+### **Root Cause:**
+1. **App.tsx Missing Load Call:** No `loadSettingsFromBackend()` call on app startup
+2. **MovieManagement Missing Save Calls:** Movie add/edit/delete/assignment operations didn't call `saveSettingsToBackend()`
+
+### **Solution Implemented:**
+
+#### **1. Add Settings Load on App Startup**
+**File:** `frontend/src/App.tsx`
+
+**Before:**
+```typescript
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // ❌ No settings load on startup
+  
+  return <div>...</div>;
+};
+```
+
+**After:**
+```typescript
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const loadSettingsFromBackend = useSettingsStore(state => state.loadSettingsFromBackend);
+  
+  // ✅ Load settings from backend on app startup (website only)
+  useEffect(() => {
+    loadSettingsFromBackend();
+  }, [loadSettingsFromBackend]);
+  
+  return <div>...</div>;
+};
+```
+
+#### **2. Save Movies to Backend on All Operations**
+**File:** `frontend/src/components/MovieManagement.tsx`
+
+**Changes Made:**
+1. **Add Movie:** Added `await saveSettingsToBackend()` after `addMovie()`
+2. **Edit Movie:** Added `await saveSettingsToBackend()` after `updateMovie()`
+3. **Delete Movie:** Added `await saveSettingsToBackend()` after `deleteMovie()`
+4. **Show Assignment:** Added `await saveSettingsToBackend()` after `updateShowAssignment()`
+
+**Before:**
+```typescript
+const handleAddMovie = () => {
+  addMovie(newMovie);
+  // ❌ No backend save
+};
+
+const handleSaveEdit = () => {
+  updateMovie(editingMovie.id, movieForm);
+  // ❌ No backend save
+};
+
+const handleDeleteMovie = (movie) => {
+  deleteMovie(movie.id);
+  // ❌ No backend save
+};
+
+// Show assignment button
+onClick={() => {
+  updateShowAssignment(movie.id, show.key, true);
+  // ❌ No backend save
+}}
+```
+
+**After:**
+```typescript
+const handleAddMovie = async () => {
+  addMovie(newMovie);
+  // ✅ Save to backend
+  await saveSettingsToBackend();
+};
+
+const handleSaveEdit = async () => {
+  updateMovie(editingMovie.id, movieForm);
+  // ✅ Save to backend
+  await saveSettingsToBackend();
+};
+
+const handleDeleteMovie = async (movie) => {
+  deleteMovie(movie.id);
+  // ✅ Save to backend
+  await saveSettingsToBackend();
+};
+
+// Show assignment button
+onClick={async () => {
+  updateShowAssignment(movie.id, show.key, true);
+  // ✅ Save to backend
+  await saveSettingsToBackend();
+}}
+```
+
+### **Flow After Implementation:**
+
+#### **Computer:**
+```
+User adds movie "AVENGERS"
+   ↓
+addMovie() updates Zustand store
+   ↓
+Persist middleware → localStorage
+   ↓
+saveSettingsToBackend() → Railway database
+   ↓
+Settings saved to both locations ✅
+```
+
+#### **Phone (After Computer):**
+```
+User opens app on phone
+   ↓
+App.tsx runs useEffect
+   ↓
+loadSettingsFromBackend() called
+   ↓
+Fetch from Railway database
+   ↓
+Returns: { movies: [{ name: "AVENGERS", ... }], ... }
+   ↓
+Zustand store updated
+   ↓
+Phone shows "AVENGERS" movie ✅
+```
+
+### **Files Modified:**
+- `frontend/src/App.tsx` - Added `loadSettingsFromBackend()` on startup
+- `frontend/src/components/MovieManagement.tsx` - Added `saveSettingsToBackend()` to all movie operations
+
+### **Testing Results:**
+- ✅ **App Startup:** Settings load from backend automatically
+- ✅ **Movie Add:** Saved to localStorage + database
+- ✅ **Movie Edit:** Saved to localStorage + database
+- ✅ **Movie Delete:** Saved to localStorage + database
+- ✅ **Show Assignment:** Saved to localStorage + database
+- ✅ **Cross-Device:** Settings sync from computer to phone
+- ✅ **Platform Detection:** Electron skips backend sync, website uses it
+
+### **Impact:**
+- ✅ **Fixed:** Movies now persist across devices on website
+- ✅ **Fixed:** All settings (movies, pricing, show times) load on app startup
+- ✅ **Preserved:** Electron app unchanged (platform detection skips backend sync)
+- ✅ **Enhanced:** All movie operations immediately sync to database
+- ✅ **Demo Ready:** Cross-device sync works perfectly for interviews
+
+---
+

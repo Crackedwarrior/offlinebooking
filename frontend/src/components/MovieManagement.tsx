@@ -16,7 +16,8 @@ const MovieManagement = () => {
     updateMovie, 
     deleteMovie, 
     updateShowAssignment,
-    getMoviesForShow
+    getMoviesForShow,
+    saveSettingsToBackend
   } = useSettingsStore();
 
   // Helper function to check if a show already has a movie assigned
@@ -39,7 +40,7 @@ const MovieManagement = () => {
     }
   });
 
-  const handleAddMovie = () => {
+  const handleAddMovie = async () => {
     if (!movieForm.name || !movieForm.language) {
       // toast({
       //   title: 'Error',
@@ -55,6 +56,10 @@ const MovieManagement = () => {
     };
 
     addMovie(newMovie);
+    
+    // Save to backend
+    await saveSettingsToBackend();
+    
     setIsAddingMovie(false);
     setMovieForm({
       name: '',
@@ -85,7 +90,7 @@ const MovieManagement = () => {
     });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingMovie) return;
 
     if (!movieForm.name || !movieForm.language) {
@@ -98,6 +103,10 @@ const MovieManagement = () => {
     }
 
     updateMovie(editingMovie.id, movieForm);
+    
+    // Save to backend
+    await saveSettingsToBackend();
+    
     setEditingMovie(null);
     setMovieForm({
       name: '',
@@ -117,12 +126,16 @@ const MovieManagement = () => {
     // });
   };
 
-  const handleDeleteMovie = (movie: MovieSettings) => {
+  const handleDeleteMovie = async (movie: MovieSettings) => {
     if (!window.confirm(`Are you sure you want to delete "${movie.name}"? This will also remove it from any shows it's assigned to.`)) {
       return;
     }
 
     deleteMovie(movie.id);
+    
+    // Save to backend
+    await saveSettingsToBackend();
+    
     // toast({
     //   title: 'Success',
     //   description: 'Movie deleted successfully',
@@ -410,34 +423,38 @@ const MovieManagement = () => {
                                const isConflict = existingMovie && existingMovie.id !== movie.id;
                                
                                return (
-                                 <button
-                                   key={show.key}
-                                   onClick={() => {
-                                     if (currentAssignment) {
-                                       // Removing from show
-                                       updateShowAssignment(movie.id, show.key, false);
-                                       // toast({
-                                       //   title: 'Success',
-                                       //   description: `${movie.name} removed from ${show.label} Show`,
-                                       // });
-                                     } else {
-                                       // Adding to show - check for conflicts
-                                       if (isConflict) {
-                                         // toast({
-                                         //   title: 'Conflict',
-                                         //   description: `${existingMovie?.name} is already assigned to ${show.label} Show. Remove it first.`,
-                                         //   variant: 'destructive',
-                                         // });
-                                         return;
-                                       }
-                                       
-                                       updateShowAssignment(movie.id, show.key, true);
-                                       // toast({
-                                       //   title: 'Success',
-                                       //   description: `${movie.name} assigned to ${show.label} Show`,
-                                       // });
-                                     }
-                                   }}
+                                <button
+                                  key={show.key}
+                                  onClick={async () => {
+                                    if (currentAssignment) {
+                                      // Removing from show
+                                      updateShowAssignment(movie.id, show.key, false);
+                                      // Save to backend
+                                      await saveSettingsToBackend();
+                                      // toast({
+                                      //   title: 'Success',
+                                      //   description: `${movie.name} removed from ${show.label} Show`,
+                                      // });
+                                    } else {
+                                      // Adding to show - check for conflicts
+                                      if (isConflict) {
+                                        // toast({
+                                        //   title: 'Conflict',
+                                        //   description: `${existingMovie?.name} is already assigned to ${show.label} Show. Remove it first.`,
+                                        //   variant: 'destructive',
+                                        // });
+                                        return;
+                                      }
+                                      
+                                      updateShowAssignment(movie.id, show.key, true);
+                                      // Save to backend
+                                      await saveSettingsToBackend();
+                                      // toast({
+                                      //   title: 'Success',
+                                      //   description: `${movie.name} assigned to ${show.label} Show`,
+                                      // });
+                                    }
+                                  }}
                                    className={`px-3 py-1 text-xs rounded border ${
                                      currentAssignment
                                        ? 'bg-green-100 text-green-700 border-green-300'
