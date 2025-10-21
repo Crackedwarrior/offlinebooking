@@ -35,7 +35,7 @@ export interface SettingsData {
 
 export class SettingsApiService {
   private static instance: SettingsApiService;
-  private baseUrl: string = envConfig.api.baseUrl;
+  private baseUrl: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
   private constructor() {}
 

@@ -35,7 +35,7 @@ type SettingsTab = 'overview' | 'pricing' | 'showtimes' | 'movies' | 'bookings' 
 
 const Settings = () => {
   // Removed debug render counting - performance optimization
-  const { pricing, showTimes, movies, updatePricing, updateShowTime, deleteShowTime, resetToDefaults } = useSettingsStore();
+  const { pricing, showTimes, movies, updatePricing, updateShowTime, deleteShowTime, resetToDefaults, saveSettingsToBackend } = useSettingsStore();
   const [localShowTimes, setLocalShowTimes] = useState(showTimes);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +200,7 @@ const Settings = () => {
   }, [localShowTimes, deleteShowTime, computeOverlapErrors]);
 
   // Save all changes
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     try {
       if (overlapErrors.length > 0) {
         setError('Please resolve overlapping show times before saving.');
@@ -209,15 +209,20 @@ const Settings = () => {
       // Get current form values
       const formValues = watchedPricing;
       
-      // Update pricing settings
+      // Update pricing settings (LOCAL)
       Object.entries(formValues).forEach(([classLabel, value]) => {
         updatePricing(classLabel, parseInt(String(value)) || 0);
       });
 
-      // Update show time settings
+      // Update show time settings (LOCAL)
       localShowTimes.forEach(show => {
         updateShowTime(show.key, show);
       });
+
+      // ✅ SAVE TO BACKEND
+      console.log('[SETTINGS] Saving settings to backend...');
+      await saveSettingsToBackend();
+      console.log('[SETTINGS] Settings saved to backend successfully');
 
       hasChangesRef.current = false;
       setShowSaveButton(false);
@@ -236,7 +241,7 @@ const Settings = () => {
       console.error('❌ Error saving settings:', error);
       setError('Failed to save settings. Please try again.');
     }
-  }, [watchedPricing, localShowTimes, updatePricing, updateShowTime, overlapErrors]);
+  }, [watchedPricing, localShowTimes, updatePricing, updateShowTime, overlapErrors, saveSettingsToBackend]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
