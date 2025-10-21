@@ -282,7 +282,7 @@ class PdfPrintService {
     
     currentY += 60; // Adjusted for taller box
 
-    // Price breakdown - compact horizontal layout (2x2 format) with aligned semicolons
+    // Price breakdown - centered layout (2x2 format) with aligned semicolons
     doc.fontSize(smallFontSize).font('Helvetica');
     const priceStartY = currentY;
     
@@ -300,26 +300,30 @@ class PdfPrintService {
     const maxLeftTextWidth = Math.max(netTextWidth, sgstTextWidth);
     const maxRightTextWidth = Math.max(cgstTextWidth, mcTextWidth);
     
-    const leftColonX = TEXT_OFFSET + maxLeftTextWidth;
-    const rightColonX = TEXT_OFFSET + maxLeftTextWidth + 50 + maxRightTextWidth; // 50px gap between columns to prevent overlap
+    // Calculate total width of the pricing block to center it
+    const totalPricingWidth = maxLeftTextWidth + 50 + maxRightTextWidth + 20; // 20px for spacing
+    const pricingCenterX = (doc.page.width - totalPricingWidth) / 2;
+    
+    const leftColonX = pricingCenterX + maxLeftTextWidth;
+    const rightColonX = pricingCenterX + maxLeftTextWidth + 50 + maxRightTextWidth; // 50px gap between columns to prevent overlap
     
     // First row: NET and CGST
-    doc.text(netText, TEXT_OFFSET, currentY);
+    doc.text(netText, pricingCenterX, currentY);
     doc.text(':', leftColonX, currentY);
     doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.net || getTheaterConfig().defaultTaxValues.net}`, leftColonX + 5, currentY);
     
-    doc.font('Helvetica').text(cgstText, TEXT_OFFSET + maxLeftTextWidth + 50, currentY);
+    doc.font('Helvetica').text(cgstText, pricingCenterX + maxLeftTextWidth + 50, currentY);
     doc.text(':', rightColonX, currentY);
     doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.cgst || getTheaterConfig().defaultTaxValues.cgst}`, rightColonX + 5, currentY);
     
     currentY += 12;
     
     // Second row: SGST and MC
-    doc.font('Helvetica').text(sgstText, TEXT_OFFSET, currentY);
+    doc.font('Helvetica').text(sgstText, pricingCenterX, currentY);
     doc.text(':', leftColonX, currentY);
     doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.sgst || getTheaterConfig().defaultTaxValues.sgst}`, leftColonX + 5, currentY);
     
-    doc.font('Helvetica').text(mcText, TEXT_OFFSET + maxLeftTextWidth + 50, currentY);
+    doc.font('Helvetica').text(mcText, pricingCenterX + maxLeftTextWidth + 50, currentY);
     doc.text(':', rightColonX, currentY);
     doc.font(getSafeFont(false)).text(`${rupeeSymbol}${ticketData.mc || getTheaterConfig().defaultTaxValues.mc}`, rightColonX + 5, currentY);
     currentY += 12;
@@ -332,19 +336,23 @@ class PdfPrintService {
     const ticketCostLabel = "TICKET COST (per seat):";
     const ticketCostAmount = `${rupeeSymbol}${ticketCostFormatted}`;
     
-    // Calculate positions for left-aligned text
+    // Calculate positions for centered text
     doc.fontSize(normalFontSize).font('Times-Bold');
     const ticketCostLabelWidth = doc.widthOfString(ticketCostLabel);
     doc.fontSize(normalFontSize).font(getSafeFont(true));
     const ticketCostAmountWidth = doc.widthOfString(ticketCostAmount);
     
+    // Calculate center position for the entire ticket cost line
+    const totalTicketCostWidth = ticketCostLabelWidth + ticketCostAmountWidth;
+    const ticketCostCenterX = (doc.page.width - totalTicketCostWidth) / 2;
+    
     // Draw "TICKET COST (per seat):" with Times-Bold
     doc.fontSize(normalFontSize).font('Times-Bold');
-    doc.text(ticketCostLabel, TEXT_OFFSET, currentY);
+    doc.text(ticketCostLabel, ticketCostCenterX, currentY);
     
     // Draw amount with NotoSansKannada-Bold (supports rupee symbol)
     doc.fontSize(normalFontSize).font(getSafeFont(true));
-    doc.text(ticketCostAmount, TEXT_OFFSET + ticketCostLabelWidth, currentY);
+    doc.text(ticketCostAmount, ticketCostCenterX + ticketCostLabelWidth, currentY);
     doc.font('Helvetica');
     currentY += 18; // More spacing before total box
 

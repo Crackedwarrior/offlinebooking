@@ -3115,8 +3115,83 @@ const getSafeFont = (isBold = false) => {
 
 ---
 
-**Document Version:** 3.0  
-**Last Updated:** October 19, 2025  
+## **🎫 TICKET ALIGNMENT FIX #11: Center Text Blocks in Web PDFs**
+
+**Date:** October 21, 2025  
+**Issue:** Text blocks in web-generated PDFs were shifted to the right instead of being properly centered  
+**Problem:** Pricing breakdown and ticket cost sections appeared misaligned compared to Electron app
+
+### **Root Cause:**
+- Web PDF services were using fixed left margins (`TEXT_OFFSET`, `dateX`) instead of calculating center positions
+- Text blocks like "NET: ₹167.80 CGST: ₹15.10" and "TICKET COST (per seat): ₹200.00" were left-aligned
+- Electron app had perfect centering, but web version didn't match
+
+### **Solution Applied:**
+
+#### **1. English PDF Service (`pdfPrintService.ts`):**
+```typescript
+// Before (left-aligned):
+doc.text('NET', TEXT_OFFSET, currentY);
+doc.text('CGST', TEXT_OFFSET + maxLeftTextWidth + 50, currentY);
+
+// After (centered):
+const totalPricingWidth = maxLeftTextWidth + 50 + maxRightTextWidth + 20;
+const pricingCenterX = (doc.page.width - totalPricingWidth) / 2;
+doc.text('NET', pricingCenterX, currentY);
+doc.text('CGST', pricingCenterX + maxLeftTextWidth + 50, currentY);
+```
+
+#### **2. Kannada PDF Service (`kannadaPdfKitService.ts`):**
+```typescript
+// Before (left-aligned):
+doc.text('NET', dateX, taxY);
+doc.text('CGST', cgstX, taxY);
+
+// After (centered):
+const totalPricingWidth = maxTaxTextWidth + 70 + maxTaxTextWidth + 20;
+const pricingCenterX = (doc.page.width - totalPricingWidth) / 2;
+doc.text('NET', pricingCenterX, taxY);
+doc.text('CGST', pricingCenterX + 70, taxY);
+```
+
+#### **3. Ticket Cost Line Centering:**
+```typescript
+// Before (left-aligned):
+doc.text(ticketCostLabel, TEXT_OFFSET, currentY);
+
+// After (centered):
+const totalTicketCostWidth = ticketCostLabelWidth + ticketCostAmountWidth;
+const ticketCostCenterX = (doc.page.width - totalTicketCostWidth) / 2;
+doc.text(ticketCostLabel, ticketCostCenterX, currentY);
+```
+
+#### **4. Stub Section Alignment:**
+- Applied same centering logic to ticket stub sections
+- Both English and Kannada stub pricing now properly centered
+- Maintains consistent alignment throughout entire ticket
+
+### **Files Modified:**
+- `backend/src/pdfPrintService.ts` - Centered English PDF pricing blocks and ticket cost
+- `backend/src/kannadaPdfKitService.ts` - Centered Kannada PDF pricing blocks, ticket cost, and stub sections
+
+### **Testing:**
+- ✅ Pricing breakdown now centered: "NET: ₹167.80 CGST: ₹15.10"
+- ✅ Ticket cost line centered: "TICKET COST (per seat): ₹200.00"
+- ✅ Kannada pricing centered: "ಟಿಕೆಟ್ ಬೆಲೆ (ಪ್ರತಿ ಆಸನ): ₹150"
+- ✅ Stub sections properly aligned
+- ✅ Matches Electron app alignment exactly
+- ✅ Both English and Kannada tickets now perfectly centered
+
+### **Impact:**
+- **Visual Consistency:** Web PDFs now match Electron app alignment perfectly
+- **Professional Appearance:** Tickets look properly formatted and centered
+- **User Experience:** Consistent ticket appearance across all platforms
+- **No Electron Impact:** Desktop app remains completely unchanged
+
+---
+
+**Document Version:** 3.1  
+**Last Updated:** October 21, 2025  
 **Author:** AI Assistant  
-**Status:** ✅ Fixed Seat Format & Kannada Font Issues - Web Version Now Matches Electron
+**Status:** ✅ Fixed PDF Text Alignment - Web Tickets Now Perfectly Centered Like Electron
 
