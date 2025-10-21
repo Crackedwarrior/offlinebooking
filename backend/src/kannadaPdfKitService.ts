@@ -493,21 +493,16 @@ class KannadaPdfKitService {
       const mcTextWidth = doc.widthOfString(mcText);
       
       const maxTaxTextWidth = Math.max(netTextWidth, cgstTextWidth, sgstTextWidth, mcTextWidth);
-      
-      // Calculate total width of the pricing block to center it
-      const totalPricingWidth = maxTaxTextWidth + 70 + maxTaxTextWidth + 20; // 70px gap + 20px spacing
-      const pricingCenterX = (doc.page.width - totalPricingWidth) / 2;
-      
-      const taxAlignedColonX = pricingCenterX + maxTaxTextWidth;
-      const cgstX = pricingCenterX + 70;
+      const taxAlignedColonX = dateX + maxTaxTextWidth;
       
       let taxY = currentY;
       
       // NET and CGST
-      doc.font('Helvetica').text('NET', pricingCenterX, taxY);
+      doc.font('Helvetica').text('NET', dateX, taxY);
       doc.font('Helvetica').text(':', taxAlignedColonX, taxY);
       doc.font(getSafeFont(false)).text(`₹${netAmount.toFixed(2)}`, taxAlignedColonX + 5, taxY);
       
+      const cgstX = dateX + 70;
       doc.font('Helvetica').text('CGST', cgstX, taxY);
       doc.font('Helvetica').text(':', cgstX + maxTaxTextWidth, taxY);
       doc.font(getSafeFont(false)).text(`₹${cgstAmount.toFixed(2)}`, cgstX + maxTaxTextWidth + 5, taxY);
@@ -515,7 +510,7 @@ class KannadaPdfKitService {
       taxY += 12;
       
       // SGST and MC
-      doc.font('Helvetica').text('SGST', pricingCenterX, taxY);
+      doc.font('Helvetica').text('SGST', dateX, taxY);
       doc.font('Helvetica').text(':', taxAlignedColonX, taxY);
       doc.font(getSafeFont(false)).text(`₹${sgstAmount.toFixed(2)}`, taxAlignedColonX + 5, taxY);
       
@@ -527,11 +522,7 @@ class KannadaPdfKitService {
       currentY = taxY + 8.9; // Moved down by another 0.1mm (8.6 + 0.3 = 8.9)
       doc.fontSize(normalFontSize).font(getSafeFont(true));
       const ticketPriceText = `ಟಿಕೆಟ್ ಬೆಲೆ (ಪ್ರತಿ ಆಸನ): ₹${formattedTicket.individualTicketPrice}`;
-      
-      // Center the ticket price text
-      const ticketPriceWidth = doc.widthOfString(ticketPriceText);
-      const ticketPriceCenterX = (doc.page.width - ticketPriceWidth) / 2;
-      doc.text(ticketPriceText, ticketPriceCenterX, currentY);
+      doc.text(ticketPriceText, dateX, currentY);
       currentY += 15;
       
       // === TOTAL BOX ===
@@ -612,36 +603,33 @@ class KannadaPdfKitService {
       
       currentY = drawCenteredText(`CLASS: ${formattedTicket.seatClass} | SEAT: ${formattedTicket.seatInfo}`, currentY, smallFontSize, false, false);
       
-      // Stub tax breakdown - centered
+      // Stub tax breakdown
       currentY -= 5;
       const stubTaxY = currentY;
+      const stubTaxStartX = leftMargin + 21; // Moved further left by 0.2mm (0.6 points from 24 to 21)
       const stubTaxSpacing = 35;
       
-      // Calculate center position for stub tax breakdown
-      const stubTaxTotalWidth = (stubTaxSpacing * 3) + 20; // 3 spacings + padding
-      const stubTaxCenterX = (doc.page.width - stubTaxTotalWidth) / 2;
-      
       doc.fontSize(smallFontSize);
-      doc.font('Helvetica').text('NET:', stubTaxCenterX, stubTaxY);
-      doc.font(getSafeFont(false)).text(`₹${netAmount.toFixed(2)}`, stubTaxCenterX, stubTaxY + 8);
+      doc.font('Helvetica').text('NET:', stubTaxStartX, stubTaxY);
+      doc.font(getSafeFont(false)).text(`₹${netAmount.toFixed(2)}`, stubTaxStartX, stubTaxY + 8);
       
-      doc.font('Helvetica').text('CGST:', stubTaxCenterX + stubTaxSpacing, stubTaxY);
-      doc.font(getSafeFont(false)).text(`₹${cgstAmount.toFixed(2)}`, stubTaxCenterX + stubTaxSpacing, stubTaxY + 8);
+      doc.font('Helvetica').text('CGST:', stubTaxStartX + stubTaxSpacing, stubTaxY);
+      doc.font(getSafeFont(false)).text(`₹${cgstAmount.toFixed(2)}`, stubTaxStartX + stubTaxSpacing, stubTaxY + 8);
       
-      doc.font('Helvetica').text('SGST:', stubTaxCenterX + (stubTaxSpacing * 2) + 0.3, stubTaxY);
-      doc.font(getSafeFont(false)).text(`₹${sgstAmount.toFixed(2)}`, stubTaxCenterX + (stubTaxSpacing * 2) + 0.3, stubTaxY + 8);
+      doc.font('Helvetica').text('SGST:', stubTaxStartX + (stubTaxSpacing * 2) + 0.3, stubTaxY);
+      doc.font(getSafeFont(false)).text(`₹${sgstAmount.toFixed(2)}`, stubTaxStartX + (stubTaxSpacing * 2) + 0.3, stubTaxY + 8);
       
-      doc.font('Helvetica').text('MC:', stubTaxCenterX + (stubTaxSpacing * 3) + 0.3, stubTaxY);
-      doc.font(getSafeFont(false)).text(`₹${mcAmount.toFixed(2)}`, stubTaxCenterX + (stubTaxSpacing * 3) + 0.3, stubTaxY + 8);
+      doc.font('Helvetica').text('MC:', stubTaxStartX + (stubTaxSpacing * 3) + 0.3, stubTaxY);
+      doc.font(getSafeFont(false)).text(`₹${mcAmount.toFixed(2)}`, stubTaxStartX + (stubTaxSpacing * 3) + 0.3, stubTaxY + 8);
       
       currentY = stubTaxY + 20;
       
-      // Stub ticket price - centered
+      // Stub ticket price (moved left by 0.2mm)
       doc.fontSize(smallFontSize).font(getSafeFont(true));
       const stubTicketPriceText = `ಟಿಕೆಟ್ ಬೆಲೆ (ಪ್ರತಿ ಆಸನ): ₹${formattedTicket.individualTicketPrice}`;
       const stubTicketPriceTextWidth = doc.widthOfString(stubTicketPriceText);
-      const stubTicketPriceCenterX = (doc.page.width - stubTicketPriceTextWidth) / 2;
-      doc.text(stubTicketPriceText, stubTicketPriceCenterX, currentY);
+      const stubTicketPriceX = centerX - (stubTicketPriceTextWidth / 2) - 0.6; // Moved left by 0.2mm (0.6 points)
+      doc.text(stubTicketPriceText, stubTicketPriceX, currentY);
       currentY += smallFontSize + 5;
       
       // Stub total (moved left by 0.2mm, slightly bigger font)
