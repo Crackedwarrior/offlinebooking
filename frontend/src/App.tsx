@@ -10,9 +10,7 @@ import { useEffect, useState } from "react";
 import desktopApi from "./services/desktopApi";
 import AuthPage from "./components/AuthPage";
 import { AUTH_CONFIG } from "./config/auth";
-
-
-
+import { useSettingsStore } from "./store/settingsStore";
 
 
 
@@ -20,7 +18,12 @@ const queryClient = new QueryClient();
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const loadSettingsFromBackend = useSettingsStore(state => state.loadSettingsFromBackend);
   
+  // Load settings from backend on app startup (website only)
+  useEffect(() => {
+    loadSettingsFromBackend();
+  }, [loadSettingsFromBackend]);
 
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
