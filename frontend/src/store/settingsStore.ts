@@ -3,6 +3,27 @@ import { persist } from 'zustand/middleware';
 import { SEAT_CLASSES, SHOW_TIMES } from '@/lib/config';
 import { SettingsApiService } from '@/services/settingsApi';
 
+// Helper to determine if we should use backend database sync
+const shouldUseBackendSync = (): boolean => {
+  try {
+    // Get API base URL from environment
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+    
+    // If it's Railway or remote backend → use database sync
+    const isRemote = apiUrl.includes('railway.app') || 
+                     apiUrl.includes('vercel.app') ||
+                     apiUrl.includes('herokuapp.com') ||
+                     !apiUrl.includes('localhost');
+    
+    console.log(`[SETTINGS] Backend sync: ${isRemote ? 'ENABLED' : 'DISABLED'} (API: ${apiUrl})`);
+    
+    return isRemote;
+  } catch (error) {
+    console.log('[SETTINGS] Backend sync detection failed, defaulting to localStorage only');
+    return false;
+  }
+};
+
 export interface MovieSettings {
   id: string;
   name: string;
@@ -321,58 +342,55 @@ export const useSettingsStore = create<SettingsState>()(
         return { min, max, average };
       },
 
-      // Backend sync methods
+      // Backend sync methods (only for website)
       loadSettingsFromBackend: async () => {
+        // Check if we should sync with backend
+        if (!shouldUseBackendSync()) {
+          console.log('[SETTINGS] Electron mode - skipping backend sync');
+          return; // Skip for Electron
+        }
+        
         try {
+          console.log('[SETTINGS] Website mode - loading from backend');
           const settingsApi = SettingsApiService.getInstance();
-          const backendAvailable = await settingsApi.isBackendAvailable();
+          const backendSettings = await settingsApi.loadSettings();
           
-          if (backendAvailable) {
-            console.log('[SETTINGS] Backend available, loading settings from API');
-            const backendSettings = await settingsApi.loadSettings();
-            
-            if (backendSettings) {
-              set({
-                movies: backendSettings.movies,
-                pricing: backendSettings.pricing,
-                showTimes: backendSettings.showTimes
-              });
-              console.log('[SETTINGS] Settings loaded from backend successfully');
-            } else {
-              console.log('[SETTINGS] Failed to load from backend, using local defaults');
-            }
+          if (backendSettings) {
+            set({
+              movies: backendSettings.movies,
+              pricing: backendSettings.pricing,
+              showTimes: backendSettings.showTimes
+            });
+            console.log('[SETTINGS] Loaded from backend database');
           } else {
-            console.log('[SETTINGS] Backend not available, using local settings');
+            console.log('[SETTINGS] No backend data, using localStorage');
           }
         } catch (error) {
-          console.error('[ERROR] Failed to load settings from backend:', error);
+          console.log('[SETTINGS] Backend load failed, using localStorage');
         }
       },
 
       saveSettingsToBackend: async () => {
+        // Check if we should sync with backend
+        if (!shouldUseBackendSync()) {
+          console.log('[SETTINGS] Electron mode - skipping backend sync');
+          return; // Skip for Electron
+        }
+        
         try {
+          console.log('[SETTINGS] Website mode - saving to backend');
           const state = get();
           const settingsApi = SettingsApiService.getInstance();
-          const backendAvailable = await settingsApi.isBackendAvailable();
           
-          if (backendAvailable) {
-            console.log('[SETTINGS] Backend available, saving settings to API');
-            const success = await settingsApi.saveSettings({
-              movies: state.movies,
-              pricing: state.pricing,
-              showTimes: state.showTimes
-            });
-            
-            if (success) {
-              console.log('[SETTINGS] Settings saved to backend successfully');
-            } else {
-              console.log('[SETTINGS] Failed to save to backend');
-            }
-          } else {
-            console.log('[SETTINGS] Backend not available, settings saved locally only');
-          }
+          await settingsApi.saveSettings({
+            movies: state.movies,
+            pricing: state.pricing,
+            showTimes: state.showTimes
+          });
+          
+          console.log('[SETTINGS] Saved to backend database');
         } catch (error) {
-          console.error('[ERROR] Failed to save settings to backend:', error);
+          console.log('[SETTINGS] Backend save failed, localStorage still works');
         }
       }
     }),

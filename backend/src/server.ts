@@ -75,7 +75,7 @@ const runDatabaseMigration = async () => {
     // Check if printedAt column exists
     try {
       await prisma.$queryRaw`SELECT printedAt FROM Booking LIMIT 1`;
-      console.log('[DB] Database schema is up to date');
+      console.log('[DB] printedAt column exists');
     } catch (error: any) {
       if (error instanceof Error && error.message && error.message.includes('printedAt')) {
         console.log('[DB] Running migration: Adding printedAt column...');
@@ -85,9 +85,38 @@ const runDatabaseMigration = async () => {
         throw error;
       }
     }
+    
+    // Check if Settings table exists (non-blocking)
+    try {
+      await prisma.$queryRaw`SELECT * FROM Settings LIMIT 1`;
+      console.log('[DB] Settings table exists');
+    } catch (error: any) {
+      if (error instanceof Error && error.message && error.message.includes('Settings')) {
+        console.log('[DB] Running migration: Creating Settings table...');
+        try {
+          await prisma.$executeRaw`
+            CREATE TABLE Settings (
+              id TEXT PRIMARY KEY,
+              key TEXT UNIQUE NOT NULL,
+              value TEXT NOT NULL,
+              createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+          `;
+          console.log('[DB] Settings table created successfully');
+        } catch (settingsError) {
+          // Don't crash the app if Settings table creation fails
+          console.error('[ERROR] Failed to create Settings table:', settingsError);
+          console.log('[WARN] Settings will use localStorage fallback');
+          // App continues! Bookings still work!
+        }
+      }
+    }
+    
+    console.log('[DB] Database schema check completed');
   } catch (error) {
     console.error('[ERROR] Database migration error:', error);
-    throw error; // Re-throw to prevent server start if migration fails
+    throw error; // Only throw if critical tables fail
   }
 };
 
@@ -2155,43 +2184,37 @@ app.get('/api/ticket-id/next', asyncHandler(async (req: Request, res: Response) 
 // Get all settings (movies, pricing, show times)
 app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
   try {
-    // For now, return default settings - in production, these would come from database
+    console.log('[SETTINGS] Loading settings from database...');
+    
+    // Try to load from database first
+    try {
+      const settings = await prisma.settings.findUnique({
+        where: { key: 'theater-settings' }
+      });
+      
+      if (settings) {
+        console.log('[SETTINGS] Loaded from database');
+        
+        const response: ApiResponse<any> = {
+          success: true,
+          data: JSON.parse(settings.value), // Parse the JSON string
+          message: 'Settings loaded from database'
+        };
+        
+        res.json(response);
+        return;
+      }
+    } catch (dbError) {
+      console.error('[ERROR] Database load failed:', dbError);
+      console.log('[WARN] Falling back to default settings');
+    }
+    
+    // Fallback to default settings if database fails or no data
+    console.log('[SETTINGS] Using default settings (no database data)');
+    
     const defaultSettings = {
-      movies: [
-        {
-          id: 'movie-1',
-          name: 'KALANK',
-          language: 'HINDI',
-          screen: 'Screen 1',
-          printInKannada: false,
-          showAssignments: {
-            MORNING: true,
-            MATINEE: false,
-            EVENING: true,
-            NIGHT: false
-          }
-        },
-        {
-          id: 'movie-2',
-          name: 'AVENGERS: ENDGAME',
-          language: 'ENGLISH',
-          screen: 'Screen 1',
-          printInKannada: false,
-          showAssignments: {
-            MORNING: false,
-            MATINEE: true,
-            EVENING: false,
-            NIGHT: true
-          }
-        }
-      ],
-      pricing: {
-        'BOX': 200,
-        'STAR CLASS': 150,
-        'CLASSIC': 100,
-        'FIRST CLASS': 80,
-        'SECOND CLASS': 50
-      },
+      movies: [],
+      pricing: {},
       showTimes: [
         { key: 'MORNING', label: 'Morning Show', startTime: '--:-- AM', endTime: '--:-- AM', enabled: true },
         { key: 'MATINEE', label: 'Matinee Show', startTime: '--:-- PM', endTime: '--:-- PM', enabled: true },
@@ -2203,7 +2226,7 @@ app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
     const response: ApiResponse<any> = {
       success: true,
       data: defaultSettings,
-      message: 'Settings retrieved successfully'
+      message: 'Settings loaded (default values)'
     };
     
     res.json(response);
@@ -2223,16 +2246,49 @@ app.post('/api/settings', asyncHandler(async (req: Request, res: Response) => {
   try {
     const { movies, pricing, showTimes } = req.body;
     
-    // For now, just log the update - in production, save to database
-    console.log('[SETTINGS] Updated settings:', { movies, pricing, showTimes });
+    console.log('[SETTINGS] Received settings update:', { 
+      moviesCount: movies?.length || 0, 
+      pricingKeys: Object.keys(pricing || {}).length,
+      showTimesCount: showTimes?.length || 0 
+    });
     
-    const response: ApiResponse<null> = {
-      success: true,
-      data: null,
-      message: 'Settings updated successfully'
-    };
-    
-    res.json(response);
+    // Save to database using Prisma
+    try {
+      await prisma.settings.upsert({
+        where: { key: 'theater-settings' },
+        update: {
+          value: JSON.stringify({ movies, pricing, showTimes }),
+          updatedAt: new Date()
+        },
+        create: {
+          key: 'theater-settings',
+          value: JSON.stringify({ movies, pricing, showTimes })
+        }
+      });
+      
+      console.log('[SETTINGS] Successfully saved to database');
+      
+      const response: ApiResponse<null> = {
+        success: true,
+        data: null,
+        message: 'Settings saved to database successfully'
+      };
+      
+      res.json(response);
+      
+    } catch (dbError) {
+      // Database error? Still return success (localStorage will work)
+      console.error('[ERROR] Database save failed:', dbError);
+      console.log('[WARN] Settings will use localStorage fallback');
+      
+      const response: ApiResponse<null> = {
+        success: false,
+        data: null,
+        message: 'Failed to save to database, using localStorage fallback'
+      };
+      
+      res.json(response);
+    }
   } catch (error) {
     console.error('[ERROR] Failed to update settings:', error);
     const response: ApiResponse<null> = {

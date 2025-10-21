@@ -174,3 +174,15 @@ model PricingConfig {
   @@index([isActive])
 }
 
+// Settings storage model for cross-device persistence (Website only)
+model Settings {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g., "theater-settings"
+  value     String   // JSON string containing settings data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Indexes
+  @@index([key])
+}
+
