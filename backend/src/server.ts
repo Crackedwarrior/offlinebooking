@@ -2193,10 +2193,10 @@ app.get('/api/settings', asyncHandler(async (req: Request, res: Response) => {
         'SECOND CLASS': 50
       },
       showTimes: [
-        { key: 'MORNING', label: 'Morning Show', startTime: '10:00 AM', endTime: '12:30 PM', enabled: true },
-        { key: 'MATINEE', label: 'Matinee Show', startTime: '2:30 PM', endTime: '5:00 PM', enabled: true },
-        { key: 'EVENING', label: 'Evening Show', startTime: '6:00 PM', endTime: '8:30 PM', enabled: true },
-        { key: 'NIGHT', label: 'Night Show', startTime: '9:00 PM', endTime: '11:30 PM', enabled: true }
+        { key: 'MORNING', label: 'Morning Show', startTime: '--:-- AM', endTime: '--:-- AM', enabled: true },
+        { key: 'MATINEE', label: 'Matinee Show', startTime: '--:-- PM', endTime: '--:-- PM', enabled: true },
+        { key: 'EVENING', label: 'Evening Show', startTime: '--:-- PM', endTime: '--:-- PM', enabled: true },
+        { key: 'NIGHT', label: 'Night Show', startTime: '--:-- PM', endTime: '--:-- AM', enabled: true }
       ]
     };
 

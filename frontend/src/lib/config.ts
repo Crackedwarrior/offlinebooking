@@ -54,30 +54,30 @@ export const SEAT_CLASSES: SeatClass[] = [
   }
 ];
 
-// Show time configuration
+// Show time configuration - Empty placeholders for user configuration
 export const SHOW_TIMES: ShowTime[] = [
   {
     key: 'MORNING',
     label: 'Morning Show',
-    timing: '10:00 AM - 12:00 PM',
+    timing: '--:-- AM - --:-- AM',
     enumValue: 'MORNING'
   },
   {
     key: 'MATINEE',
     label: 'Matinee Show',
-    timing: '2:00 PM - 5:00 PM',
+    timing: '--:-- PM - --:-- PM',
     enumValue: 'MATINEE'
   },
   {
     key: 'EVENING',
     label: 'Evening Show',
-    timing: '6:00 PM - 9:00 PM',
+    timing: '--:-- PM - --:-- PM',
     enumValue: 'EVENING'
   },
   {
     key: 'NIGHT',
     label: 'Night Show',
-    timing: '9:30 PM - 12:30 AM',
+    timing: '--:-- PM - --:-- AM',
     enumValue: 'NIGHT'
   }
 ];

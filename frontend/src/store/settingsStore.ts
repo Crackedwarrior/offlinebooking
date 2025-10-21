@@ -69,8 +69,8 @@ const defaultPricing: PricingSettings = {}; // Empty - will be loaded from backe
 
 const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
   const timeParts = show.timing.split(' - ');
-  const startTime = timeParts[0] || '10:00 AM';
-  const endTime = timeParts[1] || '12:00 PM';
+  const startTime = timeParts[0] || '--:-- AM';
+  const endTime = timeParts[1] || '--:-- AM';
   
   return {
     key: show.key,
