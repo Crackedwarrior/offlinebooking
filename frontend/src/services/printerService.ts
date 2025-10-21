@@ -302,7 +302,7 @@ export class PrinterService {
         console.log('[PRINT] Formatted booking data for PDF:', bookingData);
         
         // Call backend PDF generation API (use the proper endpoint that handles both English and Kannada)
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/thermal-printer/print`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/printer/thermal-printer/print`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
