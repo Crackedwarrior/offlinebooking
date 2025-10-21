@@ -43,7 +43,6 @@ export interface SettingsState {
   getMovieForShow: (showKey: string) => MovieSettings | null; // Keep for backward compatibility
   updatePricing: (classLabel: string, price: number) => void;
   updateShowTime: (key: string, settings: Partial<ShowTimeSettings>) => void;
-  addShowTime: (showTime: ShowTimeSettings) => void;
   deleteShowTime: (key: string) => void;
   resetToDefaults: () => void;
   getPriceForClass: (classLabel: string) => number;
@@ -68,7 +67,19 @@ const defaultMovies: MovieSettings[] = []; // Empty - will be loaded from backen
 const defaultPricing: PricingSettings = {}; // Empty - will be loaded from backend
 
 
-const defaultShowTimes: ShowTimeSettings[] = []; // Empty - will be loaded from backend
+const defaultShowTimes: ShowTimeSettings[] = SHOW_TIMES.map(show => {
+  const timeParts = show.timing.split(' - ');
+  const startTime = timeParts[0] || '10:00 AM';
+  const endTime = timeParts[1] || '12:00 PM';
+  
+  return {
+    key: show.key,
+    label: show.label,
+    startTime: startTime.trim(),
+    endTime: endTime.trim(),
+    enabled: true
+  };
+});
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -217,16 +228,6 @@ export const useSettingsStore = create<SettingsState>()(
         });
       },
 
-      addShowTime: (showTime) => {
-        console.log('🏪 SETTINGS STORE: addShowTime called');
-        console.log('🏪 SETTINGS STORE: new show time:', showTime);
-        
-        set((state) => {
-          const updatedShowTimes = [...state.showTimes, showTime];
-          console.log('🏪 SETTINGS STORE: added showTime, total count:', updatedShowTimes.length);
-          return { showTimes: updatedShowTimes };
-        });
-      },
 
       deleteShowTime: (key: string) => set((state) => ({
         showTimes: state.showTimes.filter(show => show.key !== key)
