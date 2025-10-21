@@ -77,7 +77,7 @@ const runDatabaseMigration = async () => {
       await prisma.$queryRaw`SELECT printedAt FROM Booking LIMIT 1`;
       console.log('[DB] Database schema is up to date');
     } catch (error: any) {
-      if (error.message && error.message.includes('printedAt')) {
+      if (error instanceof Error && error.message && error.message.includes('printedAt')) {
         console.log('[DB] Running migration: Adding printedAt column...');
         await prisma.$executeRaw`ALTER TABLE Booking ADD COLUMN printedAt DATETIME`;
         console.log('[DB] Migration completed: printedAt column added');
@@ -876,7 +876,7 @@ app.post('/api/thermal-printer/print', asyncHandler(async (req: Request, res: Re
       res.status(500).json({
         success: false,
         error: 'Failed to generate PDF for web download',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
       return;
     }
