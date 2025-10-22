@@ -63,13 +63,14 @@ npm run dev           # runs backend + frontend web
 ```
 
 ## Build installer
-From the repo root:
+From the frontend directory:
 ```bash
-npm run electron:dist
+cd frontend
+npm run installer
 ```
 The installer is generated at:
 ```
-frontend/dist-installer-v18/AuditoriumX-Installer.exe
+frontend/dist-installer/AuditoriumX-Installer.exe
 ```
 
 ## Repository structure
@@ -114,7 +115,7 @@ docs *.md        # Guides (see Quick links above)
 
 ### Analytics Preview
 ![Analytics Preview](docs/screenshots/07-analytics-preview.png)
-*Sample Report: [View HTML Report](docs/screenshots/sample-report.html)*
+*Sample Report: [View HTML Report](docs/screenshots/sample-report.html) - Download to see report*
 
 ### Settings - Overview
 ![Settings Overview](docs/screenshots/08-settings-overview.png)

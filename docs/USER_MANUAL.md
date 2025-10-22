@@ -1,7 +1,7 @@
 # AuditoriumX User Manual
 ## Professional Theater Booking System
 
-**Version:** 1.0.4  
+**Version:** 1.0.0  
 **Last Updated:** October 22, 2025
 
 ---
@@ -329,7 +329,7 @@ The AuditoriumX interface consists of:
 3. **Check system logs** for error details
 
 #### Technical Support
-- **Version:** 1.0.4
+- **Version:** 1.0.0
 - **System Logs:** Available in Settings → System
 - **Error Reporting:** Built-in error reporting system
 
@@ -397,7 +397,7 @@ The AuditoriumX interface consists of:
 
 ### System Information
 - **Application:** AuditoriumX Professional Theater Booking System
-- **Version:** 1.0.4
+- **Version:** 1.0.0
 - **Platform:** Windows Desktop Application
 - **Database:** SQLite (local, no server required)
 

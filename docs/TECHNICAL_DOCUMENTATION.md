@@ -1,7 +1,7 @@
 # AuditoriumX Technical Documentation
 ## Professional Theater Booking System
 
-**Version:** 1.0.4  
+**Version:** 1.0.0  
 **Last Updated:** September 28, 2025
 
 ---
@@ -29,10 +29,10 @@ AuditoriumX follows a **desktop application architecture** with the following co
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Electron Main Process                    │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │   Frontend      │  │   Backend API    │  │   Database  │ │
-│  │   (React)       │  │   (Express)      │  │   (SQLite)  │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   Frontend      │  │   Backend API   │  │   Database  │  │
+│  │   (React)       │  │   (Express)     │  │   (SQLite)  │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
