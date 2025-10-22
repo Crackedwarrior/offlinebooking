@@ -81,5 +81,54 @@ docs *.md        # Guides (see Quick links above)
 - Thermal printing supported (e.g., EPSON TM‑T82)
 - Time on tickets uses manual 12‑hour formatting to avoid locale issues
 
+## 📸 Screenshots
+
+<div align="center">
+
+### Main Interface
+![Main Interface](docs/screenshots/01-main-interface.png)
+*Clean booking dashboard with movie selection and show management*
+
+### Seat Selection
+![Seat Selection](docs/screenshots/02-seat-selection.png)
+*Interactive seat grid with category-based pricing and real-time availability*
+
+### Active Booking
+![Active Booking](docs/screenshots/03-seat-selection-active.png)
+*Live seat selection with visual feedback and pricing calculation*
+
+### Checkout
+![Checkout](docs/screenshots/04-checkout.png)
+*Streamlined checkout with customer details and payment summary*
+
+### Settings - Movies
+![Settings Movies](docs/screenshots/05-settings-movies.png)
+*Comprehensive movie management with poster support*
+
+### Settings - Show Times
+![Settings Shows](docs/screenshots/06-settings-shows.png)
+*Flexible show time configuration with auto-transitions*
+
+### Settings - Pricing
+![Settings Pricing](docs/screenshots/07-settings-pricing.png)
+*Dynamic pricing management for different seat categories*
+
+### Booking Management
+![Booking Management](docs/screenshots/08-booking-management.png)
+*Complete booking history and ticket ID management*
+
+### Ticket Print
+![Ticket Print](docs/screenshots/ticket-print.png)
+*Professional thermal ticket printing in English and Kannada (Coming soon)*
+
+</div>
+
 ---
-Screenshots and a short demo GIF can be found in `docs/screenshots/` (to be added).
+
+## 🎬 Demo Videos
+
+**Complete Booking Flow:**
+- [Booking Demo 1](docs/screenshots/booking-demo-1.mp4) - Full booking process from seat selection to payment
+- [Booking Demo 2](docs/screenshots/booking-demo-2.mp4) - Settings management and configuration
+
+*Note: Download and play the MP4 files to see the app in action*
