@@ -84,46 +84,45 @@ docs *.md        # Guides (see Quick links above)
 ## Screenshots
 
 ### Authentication
-![Authentication](docs/screenshots/01-authentication.png)
-*Secure admin authentication with password protection*
+![Authentication](docs/screenshots/01-auth-page.png)
 
-### Main Dashboard
-![Dashboard](docs/screenshots/02-main-dashboard.png)
-*Central control panel with quick access to all features*
+### Checkout Page
+![Checkout](docs/screenshots/02-checkout-page.png)
 
-### Movie Management
-![Movie Management](docs/screenshots/03-movie-management.png)
-*Configure movies, schedules, and show times*
+### Seat Grid - View 1
+![Seat Grid 1](docs/screenshots/03-seatgrid-01.png)
 
-### Show Configuration
-![Show Configuration](docs/screenshots/04-show-configuration.png)
-*Flexible show time configuration with auto-transitions*
-
-### Pricing Settings
-![Pricing](docs/screenshots/05-pricing-settings.png)
-*Dynamic pricing management for seat categories*
-
-### Booking Management
-![Booking Management](docs/screenshots/07-booking-management.png)
-*Load and manage previous bookings*
+### Seat Grid - View 2
+![Seat Grid 2](docs/screenshots/04-seatgrid-02.png)
+*Complete 590-seat layout: [View Detailed Seat Map](docs/SEAT_LAYOUT.md)*
 
 ### Booking History
-![History](docs/screenshots/08-booking-history.png)
-*Complete transaction history with search and filters*
+![Booking History](docs/screenshots/05-booking-history.png)
 
-### Reports & Analytics
-![Reports](docs/screenshots/09-reports-analytics.png)
-*Revenue analytics and performance metrics*
+### Reports and Analytics
+![Reports](docs/screenshots/06-reports-analytics.png)
 
 ### Analytics Preview
-![Analytics](docs/screenshots/10-analytics-preview.png)
-*Detailed analytics dashboard*
+![Analytics Preview](docs/screenshots/07-analytics-preview.png)
+*Sample Report: [Download PDF](docs/screenshots/sample-report.pdf)*
 
----
+### Settings - Overview
+![Settings Overview](docs/screenshots/08-settings-overview.png)
 
-## Theater Layout
+### Settings - Pricing
+![Settings Pricing](docs/screenshots/09-settings-pricing.png)
 
-View the complete [590-seat theater configuration](docs/SEAT_LAYOUT.md) with detailed seat map and technical specifications.
+### Settings - Show Times
+![Settings Show Times](docs/screenshots/10-settings-showtime.png)
+
+### Settings - Movie Schedule
+![Settings Movies](docs/screenshots/11-settings-movies.png)
+
+### Settings - Booking Management
+![Settings Booking](docs/screenshots/12-settings-booking-management.png)
+
+### Settings - Printer Configuration
+![Settings Printer](docs/screenshots/13-settings-printer.png)
 
 ---
 
@@ -131,5 +130,3 @@ View the complete [590-seat theater configuration](docs/SEAT_LAYOUT.md) with det
 
 - [Seat Selection Flow](docs/screenshots/demo-seat-selection.mp4) - Complete booking with seat grid interaction
 - [Checkout Process](docs/screenshots/demo-checkout-flow.mp4) - Checkout page with payment details
-
-*Note: Download the MP4 files to view demonstrations*
