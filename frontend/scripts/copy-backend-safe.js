@@ -20,7 +20,7 @@ function copyBackend() {
   const backendNodeModulesPath = path.join(currentDir, '..', 'backend', 'node_modules');
   
   try {
-    console.log('🔧 Starting safe backend copy...');
+    console.log('Starting safe backend copy...');
     
     // Validate all paths
     validatePath(backendSrcPath, currentDir);
@@ -39,10 +39,10 @@ function copyBackend() {
     // Copy node_modules
     safeCopyDirectory(backendNodeModulesPath, path.join(backendDistPath, 'node_modules'));
     
-    console.log('✅ Backend copy completed successfully');
+    console.log('Backend copy completed successfully');
     
   } catch (error) {
-    console.error('❌ Backend copy failed:', error.message);
+    console.error('Backend copy failed:', error.message);
     process.exit(1);
   }
 }

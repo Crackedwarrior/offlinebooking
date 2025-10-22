@@ -15,7 +15,7 @@ function copyBackendPost() {
   const distBackendPath = path.join(currentDir, 'dist', 'backend');
   
   try {
-    console.log('🔧 Starting safe backend post-copy...');
+    console.log('Starting safe backend post-copy...');
     
     // Validate paths
     validatePath(backendDistPath, currentDir);
@@ -24,10 +24,10 @@ function copyBackendPost() {
     // Copy backend-dist to dist/backend
     safeCopyDirectory(backendDistPath, distBackendPath);
     
-    console.log('✅ Backend post-copy completed successfully');
+    console.log('Backend post-copy completed successfully');
     
   } catch (error) {
-    console.error('❌ Backend post-copy failed:', error.message);
+    console.error('Backend post-copy failed:', error.message);
     process.exit(1);
   }
 }
