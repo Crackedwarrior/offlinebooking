@@ -2,11 +2,11 @@
 ## Professional Theater Booking System
 
 **Version:** 1.0.4  
-**Last Updated:** September 28, 2025
+**Last Updated:** October 22, 2025
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Getting Started](#getting-started)
 2. [System Overview](#system-overview)
@@ -18,44 +18,38 @@
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### System Requirements
 - **Operating System:** Windows 10/11
 - **RAM:** Minimum 4GB (8GB recommended)
 - **Storage:** 500MB free space
-- **Printer:** Thermal receipt printer (EPSON TM-T81 recommended)
+- **Printer:** Thermal receipt printer (EPSON TM-T82 recommended)
 
 ### Installation
-1. Run the `AuditoriumX-v1.0.4-SeatDataFixed.exe` installer
+1. Run the `AuditoriumX-Installer.exe` installer
 2. Follow the installation wizard
 3. The system will automatically configure itself
 4. Launch AuditoriumX from the desktop shortcut
 
 ### First Time Setup
-1. **Configure Theater Settings:**
-   - Go to Settings → Overview
-   - Verify theater name: "SREELEKHA THEATER"
-   - Verify location: "Chikmagalur"
-   - Verify GSTIN: "29AAVFS7423E120"
-
-2. **Set Up Show Times:**
+1. **Set Up Show Times:**
    - Go to Settings → Show Times
    - Default shows: Morning, Matinee, Evening, Night
    - Modify times as needed for your theater
 
-3. **Configure Pricing:**
+2. **Configure Pricing:**
    - Go to Settings → Pricing
-   - Set prices for each seat class (BOX, STAR CLASS, etc.)
+   - Set prices for each seat class (BOX, STAR CLASS, CLASSIC, FIRST CLASS, SECOND CLASS)
 
-4. **Test Printer:**
+3. **Test Printer:**
    - Go to Settings → Printer
    - Test print a sample ticket
    - Ensure printer is working correctly
 
 ---
 
-## 🎬 System Overview
+## System Overview
 
 ### Main Interface
 The AuditoriumX interface consists of:
@@ -70,12 +64,12 @@ The AuditoriumX interface consists of:
 - **Flexible Pricing:** Different prices for different seat classes
 - **Ticket Printing:** Thermal and PDF ticket printing
 - **Booking Management:** Complete booking lifecycle
-- **Reports & Analytics:** Daily, weekly, monthly reports
+- **Reports & Analytics:** Daily sales reports
 - **Offline Operation:** No internet required
 
 ---
 
-## 📅 Daily Operations
+## Daily Operations
 
 ### Starting Your Day
 1. **Launch AuditoriumX**
@@ -86,7 +80,7 @@ The AuditoriumX interface consists of:
 ### Creating a Booking
 
 #### Step 1: Select Show Details
-1. Click **"New Booking"** or use the main interface
+1. Click **"Seat Booking"** from the sidebar
 2. Select **Date** (defaults to today)
 3. Select **Show Time** (Morning/Matinee/Evening/Night)
 4. Select **Movie** from the dropdown
@@ -99,21 +93,20 @@ The AuditoriumX interface consists of:
 4. **Click seats** to select them
 5. **Seat classes** are color-coded:
    - **BOX** = Premium seats
-   - **STAR CLASS** = Standard seats
+   - **STAR CLASS** = Premium box seating
+   - **CLASSIC** = Balcony seats
+   - **FIRST CLASS** = Standard floor seats
+   - **SECOND CLASS** = Economy floor seats
 6. **Selected seats** appear in the right panel
 7. Click **"Proceed to Checkout"**
 
-#### Step 3: Customer Information
-1. **Customer Details** (optional):
-   - Name
-   - Phone number
-   - Email address
-2. **Booking Summary** shows:
+#### Step 3: Checkout Process
+1. **Booking Summary** shows:
    - Selected seats
    - Individual prices
    - Total amount
    - Tax breakdown
-3. Click **"Confirm Booking"**
+2. Click **"Confirm Booking"**
 
 #### Step 4: Print Ticket
 1. **Ticket Preview** appears
@@ -124,7 +117,7 @@ The AuditoriumX interface consists of:
 ### Managing Existing Bookings
 
 #### View Bookings
-1. Go to **"Bookings"** tab
+1. Go to **"Booking History"** tab
 2. **Filter by:**
    - Date
    - Show time
@@ -135,7 +128,6 @@ The AuditoriumX interface consists of:
 1. **Find the booking** in the bookings list
 2. **Click "Edit"** button
 3. **Make changes:**
-   - Customer information
    - Seat changes (if available)
    - Status updates
 4. **Save changes**
@@ -148,7 +140,7 @@ The AuditoriumX interface consists of:
 
 ---
 
-## ⚙️ Settings & Configuration
+## Settings & Configuration
 
 ### Theater Configuration
 **Location:** Settings → Overview
@@ -159,8 +151,8 @@ The AuditoriumX interface consists of:
 - **GSTIN:** 29AAVFS7423E120
 
 #### Seat Configuration
-- **Total Seats:** Automatically calculated
-- **Seat Classes:** BOX, STAR CLASS
+- **Total Seats:** 590 seats automatically calculated
+- **Seat Classes:** BOX, STAR CLASS, CLASSIC, FIRST CLASS, SECOND CLASS
 - **Seat Distribution:** Shows seats per class
 
 ### Show Time Management
@@ -168,17 +160,17 @@ The AuditoriumX interface consists of:
 
 #### Default Show Times
 - **Morning Show:** 11:45 AM - 2:45 PM
-- **Matinee Show:** 3:00 PM - 6:00 PM
-- **Evening Show:** 6:30 PM - 9:30 PM
-- **Night Show:** 10:00 PM - 1:00 AM
+- **Matinee Show:** 2:45 PM - 6:00 PM
+- **Evening Show:** 6:00 PM - 9:30 PM
+- **Night Show:** 9:30 PM - 12:30 AM
 
 #### Adding Custom Show Times
 1. **Click "Add Show Time"**
 2. **Enter Details:**
    - **Show Key:** Uppercase identifier (e.g., SPECIAL)
    - **Show Label:** Display name (e.g., Special Show)
-   - **Start Time:** HH:MM format (24-hour)
-   - **End Time:** HH:MM format (24-hour)
+   - **Start Time:** HH:MM format (12-hour)
+   - **End Time:** HH:MM format (12-hour)
 3. **Click "Add Show Time"**
 
 #### Modifying Show Times
@@ -191,14 +183,17 @@ The AuditoriumX interface consists of:
 **Location:** Settings → Pricing
 
 #### Setting Prices
-1. **Select Seat Class** (BOX, STAR CLASS)
+1. **Select Seat Class** (BOX, STAR CLASS, CLASSIC, FIRST CLASS, SECOND CLASS)
 2. **Enter Price** for that class
 3. **Prices are applied** to all seats in that class
 4. **Tax calculation** is automatic
 
 #### Price Structure
 - **BOX Seats:** Premium pricing
-- **STAR CLASS Seats:** Standard pricing
+- **STAR CLASS Seats:** Premium box pricing
+- **CLASSIC Seats:** Balcony pricing
+- **FIRST CLASS Seats:** Standard pricing
+- **SECOND CLASS Seats:** Economy pricing
 - **Tax Breakdown:**
   - NET Amount
   - CGST (Central GST)
@@ -233,16 +228,16 @@ The AuditoriumX interface consists of:
 4. **Save Configuration**
 
 #### Supported Printers
-- **EPSON TM-T81** (Recommended)
+- **EPSON TM-T82** (Recommended)
 - **Other Thermal Printers** (with ESC/POS support)
 - **PDF Printing** (for backup)
 
 ---
 
-## 📊 Reports & Analytics
+## Reports & Analytics
 
 ### Daily Reports
-**Location:** Reports → Daily Summary
+**Location:** Reports → Box vs Online Report
 
 #### Booking Statistics
 - **Total Bookings:** Number of bookings today
@@ -259,29 +254,19 @@ The AuditoriumX interface consists of:
 #### Seat Class Analysis
 - **BOX Seats:** Sales and revenue
 - **STAR CLASS Seats:** Sales and revenue
+- **CLASSIC Seats:** Sales and revenue
+- **FIRST CLASS Seats:** Sales and revenue
+- **SECOND CLASS Seats:** Sales and revenue
 - **Revenue Distribution:** Visual charts
 
-### Weekly Reports
-**Location:** Reports → Weekly Summary
-
-#### Weekly Trends
-- **Day-wise Performance:** Monday through Sunday
-- **Peak Days:** Highest revenue days
-- **Low Days:** Days with low bookings
-- **Trend Analysis:** Week-over-week comparison
-
-### Monthly Reports
-**Location:** Reports → Monthly Summary
-
-#### Monthly Overview
-- **Total Revenue:** Monthly income
-- **Booking Trends:** Month-over-month growth
-- **Seasonal Analysis:** Peak and off-peak periods
-- **Performance Metrics:** Key performance indicators
+#### Export Options
+- **Excel Export:** Download as CSV file
+- **PDF Export:** Download as HTML file
+- **Preview Report:** View report in browser
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -334,7 +319,7 @@ The AuditoriumX interface consists of:
 
 #### "Invalid time format"
 **Meaning:** Time entered is not in correct HH:MM format
-**Solution:** Use 24-hour format (e.g., 15:30 for 3:30 PM)
+**Solution:** Use 12-hour format (e.g., 3:30 PM)
 
 ### Getting Help
 
@@ -350,7 +335,7 @@ The AuditoriumX interface consists of:
 
 ---
 
-## 🚀 Advanced Features
+## Advanced Features
 
 ### Booking Management
 **Location:** Settings → Bookings
@@ -363,7 +348,7 @@ The AuditoriumX interface consists of:
 
 #### Booking Operations
 - **View Details:** Click on any booking
-- **Edit Booking:** Modify customer information
+- **Edit Booking:** Modify seat information
 - **Cancel Booking:** Cancel and free up seats
 - **Print Ticket:** Reprint ticket if needed
 
@@ -408,7 +393,7 @@ The AuditoriumX interface consists of:
 
 ---
 
-## 📞 Support & Contact
+## Support & Contact
 
 ### System Information
 - **Application:** AuditoriumX Professional Theater Booking System
@@ -432,7 +417,7 @@ The AuditoriumX interface consists of:
 
 ---
 
-## 📋 Quick Reference
+## Quick Reference
 
 ### Keyboard Shortcuts
 - **F5:** Refresh current page
@@ -445,7 +430,7 @@ The AuditoriumX interface consists of:
 - **Theater:** SREELEKHA THEATER, Chikmagalur
 - **GSTIN:** 29AAVFS7423E120
 - **Show Times:** 4 standard shows
-- **Seat Classes:** BOX, STAR CLASS
+- **Seat Classes:** BOX, STAR CLASS, CLASSIC, FIRST CLASS, SECOND CLASS
 - **Ticket Format:** Thermal receipt
 
 ### File Locations

@@ -44,13 +44,13 @@ while true; do
     if [ "$HTTP_CODE" = "200" ]; then
         STATUS=$(echo "$BODY" | jq -r '.status')
         if [ "$STATUS" = "healthy" ]; then
-            echo "[$TIMESTAMP] ✅ Application healthy" >> "$LOG_FILE"
+            echo "[$TIMESTAMP] Application healthy" >> "$LOG_FILE"
         else
-            echo "[$TIMESTAMP] ⚠️ Application unhealthy: $BODY" >> "$LOG_FILE"
+            echo "[$TIMESTAMP] Application unhealthy: $BODY" >> "$LOG_FILE"
             # Send alert
         fi
     else
-        echo "[$TIMESTAMP] ❌ Health check failed: HTTP $HTTP_CODE" >> "$LOG_FILE"
+        echo "[$TIMESTAMP] Health check failed: HTTP $HTTP_CODE" >> "$LOG_FILE"
         # Send alert
     fi
     
@@ -127,17 +127,17 @@ check_performance() {
     
     # Check thresholds
     if (( $(echo "$MEMORY_PERCENT > $ALERT_THRESHOLD_MEMORY" | bc -l) )); then
-        echo "⚠️ High memory usage: ${MEMORY_PERCENT}%"
+        echo "High memory usage: ${MEMORY_PERCENT}%"
         # Send alert
     fi
     
     if (( $(echo "$ERROR_RATE > $ALERT_THRESHOLD_ERROR_RATE" | bc -l) )); then
-        echo "⚠️ High error rate: ${ERROR_RATE}%"
+        echo "High error rate: ${ERROR_RATE}%"
         # Send alert
     fi
     
     if (( $(echo "$AVG_RESPONSE_TIME > $ALERT_THRESHOLD_RESPONSE_TIME" | bc -l) )); then
-        echo "⚠️ Slow response time: ${AVG_RESPONSE_TIME}ms"
+        echo "Slow response time: ${AVG_RESPONSE_TIME}ms"
         # Send alert
     fi
 }

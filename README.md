@@ -2,7 +2,7 @@
 
 [![CI/CD Pipeline](https://github.com/Crackedwarrior/offlinebooking/actions/workflows/ci.yml/badge.svg)](https://github.com/Crackedwarrior/offlinebooking/actions/workflows/ci.yml)
 
-Professional desktop app for single‑screen theaters: seat grid booking, smart show management, and English/Kannada ticket printing. Built with React + Electron, Node/Express backend, and a local SQLite database.
+Professional desktop app for single-screen theaters: seat grid booking, smart show management, and English/Kannada ticket printing. Built with React + Electron, Node/Express backend, and a local SQLite database.
 
 ## In production
 - Deployed and used in a live single‑screen theater environment for daily operations (offline‑first, prints real tickets, handles live seat status, and backup/restore).
@@ -50,8 +50,11 @@ Prerequisites: Node.js 18+ (x64), npm, Windows 10/11.
 # 1) Install all dependencies (root, backend, frontend)
 npm run install:all
 
-# 2) Run the Electron app in development
-npm run dev:desktop
+# 2) Start backend server (in one terminal)
+cd backend ; npm run dev
+
+# 3) Start Electron app (in another terminal)
+cd frontend ; npm run electron:dev
 ```
 
 Backend + web dev alternative:

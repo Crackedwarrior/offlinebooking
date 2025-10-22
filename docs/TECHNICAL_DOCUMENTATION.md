@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
 2. [Technology Stack](#technology-stack)
@@ -21,7 +21,7 @@
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ### System Architecture
 AuditoriumX follows a **desktop application architecture** with the following components:
@@ -51,7 +51,7 @@ User Action → Frontend → API Call → Backend → Database
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Frontend Technologies
 - **React 18:** UI framework with hooks
@@ -85,7 +85,7 @@ User Action → Frontend → API Call → Backend → Database
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ### Core Models
 
@@ -250,7 +250,7 @@ GET    /api/theater/config         # Theater configuration
 
 ---
 
-## 🔒 Security Implementation
+## Security Implementation
 
 ### Input Validation
 ```typescript
@@ -318,7 +318,7 @@ app.use('/api/', limiter);
 
 ---
 
-## ⚠️ Error Handling
+## Error Handling
 
 ### Error Classes
 ```typescript
@@ -437,7 +437,7 @@ function getCachedData(key: string, fetcher: () => Promise<any>) {
 
 ---
 
-## 🚀 Deployment Guide
+## Deployment Guide
 
 ### Production Build Process
 ```bash
@@ -493,7 +493,7 @@ async function initializeDatabase(): Promise<boolean> {
     for (const oldDbPath of possibleOldPaths) {
       if (fs.existsSync(oldDbPath)) {
         fs.copyFileSync(oldDbPath, dbPath);
-        console.log(`✅ Migrated database from ${oldDbPath}`);
+        console.log(`Migrated database from ${oldDbPath}`);
         break;
       }
     }
@@ -505,7 +505,7 @@ async function initializeDatabase(): Promise<boolean> {
 
 ---
 
-## 🛠️ Development Setup
+## Development Setup
 
 ### Prerequisites
 - **Node.js:** Version 18 or higher
@@ -571,7 +571,7 @@ const envSchema = z.object({
 
 ---
 
-## 🔧 Troubleshooting Guide
+## Troubleshooting Guide
 
 ### Common Development Issues
 
@@ -639,7 +639,7 @@ await prisma.$queryRaw`ANALYZE`;
 
 ---
 
-## 📊 Monitoring & Logging
+## Monitoring & Logging
 
 ### Application Logging
 ```typescript
@@ -750,7 +750,7 @@ function createBackup() {
   );
   
   fs.copyFileSync(dbPath, backupPath);
-  console.log(`✅ Backup created: ${backupPath}`);
+  console.log(`Backup created: ${backupPath}`);
 }
 ```
 
