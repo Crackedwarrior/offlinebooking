@@ -81,54 +81,55 @@ docs *.md        # Guides (see Quick links above)
 - Thermal printing supported (e.g., EPSON TM‑T82)
 - Time on tickets uses manual 12‑hour formatting to avoid locale issues
 
-## 📸 Screenshots
+## Screenshots
 
-<div align="center">
+### Authentication
+![Authentication](docs/screenshots/01-authentication.png)
+*Secure admin authentication with password protection*
 
-### Main Interface
-![Main Interface](docs/screenshots/01-main-interface.png)
-*Clean booking dashboard with movie selection and show management*
+### Main Dashboard
+![Dashboard](docs/screenshots/02-main-dashboard.png)
+*Central control panel with quick access to all features*
 
-### Seat Selection
-![Seat Selection](docs/screenshots/02-seat-selection.png)
-*Interactive seat grid with category-based pricing and real-time availability*
+### Movie Management
+![Movie Management](docs/screenshots/03-movie-management.png)
+*Configure movies, schedules, and show times*
 
-### Active Booking
-![Active Booking](docs/screenshots/03-seat-selection-active.png)
-*Live seat selection with visual feedback and pricing calculation*
-
-### Checkout
-![Checkout](docs/screenshots/04-checkout.png)
-*Streamlined checkout with customer details and payment summary*
-
-### Settings - Movies
-![Settings Movies](docs/screenshots/05-settings-movies.png)
-*Comprehensive movie management with poster support*
-
-### Settings - Show Times
-![Settings Shows](docs/screenshots/06-settings-shows.png)
+### Show Configuration
+![Show Configuration](docs/screenshots/04-show-configuration.png)
 *Flexible show time configuration with auto-transitions*
 
-### Settings - Pricing
-![Settings Pricing](docs/screenshots/07-settings-pricing.png)
-*Dynamic pricing management for different seat categories*
+### Pricing Settings
+![Pricing](docs/screenshots/05-pricing-settings.png)
+*Dynamic pricing management for seat categories*
 
 ### Booking Management
-![Booking Management](docs/screenshots/08-booking-management.png)
-*Complete booking history and ticket ID management*
+![Booking Management](docs/screenshots/07-booking-management.png)
+*Load and manage previous bookings*
 
-### Ticket Print
-![Ticket Print](docs/screenshots/ticket-print.png)
-*Professional thermal ticket printing in English and Kannada (Coming soon)*
+### Booking History
+![History](docs/screenshots/08-booking-history.png)
+*Complete transaction history with search and filters*
 
-</div>
+### Reports & Analytics
+![Reports](docs/screenshots/09-reports-analytics.png)
+*Revenue analytics and performance metrics*
+
+### Analytics Preview
+![Analytics](docs/screenshots/10-analytics-preview.png)
+*Detailed analytics dashboard*
 
 ---
 
-## 🎬 Demo Videos
+## Theater Layout
 
-**Complete Booking Flow:**
-- [Booking Demo 1](docs/screenshots/booking-demo-1.mp4) - Full booking process from seat selection to payment
-- [Booking Demo 2](docs/screenshots/booking-demo-2.mp4) - Settings management and configuration
+View the complete [590-seat theater configuration](docs/SEAT_LAYOUT.md) with detailed seat map and technical specifications.
 
-*Note: Download and play the MP4 files to see the app in action*
+---
+
+## Demo Videos
+
+- [Seat Selection Flow](docs/screenshots/demo-seat-selection.mp4) - Complete booking with seat grid interaction
+- [Checkout Process](docs/screenshots/demo-checkout-flow.mp4) - Checkout page with payment details
+
+*Note: Download the MP4 files to view demonstrations*
