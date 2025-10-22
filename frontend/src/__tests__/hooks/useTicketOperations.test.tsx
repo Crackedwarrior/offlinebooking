@@ -1,9 +1,9 @@
-import React from 'react';
+import { useState } from 'react';
 import { renderHook, act } from '@testing-library/react';
 
 // Mock hook for testing
 const useCounter = (initialValue = 0) => {
-  const [count, setCount] = React.useState(initialValue);
+  const [count, setCount] = useState(initialValue);
   
   const increment = () => setCount(count + 1);
   const decrement = () => setCount(count - 1);

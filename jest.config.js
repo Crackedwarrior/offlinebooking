@@ -7,15 +7,12 @@ module.exports = {
     "<rootDir>/backend/src/**/__tests__/**/*.{js,ts}"
   ],
   transform: {
-    "^.+\\.(ts|tsx)$": "ts-jest"
-  },
-  moduleFileExtensions: ["ts", "tsx", "js", "jsx"],
-  globals: {
-    "ts-jest": {
+    "^.+\\.(ts|tsx)$": ["ts-jest", {
       tsconfig: {
         jsx: "react-jsx",
         esModuleInterop: true
       }
-    }
-  }
+    }]
+  },
+  moduleFileExtensions: ["ts", "tsx", "js", "jsx"]
 };
