@@ -27,6 +27,11 @@ jobs:
     - name: Install root dependencies
       run: npm ci
     
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
     - name: Setup environment variables
       run: |
         echo "DATABASE_URL=file:./dev.db" >> $GITHUB_ENV
