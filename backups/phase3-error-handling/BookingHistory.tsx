@@ -13,7 +13,6 @@ import { usePricing } from '@/hooks/use-pricing';
 import { downloadShowReportPdf } from '@/utils/showReportPdfGenerator';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import { LoadingSpinner } from './ui/LoadingSpinner';
 
 const showOrder: { key: ShowTime; label: string }[] = SHOW_TIMES.map(show => ({
   key: show.enumValue,
@@ -790,15 +789,6 @@ const BookingHistory = () => {
   // UI
   return (
     <div className="booking-history-container p-4 max-w-[1400px] xl:max-w-[1600px] mx-auto">
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6">
-            <LoadingSpinner size="lg" text="Loading bookings..." />
-          </div>
-        </div>
-      )}
-      
       <div className="flex gap-4">
         {/* Left Vertical Info Strip (slim, vertical text) */}
         <div className="w-8 md:w-10 flex-shrink-0">

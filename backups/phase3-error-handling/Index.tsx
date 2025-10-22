@@ -19,7 +19,6 @@ const Settings = lazy(() => import('@/components/Settings'));
 const BookingConfirmation = lazy(() => import('@/components/BookingConfirmation'));
 import { getSeatClassByRow } from '@/lib/config';
 import { createBooking } from '@/services/api';
-import { BookingErrorBoundary } from '@/components/SpecializedErrorBoundaries';
 
 // Helper: format seat numbers as range format (e.g., "4 - 6" instead of "4,5,6")
 function formatSeatNumbers(seats: number[]): string {
@@ -819,9 +818,7 @@ const Index: React.FC<IndexProps> = ({ onLogout }) => {
 
           {activeView === 'history' && (
             <Suspense fallback={<div className="flex items-center justify-center p-8">Loading booking history...</div>}>
-              <BookingErrorBoundary>
-                <BookingHistory />
-              </BookingErrorBoundary>
+              <BookingHistory />
             </Suspense>
           )}
           {activeView === 'reports' && (

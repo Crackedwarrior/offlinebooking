@@ -26,7 +26,7 @@
 │                         STAR CLASS SECTION                              │
 │                        Premium Box Seating                              │
 └─────────────────────────────────────────────────────────────────────────┘
-
+                                                                        
    ROW A:  [1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18]    [19][20][21][22][23][24][25][26]
    
    ROW B:  [1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18]    [19][20][21][22][23][24][25][26]
@@ -46,19 +46,19 @@
 
    ROW A:  [1][2][3][4][5][6][7][8][9][10][11][12][13]    [14][15][16][17][18][19][20][21][22][23][24][25][26]
    
-   ROW B:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW B:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW C:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW C:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW D:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW D:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW E:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW E:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW F:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW F:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW G:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW G:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
-   ROW H:  [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
+   ROW H:     [1][2][3][4][5][6][7][8][9][10][11][12]    [13][14][15][16][17][18][19][20][21][22][23][24]
    
            ─────────────────────────────────────────────────────────────────────────────────────────────────────────
            Total: 194 seats  |  Center Aisle: After seat 12
@@ -100,8 +100,9 @@
            Total: 60 seats  |  Center Aisle: After seat 15
 
 
+                                    SCREEN
 ═════════════════════════════════════════════════════════════════════════════
-                                ENTRANCE/EXIT
+                               ENTRANCE/EXIT
 ═════════════════════════════════════════════════════════════════════════════
 ```
 
@@ -123,7 +124,6 @@
 
 - **Real-time availability** - Live sync across all booking sources
 - **Color-coded categories** - Easy visual identification of seat classes
-- **Center aisles** - Strategic walkway placement in each section
 - **Smart selection** - Auto-calculate pricing as you select
 - **Multi-seat booking** - Select multiple seats in one transaction
 - **BMS integration** - Block seats for online bookings
@@ -144,7 +144,7 @@
 ## Technical Implementation
 
 - **Dynamic Seat Matrix** - Row-based configuration with flexible seat numbering
-- **Aisle Management** - Programmatic gap handling within row arrays
+- **Aisle Management** - Programmatic gap handling within row arrays for entry/exit access
 - **Multi-Section Architecture** - 5 distinct sections with independent row management
 - **Real-time State Tracking** - Live synchronization of seat availability across sessions
 - **Category-based Rendering** - Color-coded visual representation per seat class

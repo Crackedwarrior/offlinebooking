@@ -23,7 +23,6 @@ import { CheckoutShowSelector } from '@/components/CheckoutShowSelector';
 import { CheckoutSummary } from '@/components/CheckoutSummary';
 import { SeatGridPreview } from '@/components/SeatGridPreview';
 import { CompactSeatGrid } from '@/components/CompactSeatGrid';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface CheckoutProps {
   onBookingComplete?: (bookingData: any) => void;
@@ -299,7 +298,14 @@ const Checkout = ({
     console.log('[CHECKOUT] No seats data - showing loading message');
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading checkout..." />
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-4">Loading Checkout...</h2>
+          <p className="text-gray-600">Please wait while we load the seat data.</p>
+          <p className="text-sm text-gray-500 mt-2">Debug: seats.length = {seats?.length || 'undefined'}</p>
+          <div className="mt-4 p-4 bg-yellow-200 rounded">
+            <p className="text-black">DEBUG: Component is rendering but no seats data</p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -8,7 +8,6 @@ import { useBookingStore } from '@/store/bookingStore';
 import { getSeatStatus } from '@/services/api';
 import { SEAT_CLASSES, getSeatClassByRow } from '@/lib/config';
 import { seatsByRow } from '@/lib/seatMatrix';
-import { LoadingSpinner } from './ui/LoadingSpinner';
 
 interface SeatGridPreviewProps {
   selectedShow: string;
@@ -123,13 +122,6 @@ export const SeatGridPreview: React.FC<SeatGridPreviewProps> = ({
 
   return (
     <div className="mt-4 p-3 bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 w-full flex flex-col flex-1 min-h-0 overflow-x-hidden relative">
-      {/* Loading Spinner */}
-      {loading && (
-        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-xl">
-          <LoadingSpinner text="Loading seats..." />
-        </div>
-      )}
-      
       {/* Header with enhanced styling (toolbar removed) */}
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
               <div className="flex items-center gap-2">

@@ -120,65 +120,36 @@ export function handleNetworkError(error: any): never {
 export function getUserFriendlyMessage(error: Error | AppError): string {
   const message = 'message' in error ? error.message : String(error);
   
-  // Network and connection errors
-  if (message.includes('NetworkError') || message.includes('fetch') || message.includes('Failed to fetch')) {
-    return 'Cannot connect to server. Please check your connection and ensure the backend is running.';
+  // Common error patterns
+  if (message.includes('NetworkError') || message.includes('fetch')) {
+    return 'Unable to connect to server. Please check your internet connection.';
   }
   
-  if (message.includes('Backend service not running')) {
-    return 'Backend service is not available. Please start the backend server.';
+  if (message.includes('TimeoutError') || message.includes('timeout')) {
+    return 'Request timed out. Please try again.';
   }
   
-  // Timeout errors
-  if (message.includes('TimeoutError') || message.includes('timeout') || message.includes('aborted')) {
-    return 'Request timed out. The server is taking too long to respond. Please try again.';
-  }
-  
-  // Validation errors - show actual message if available
-  if (message.includes('ValidationError') || message.includes('validation')) {
-    // If it's a detailed validation message, return it
-    if (message.length < 100 && !message.includes('Error:')) {
-      return message;
-    }
+  if (message.includes('ValidationError')) {
     return 'Please check your input and try again.';
   }
   
-  // Authorization errors
-  if (message.includes('Unauthorized') || message.includes('401')) {
-    return 'You are not authorized to perform this action. Please log in again.';
+  if (message.includes('Unauthorized')) {
+    return 'You are not authorized to perform this action.';
   }
   
-  if (message.includes('Forbidden') || message.includes('403')) {
+  if (message.includes('Forbidden')) {
     return 'Access denied. You do not have permission for this action.';
   }
   
-  // Not found errors
-  if (message.includes('Not found') || message.includes('404')) {
-    return 'The requested resource was not found. It may have been moved or deleted.';
+  if (message.includes('Not found')) {
+    return 'The requested resource was not found.';
   }
   
-  // Server errors
-  if (message.includes('Server error') || message.includes('500') || message.includes('Internal')) {
-    return 'A server error occurred. Our team has been notified. Please try again later.';
+  if (message.includes('Server error')) {
+    return 'A server error occurred. Please try again later.';
   }
   
-  // Database errors
-  if (message.includes('Database') || message.includes('SQL')) {
-    return 'A database error occurred. Please try again or contact support.';
-  }
-  
-  // Printer errors
-  if (message.includes('print') || message.includes('printer')) {
-    return 'Printing failed. Please check your printer connection and try again.';
-  }
-  
-  // Return original message if it's short and user-friendly
-  if (message.length < 100 && !message.includes('Error:') && !message.includes('Exception')) {
-    return message;
-  }
-  
-  // Default fallback
-  return 'An unexpected error occurred. Please try again.';
+  return message;
 }
 
 // Error logging

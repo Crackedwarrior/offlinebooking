@@ -1,5 +1,7 @@
 # AuditoriumX – Offline Theater Booking (Electron)
 
+[![CI/CD Pipeline](https://github.com/Crackedwarrior/offlinebooking/actions/workflows/ci.yml/badge.svg)](https://github.com/Crackedwarrior/offlinebooking/actions/workflows/ci.yml)
+
 Professional desktop app for single‑screen theaters: seat grid booking, smart show management, and English/Kannada ticket printing. Built with React + Electron, Node/Express backend, and a local SQLite database.
 
 ## In production
@@ -85,12 +87,15 @@ docs *.md        # Guides (see Quick links above)
 
 ### Authentication
 ![Authentication](docs/screenshots/01-auth-page.png)
+*Secure admin login with password protection for theater management access*
 
 ### Checkout Page
 ![Checkout](docs/screenshots/02-checkout-page.png)
+*Streamlined checkout interface with customer details and payment processing*
 
 ### Seat Grid - View 1
 ![Seat Grid 1](docs/screenshots/03-seatgrid-01.png)
+*Interactive seat selection grid showing real-time availability and pricing*
 
 ### Seat Grid - View 2
 ![Seat Grid 2](docs/screenshots/04-seatgrid-02.png)
@@ -98,31 +103,39 @@ docs *.md        # Guides (see Quick links above)
 
 ### Booking History
 ![Booking History](docs/screenshots/05-booking-history.png)
+*Comprehensive transaction history with search, filter, and management tools*
 
 ### Reports and Analytics
 ![Reports](docs/screenshots/06-reports-analytics.png)
+*Revenue analytics dashboard with performance metrics and financial insights*
 
 ### Analytics Preview
 ![Analytics Preview](docs/screenshots/07-analytics-preview.png)
-*Sample Report: [Download PDF](docs/screenshots/sample-report.pdf)*
+*Sample Report: [View HTML Report](docs/screenshots/sample-report.html)*
 
 ### Settings - Overview
 ![Settings Overview](docs/screenshots/08-settings-overview.png)
+*Central configuration panel for all theater management settings*
 
 ### Settings - Pricing
 ![Settings Pricing](docs/screenshots/09-settings-pricing.png)
+*Dynamic pricing configuration for different seat categories and show times*
 
 ### Settings - Show Times
 ![Settings Show Times](docs/screenshots/10-settings-showtime.png)
+*Flexible show schedule management with automatic transitions*
 
 ### Settings - Movie Schedule
 ![Settings Movies](docs/screenshots/11-settings-movies.png)
+*Movie management system with poster support and scheduling tools*
 
 ### Settings - Booking Management
 ![Settings Booking](docs/screenshots/12-settings-booking-management.png)
+*Advanced booking controls including previous booking loading and management*
 
 ### Settings - Printer Configuration
 ![Settings Printer](docs/screenshots/13-settings-printer.png)
+*Thermal printer setup for bilingual ticket printing in English and Kannada*
 
 ---
 
