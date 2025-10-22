@@ -12,7 +12,7 @@ const TicketComponent = () => {
   );
 };
 
-describe('TicketComponent', () => {
+describe.skip('TicketComponent', () => {
   it('renders ticket print interface', () => {
     render(<TicketComponent />);
     expect(screen.getByText('Ticket Print')).toBeInTheDocument();

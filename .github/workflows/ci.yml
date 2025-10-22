@@ -24,7 +24,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
-    - name: Install dependencies
+    - name: Install root dependencies
       run: npm ci
     
     - name: Setup environment variables
@@ -33,11 +33,12 @@ jobs:
     
     - name: Run tests
       run: npm test
+      env:
+        NODE_ENV: test
     
     - name: Build backend
       run: |
         cd backend
-        npm ci
         npm run build
       env:
         DATABASE_URL: file:./dev.db
@@ -45,7 +46,6 @@ jobs:
     - name: Build frontend
       run: |
         cd frontend
-        npm ci
         npm run build
     
     - name: Check for linter errors
