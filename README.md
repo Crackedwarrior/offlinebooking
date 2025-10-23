@@ -175,13 +175,22 @@ scripts/        # Utility scripts
 
 ## Sample Tickets
 
-### English Ticket
-![English Ticket](docs/screenshots/english-ticket.jpeg)
-*Sample English ticket showing theater details, seat information, and pricing*
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="docs/screenshots/english-ticket.jpeg" width="300" alt="English Ticket">
+        <br><em>English Ticket</em>
+      </td>
+      <td align="center">
+        <img src="docs/screenshots/kannada-ticket.jpeg" width="300" alt="Kannada Ticket">
+        <br><em>Kannada Ticket</em>
+      </td>
+    </tr>
+  </table>
+</div>
 
-### Kannada Ticket
-![Kannada Ticket](docs/screenshots/kannada-ticket.jpeg)
-*Sample Kannada ticket with bilingual support for local theater operations*
+*Sample tickets showing theater details, seat information, and bilingual support for local theater operations*
 
 ---
 
