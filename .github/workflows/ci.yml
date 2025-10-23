@@ -36,10 +36,14 @@ jobs:
       run: |
         echo "DATABASE_URL=file:./dev.db" >> $GITHUB_ENV
     
-    - name: Run tests
-      run: npm test
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm ci
+        npm test
       env:
         NODE_ENV: test
+        DATABASE_URL: file:./dev.db
     
     - name: Build backend
       run: |
