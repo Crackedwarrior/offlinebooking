@@ -274,8 +274,4 @@ All tests run automatically in the CI/CD workflow on each commit.
 
 Copyright (c) 2025 Crackedwarrior. All rights reserved.
 
-This repository contains proprietary software developed for Sree Lekha Enterprises, Chikmagalur. This software is provided for reference and evaluation purposes only.
-
-No part of this project may be copied, modified, distributed, or used in commercial or non-commercial products without explicit written permission from the author.
-
 For licensing inquiries, please contact the repository owner.
