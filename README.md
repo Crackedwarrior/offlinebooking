@@ -76,10 +76,40 @@ frontend/dist-installer/AuditoriumX-Installer.exe
 ## Repository structure
 ```
 backend/         # Node/Express server, Prisma, print services
+├── src/         # TypeScript source code
+│   ├── controllers/  # API route handlers
+│   ├── routes/      # Express route definitions
+│   ├── services/    # Business logic services
+│   ├── middleware/  # Express middleware
+│   ├── db/         # Database utilities
+│   ├── types/      # TypeScript type definitions
+│   └── utils/      # Helper utilities
+├── prisma/      # Database schema and migrations
+├── fonts/       # Kannada fonts for ticket printing
+└── dist/        # Compiled JavaScript output
+
 frontend/        # React UI + Electron entrypoint and builder config
-build/           # App icons/assets
-scripts/         # Utility scripts
-docs *.md        # Guides (see Quick links above)
+├── src/         # React TypeScript source
+│   ├── components/  # Reusable UI components
+│   ├── pages/      # Main application pages
+│   ├── store/      # Zustand state management
+│   ├── services/   # API and printer services
+│   └── utils/      # Helper utilities
+├── electron/   # Electron main process files
+├── scripts/    # Build and deployment scripts
+└── dist/       # Built frontend assets
+
+docs/           # Comprehensive documentation
+├── screenshots/    # Application screenshots and demos
+├── USER_MANUAL.md      # End-user guide
+├── TECHNICAL_DOCUMENTATION.md  # Developer guide
+├── API_DOCUMENTATION.md        # API reference
+├── SEAT_LAYOUT.md             # Theater seat layout
+└── PRODUCTION_DEPLOYMENT_GUIDE.md  # Deployment guide
+
+build/          # App icons/assets
+scripts/        # Utility scripts
+.github/        # GitHub Actions CI/CD
 ```
 
 ## Printing
@@ -140,6 +170,18 @@ docs *.md        # Guides (see Quick links above)
 ### Settings - Printer Configuration
 ![Settings Printer](docs/screenshots/13-settings-printer.png)
 *Thermal printer setup for bilingual ticket printing in English and Kannada*
+
+---
+
+## Sample Tickets
+
+### English Ticket
+![English Ticket](docs/screenshots/english-ticket.jpeg)
+*Sample English ticket showing theater details, seat information, and pricing*
+
+### Kannada Ticket
+![Kannada Ticket](docs/screenshots/kannada-ticket.jpeg)
+*Sample Kannada ticket with bilingual support for local theater operations*
 
 ---
 
