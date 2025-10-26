@@ -21,6 +21,8 @@
     "electron:pack": "npm run build && electron-builder --win --dir",
     "electron:dist": "npm run build && electron-builder --win && npm run copy:backend-final",
     "installer": "npm run build && electron-builder --config ../electron-builder-installer.json --win && npm run copy:backend-final-installer",
+    "build:windows": "npm run build:backend:win && npm run copy:backend && vite build && electron-builder --config ../electron-builder-windows.json --win",
+    "build:backend:win": "cd ../backend && npm run build:win",
     "copy:backend-final-installer": "node scripts/copy-backend-final-installer-safe.js",
     "portable": "node scripts/build-portable.js",
     "portable:clean": "powershell -Command \"if (Test-Path 'dist-portable') { Remove-Item 'dist-portable' -Recurse -Force }\""

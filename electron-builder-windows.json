@@ -1,0 +1,38 @@
+{
+  "appId": "com.auditoriumx.app",
+  "productName": "AuditoriumX",
+  "directories": {
+    "output": "dist-installer-windows",
+    "buildResources": "build"
+  },
+  "asar": false,
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "node_modules/**/*",
+    "!node_modules/.cache/**/*",
+    "!node_modules/electron/**/*",
+    "!node_modules/electron-builder/**/*",
+    "backend-dist/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "requestedExecutionLevel": "requireAdministrator",
+    "signAndEditExecutable": false,
+    "icon": "build/movie.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "AuditoriumX",
+    "artifactName": "AuditoriumX-Windows-Installer.exe"
+  },
+  "publish": null
+}

@@ -100,13 +100,13 @@ From the frontend directory:
 
 ```bash
 cd frontend
-npm run installer
+npm run build:windows
 ```
 
 The installer is generated at:
 
 ```
-frontend/dist-installer/AuditoriumX-Installer.exe
+frontend/dist-installer-windows/AuditoriumX-Windows-Installer.exe
 ```
 
 ---
