@@ -30,7 +30,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:8080'),
   
   // Logging
-  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default(() => {
+    // Default to 'warn' in production, 'info' in development
+    return process.env.NODE_ENV === 'production' ? 'warn' : 'info';
+  }),
   ENABLE_REQUEST_LOGGING: z.string().transform((val: string) => val === 'true').default('true'),
   
   // Security

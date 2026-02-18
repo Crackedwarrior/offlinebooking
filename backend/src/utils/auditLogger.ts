@@ -17,6 +17,8 @@ export interface AuditEvent {
 class AuditLogger {
   private logDir: string;
   private logFile: string;
+  private logQueue: AuditEvent[] = [];
+  private isProcessing: boolean = false;
 
   constructor() {
     // Create logs directory in the same location as the database
@@ -80,24 +82,66 @@ class AuditLogger {
     return details;
   }
 
+  /**
+   * Log an event asynchronously (non-blocking)
+   * Adds event to queue and processes in background
+   */
   public log(event: Omit<AuditEvent, 'timestamp'>) {
     const auditEvent: AuditEvent = {
       ...event,
       timestamp: new Date().toISOString()
     };
 
-    const logEntry = this.formatLogEntry(auditEvent);
+    // Log to console immediately (non-blocking)
+    if (config.server.isDevelopment) {
+      console.log(`[AUDIT] ${auditEvent.eventType} - ${auditEvent.action} - ${auditEvent.success ? 'SUCCESS' : 'FAILED'}`);
+    }
+
+    // Add to queue (instant, non-blocking)
+    this.logQueue.push(auditEvent);
+
+    // Process queue in background (don't wait)
+    this.processQueue().catch((error) => {
+      console.error('[AUDIT] Failed to process log queue:', error);
+    });
+  }
+
+  /**
+   * Process log queue asynchronously
+   * Writes all queued logs in batches for better performance
+   */
+  private async processQueue(): Promise<void> {
+    // Skip if already processing or queue is empty
+    if (this.isProcessing || this.logQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessing = true;
 
     try {
-      // Append to log file
-      fs.appendFileSync(this.logFile, logEntry);
+      // Get all queued events and clear queue
+      const events = this.logQueue.splice(0);
       
-      // Also log to console in development
-      if (config.server.isDevelopment) {
-        console.log(`[AUDIT] ${auditEvent.eventType} - ${auditEvent.action} - ${auditEvent.success ? 'SUCCESS' : 'FAILED'}`);
-      }
+      // Format all log entries
+      const logEntries = events.map(event => this.formatLogEntry(event)).join('');
+      
+      // Write all at once (faster than one-by-one)
+      await fs.promises.appendFile(this.logFile, logEntries);
+      
     } catch (error) {
-      console.error('Failed to write audit log:', error);
+      console.error('[AUDIT] Failed to write logs:', error);
+      // Note: Failed logs are lost, but this doesn't affect booking functionality
+      // In production, you might want to retry or use a more robust logging solution
+    } finally {
+      this.isProcessing = false;
+      
+      // Process remaining items if queue was added to during processing
+      if (this.logQueue.length > 0) {
+        // Recursively process remaining items (non-blocking)
+        setImmediate(() => this.processQueue().catch(err => {
+          console.error('[AUDIT] Error in recursive queue processing:', err);
+        }));
+      }
     }
   }
 
@@ -177,6 +221,31 @@ class AuditLogger {
       requestId,
       success
     });
+  }
+
+  /**
+   * Flush all queued logs (for graceful shutdown)
+   * Waits for current processing and processes remaining queue
+   */
+  public async flush(): Promise<void> {
+    // Wait for current processing to finish (max 5 seconds)
+    const maxWait = 5000;
+    const startTime = Date.now();
+    while (this.isProcessing && (Date.now() - startTime) < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Process remaining queue
+    if (this.logQueue.length > 0) {
+      await this.processQueue();
+    }
+
+    // Wait one more time for final processing
+    const finalWait = 1000;
+    const finalStartTime = Date.now();
+    while (this.isProcessing && (Date.now() - finalStartTime) < finalWait) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
   }
 
   public getLogFilePath(): string {

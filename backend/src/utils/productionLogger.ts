@@ -92,8 +92,23 @@ class ProductionLogger {
     }
   }
 
+  private shouldLog(level: LogLevel): boolean {
+    const logLevels: LogLevel[] = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG];
+    const configLevel = config.logging.level as LogLevel;
+    const configIndex = logLevels.indexOf(configLevel);
+    const messageIndex = logLevels.indexOf(level);
+    
+    // Log if message level is at or below config level
+    return messageIndex <= configIndex;
+  }
+
   private writeLog(entry: LogEntry): void {
     try {
+      // Check if we should log based on LOG_LEVEL config
+      if (!this.shouldLog(entry.level)) {
+        return;
+      }
+
       // Check if log rotation is needed
       if (this.shouldRotateLog()) {
         this.rotateLogFile();
