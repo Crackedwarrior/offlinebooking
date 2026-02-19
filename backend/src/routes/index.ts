@@ -1,10 +1,11 @@
 import { Express } from 'express';
-import bookingRoutes from './bookings';
-import settingsRoutes from './settings';
+import bookingRoutes from '../features/bookings/routes/bookings';
+import settingsRoutes from '../features/settings/routes/settings';
 import seatRoutes from './seats';
 import printerRoutes from './printer';
 import healthRoutes from './health';
 import ticketIdRoutes from './ticketId';
+import adminRoutes from './admin';
 
 /**
  * Register all routes with the Express app
@@ -19,6 +20,7 @@ export function registerRoutes(app: Express): void {
   app.use('/api/seats', seatRoutes);
   app.use('/api/printer', printerRoutes);
   app.use('/api/ticket-id', ticketIdRoutes);
+  app.use('/api/admin', adminRoutes);
   
   // Health check routes (both root and /api/health)
   app.use('/', healthRoutes);
@@ -30,6 +32,7 @@ export function registerRoutes(app: Express): void {
   console.log('[ROUTES]   - /api/seats/*');
   console.log('[ROUTES]   - /api/printer/*');
   console.log('[ROUTES]   - /api/ticket-id/*');
+  console.log('[ROUTES]   - /api/admin/*');
   console.log('[ROUTES]   - / (health check)');
   console.log('[ROUTES]   - /api/health (detailed health check)');
 }
