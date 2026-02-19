@@ -1,7 +1,7 @@
 import express from 'express';
 import { PrinterController } from '../controllers/PrinterController';
 import { asyncHandler } from '../middleware/errorHandler';
-import { bookingLimiter } from '../server';
+import { bookingLimiter } from '../middleware/setup';
 
 const router = express.Router();
 

@@ -3,7 +3,7 @@ import { SeatController } from '../controllers/SeatController';
 import { SeatService } from '../services/seatService';
 import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler';
-import { bmsLimiter } from '../server';
+import { bmsLimiter } from '../middleware/setup';
 
 const router = express.Router();
 const prisma = new PrismaClient();
