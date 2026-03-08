@@ -29,7 +29,7 @@ export interface BookingState {
   setSelectedDate: (date: string) => void;
   setSelectedShow: (show: ShowTime) => void;
   toggleSeatStatus: (seatId: string, newStatus: SeatStatus) => void;
-  // ✅ NEW PROFESSIONAL BATCH OPERATIONS
+  // NEW PROFESSIONAL BATCH OPERATIONS
   selectMultipleSeats: (seatIds: string[]) => void;
   deselectMultipleSeats: (seatIds: string[]) => void;
   atomicSeatReplacement: (deselectIds: string[], selectIds: string[]) => void;
@@ -69,10 +69,26 @@ const createInitialSeats = (): Seat[] => {
   return seats;
 };
 
-export const useBookingStore = create<BookingState>((set, get) => ({
+export const useBookingStore = create<BookingState>((set, get) => {
+  // Helper to ensure seats are initialized (lazy initialization)
+  // Optimized: Only update state if seats are actually empty to prevent unnecessary re-renders
+  const ensureSeatsInitialized = (): void => {
+    const state = get();
+    if (state.seats.length === 0) {
+      console.log('[SEAT] Lazy initializing seats...');
+      const newSeats = createInitialSeats();
+      // Only set if still empty (prevent race conditions)
+      const currentState = get();
+      if (currentState.seats.length === 0) {
+        set({ seats: newSeats });
+      }
+    }
+  };
+
+  return {
   selectedDate: new Date().toISOString().split('T')[0],
   selectedShow: 'EVENING',
-  seats: createInitialSeats(),
+  seats: [], // Lazy initialization - seats will be created on first access
   bookingHistory: [],
 
   setSelectedDate: (date) => set({ selectedDate: date }),
@@ -80,6 +96,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   setSelectedShow: (show) => set({ selectedShow: show }),
   
   toggleSeatStatus: (seatId, newStatus) => {
+    ensureSeatsInitialized();
     console.log('[SEAT] toggleSeatStatus called:', { seatId, newStatus });
     set((state) => {
       const updatedSeats = state.seats.map(seat =>
@@ -91,8 +108,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     });
   },
 
-  // ✅ NEW PROFESSIONAL BATCH OPERATIONS - PREVENTS RACE CONDITIONS
+  // NEW PROFESSIONAL BATCH OPERATIONS - PREVENTS RACE CONDITIONS
   selectMultipleSeats: (seatIds: string[]) => {
+    ensureSeatsInitialized();
     console.log('[SEAT] selectMultipleSeats called:', { seatIds });
     set((state) => {
       const updatedSeats = state.seats.map(seat => 
@@ -106,6 +124,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   deselectMultipleSeats: (seatIds: string[]) => {
+    ensureSeatsInitialized();
     set((state) => ({
       seats: state.seats.map(seat => 
         seatIds.includes(seat.id) && seat.status === 'SELECTED'
@@ -115,8 +134,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }));
   },
 
-  // ✅ ATOMIC SEAT REPLACEMENT - FOR AUTOMATIC SELECTION ALGORITHMS
+  // ATOMIC SEAT REPLACEMENT - FOR AUTOMATIC SELECTION ALGORITHMS
   atomicSeatReplacement: (deselectIds: string[], selectIds: string[]) => {
+    ensureSeatsInitialized();
     console.log('[SEAT] atomicSeatReplacement called:', { deselectIds, selectIds });
     set((state) => {
       let deselectedCount = 0;
@@ -144,6 +164,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   saveBooking: () => {
+    ensureSeatsInitialized();
     const state = get();
     const selectedSeats = state.seats.filter(seat => seat.status === 'SELECTED');
     
@@ -167,6 +188,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   loadBookingForDate: (date, show) => {
+    ensureSeatsInitialized();
     console.log('[DB] loadBookingForDate called:', { date, show });
     const state = get();
     const booking = state.bookingHistory.find(
@@ -197,7 +219,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   initializeSeats: () => set({ seats: createInitialSeats() }),
   
   syncSeatStatus: (bookedSeatIds: string[], bmsSeatIds: string[], selectedSeatIds?: string[]) => {
-    // ✅ PREVENT RAPID SYNC CALLS - ADD DEBOUNCE
+    ensureSeatsInitialized();
+    // PREVENT RAPID SYNC CALLS - ADD DEBOUNCE
     const now = Date.now();
     const lastSyncKey = `${bookedSeatIds.length}-${bmsSeatIds.length}`;
     const state = get();
@@ -213,58 +236,70 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     (window as any).lastSyncTime = now;
     (window as any).lastSyncKey = lastSyncKey;
 
-    // ✅ NEW PROFESSIONAL APPROACH - SURGICAL UPDATES ONLY
-    set((state) => {
-      console.log('[SEAT] syncSeatStatus called with:', {
-        bookedSeatIds: bookedSeatIds.length,
-        bmsSeatIds: bmsSeatIds.length,
-        totalSeats: state.seats.length,
-        currentShow: state.selectedShow,
-        currentDate: state.selectedDate
-      });
-
-      let bookedCount = 0;
-      let bmsCount = 0;
-      let freedCount = 0;
-      let selectedCount = 0;
-
-      // ✅ SURGICAL UPDATES: Only change seats that NEED to change
-      const updatedSeats = state.seats.map(seat => {
-        // Mark seats as BOOKED if they're in bookedSeatIds
-        if (bookedSeatIds.includes(seat.id) && seat.status !== 'BOOKED') {
-          bookedCount++;
-          return { ...seat, status: 'BOOKED' as SeatStatus };
-        }
-        // Mark seats as BMS_BOOKED if they're in bmsSeatIds
-        if (bmsSeatIds.includes(seat.id) && seat.status !== 'BMS_BOOKED') {
-          bmsCount++;
-          return { ...seat, status: 'BMS_BOOKED' as SeatStatus };
-        }
-        // Free seats that are no longer booked
-        if (seat.status === 'BOOKED' && !bookedSeatIds.includes(seat.id)) {
-          freedCount++;
-          return { ...seat, status: 'AVAILABLE' as SeatStatus };
-        }
-        // Free seats that are no longer BMS booked
-        if (seat.status === 'BMS_BOOKED' && !bmsSeatIds.includes(seat.id)) {
-          freedCount++;
-          return { ...seat, status: 'AVAILABLE' as SeatStatus };
-        }
-        // Restore selected seats from backend (if any)
-        if (selectedSeatIds && selectedSeatIds.includes(seat.id) && seat.status === 'AVAILABLE') {
-          selectedCount++;
-          return { ...seat, status: 'SELECTED' as SeatStatus };
-        }
-        // ✅ CRITICAL: Keep manually selected seats unchanged!
-        return seat;
-      });
-
-      console.log(`[SEAT] syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS, ${freedCount} freed, ${selectedCount} selected from backend`);
-      return { seats: updatedSeats };
+    console.log('[SEAT] syncSeatStatus called with:', {
+      bookedSeatIds: bookedSeatIds.length,
+      bmsSeatIds: bmsSeatIds.length,
+      totalSeats: state.seats.length,
+      currentShow: state.selectedShow,
+      currentDate: state.selectedDate
     });
+
+    let bookedCount = 0;
+    let bmsCount = 0;
+    let freedCount = 0;
+    let selectedCount = 0;
+
+    // SURGICAL UPDATES: Only change seats that NEED to change
+    // OPTIMIZED: Only create new array if something actually changed to prevent unnecessary re-renders
+    let hasChanges = false;
+    const updatedSeats = state.seats.map(seat => {
+      // Mark seats as BOOKED if they're in bookedSeatIds
+      if (bookedSeatIds.includes(seat.id) && seat.status !== 'BOOKED') {
+        bookedCount++;
+        hasChanges = true;
+        return { ...seat, status: 'BOOKED' as SeatStatus };
+      }
+      // Mark seats as BMS_BOOKED if they're in bmsSeatIds
+      if (bmsSeatIds.includes(seat.id) && seat.status !== 'BMS_BOOKED') {
+        bmsCount++;
+        hasChanges = true;
+        return { ...seat, status: 'BMS_BOOKED' as SeatStatus };
+      }
+      // Free seats that are no longer booked
+      if (seat.status === 'BOOKED' && !bookedSeatIds.includes(seat.id)) {
+        freedCount++;
+        hasChanges = true;
+        return { ...seat, status: 'AVAILABLE' as SeatStatus };
+      }
+      // Free seats that are no longer BMS booked
+      if (seat.status === 'BMS_BOOKED' && !bmsSeatIds.includes(seat.id)) {
+        freedCount++;
+        hasChanges = true;
+        return { ...seat, status: 'AVAILABLE' as SeatStatus };
+      }
+      // Restore selected seats from backend (if any)
+      if (selectedSeatIds && selectedSeatIds.includes(seat.id) && seat.status === 'AVAILABLE') {
+        selectedCount++;
+        hasChanges = true;
+        return { ...seat, status: 'SELECTED' as SeatStatus };
+      }
+      // CRITICAL: Keep manually selected seats unchanged!
+      return seat;
+    });
+
+    console.log(`[SEAT] syncSeatStatus completed: ${bookedCount} booked, ${bmsCount} BMS, ${freedCount} freed, ${selectedCount} selected from backend`);
+    
+    // Only update state if something actually changed
+    // FIXED: Don't call set() at all if no changes, rather than returning undefined
+    if (hasChanges) {
+      set({ seats: updatedSeats });
+    } else {
+      console.log('[SEAT] syncSeatStatus SKIPPED - no changes detected');
+    }
   },
 
   getBookingStats: () => {
+    ensureSeatsInitialized();
     const state = get();
     const stats = {
       total: state.seats.length,
@@ -294,4 +329,5 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
     return stats;
   },
-}));
+  };
+});

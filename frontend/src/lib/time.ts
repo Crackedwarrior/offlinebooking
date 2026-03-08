@@ -9,7 +9,12 @@ export type ShowTimeConfig = {
 };
 
 export function formatTo12Hour(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  const displayMinutes = minutes.toString().padStart(2, '0');
+  return `${displayHours}:${displayMinutes}${period}`;
 }
 
 export function parse12HourToMinutes(timeStr: string): number {

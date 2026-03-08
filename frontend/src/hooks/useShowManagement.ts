@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatStatus } from '@/services/api';
-import { convertTo12Hour, parseTimeToMinutes, getCurrentTimeMinutes } from '@/utils/timeUtils';
+import { convertTo12Hour, parseTimeToMinutes, getCurrentTimeMinutes } from '@/features/checkout/utils/timeUtils';
 import type { Show } from '@/types/api';
 
 export const useShowManagement = (onManualShowSelection?: (showKey: string) => void) => {

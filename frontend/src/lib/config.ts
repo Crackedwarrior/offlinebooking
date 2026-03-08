@@ -4,7 +4,7 @@ export interface SeatClass {
   key: string;
   label: string;
   price: number;
-  rows: string[];
+  rows: string[];  
   color: string;
 }
 
@@ -14,7 +14,7 @@ export interface ShowTime {
   timing: string;
   enumValue: 'MORNING' | 'MATINEE' | 'EVENING' | 'NIGHT';
 }
-
+                                                                                                                   
 // Seat class configuration - prices are now dynamic from settings store
 export const SEAT_CLASSES: SeatClass[] = [
   {
