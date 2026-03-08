@@ -53,14 +53,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: (id) => {
-            // Core React libraries
-            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            // React + Radix must stay together to avoid "forwardRef undefined" (multiple React instances)
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/@radix-ui')) {
               return 'react-vendor';
-            }
-            
-            // UI Libraries - Radix UI
-            if (id.includes('node_modules/@radix-ui')) {
-              return 'radix-ui';
             }
             
             // Form libraries
