@@ -8,8 +8,8 @@
 
 import React from 'react';
 import { useBookingManagement } from '@/hooks/booking/useBookingManagement';
-import { BookingFilters } from './bookings/BookingFilters';
-import { BookingList } from './bookings/BookingList';
+import { BookingFilters } from '@/components/bookings/BookingFilters';
+import { BookingList } from '@/components/bookings/BookingList';
 import SeatGrid from '@/features/seatGrid/components/SeatGrid';
 import { Calendar, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

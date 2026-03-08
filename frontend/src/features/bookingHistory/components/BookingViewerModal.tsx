@@ -9,10 +9,10 @@ interface BookingViewerModalProps {
 
 const seatStatusColor = (status: string) => {
   switch (status) {
-    case 'available': return 'bg-green-400';
-    case 'booked': return 'bg-red-400';
-    case 'blocked': return 'bg-yellow-400';
-    case 'bms-booked': return 'bg-blue-400';
+    case 'available': return 'bg-yellow-400';
+    case 'booked': return 'bg-[#b87333]';
+    case 'blocked': return 'bg-gray-400';
+    case 'bms-booked': return 'bg-sky-300';
     default: return 'bg-gray-200';
   }
 };
