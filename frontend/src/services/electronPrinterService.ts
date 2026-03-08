@@ -127,7 +127,7 @@ export class ElectronPrinterService {
       console.log('[PRINT] Printing ticket via Electron:', ticketData);
       console.log('[PRINT] Printer:', printerName);
       
-      // 🚀 FRONTEND DEBUG: Log which service will be used based on movie data
+      // FRONTEND DEBUG: Log which service will be used based on movie data
       if (movieData && movieData.printInKannada) {
         console.log('[PRINT] FRONTEND DEBUG: Movie is set to print in Kannada');
         console.log('[PRINT] FRONTEND DEBUG: Backend will use FastKannadaPrintService (wkhtmltopdf)');
@@ -142,7 +142,15 @@ export class ElectronPrinterService {
       // Check if running in Electron
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
         const result = await (window as any).electronAPI.printTicket(ticketData, printerName, movieData);
-        return result.success;
+        console.log('[PRINT] Backend print result:', result);
+        if (!result) {
+          console.error('[ERROR] Backend returned undefined/null result');
+          return false;
+        }
+        if (result.success === false) {
+          console.error('[ERROR] Backend print failed:', result.message || result.error || 'Unknown error');
+        }
+        return result.success === true;
       } else {
         // Fallback for web environment
         console.log('[PRINT] Would print ticket in desktop environment:', ticketData);
@@ -150,6 +158,7 @@ export class ElectronPrinterService {
       }
     } catch (error) {
       console.error('[ERROR] Failed to print ticket:', error);
+      console.error('[ERROR] Error details:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }

@@ -51,8 +51,8 @@ export interface TicketData {
   row: string;
   seatNumber: string;
   showtime: string;
-  show?: string; // ✅ Add show information
-  movieLanguage?: string; // ✅ Add movie language
+  show?: string; // Add show information
+  movieLanguage?: string; // Add movie language
   netAmount: number;
   cgst: number;
   sgst: number;
@@ -266,8 +266,8 @@ export class PrinterService {
         // Core ticket data (matching formatTicket method expectations)
         movie: tickets[0]?.film || '', // No hardcoded fallback
         movieName: tickets[0]?.film || '', // No hardcoded fallback
-        movieLanguage: currentMovieLanguage, // ✅ Get from ticket data
-        show: currentShow, // ✅ Get from ticket data
+        movieLanguage: currentMovieLanguage, // Get from ticket data
+        show: currentShow, // Get from ticket data
         showTime: tickets[0]?.showtime || '', // No hardcoded fallback
         date: tickets[0]?.date || new Date().toISOString().split('T')[0],
         
@@ -275,16 +275,16 @@ export class PrinterService {
         classLabel: tickets[0]?.class || '', // No hardcoded fallback
         seatClass: tickets[0]?.class || '', // No hardcoded fallback
         row: tickets[0]?.row || '', // No hardcoded fallback
-        seatRange: formatSeatNumbers(tickets.map(t => parseInt(t.seatNumber))), // ✅ formatTicket uses this - proper range format
-        seatCount: tickets.length, // ✅ formatTicket needs this for range formatting
-        seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // ✅ fallback field
+        seatRange: formatSeatNumbers(tickets.map(t => parseInt(t.seatNumber))), // formatTicket uses this - proper range format
+        seatCount: tickets.length, // formatTicket needs this for range formatting
+        seatInfo: tickets.map(t => `${t.row}${t.seatNumber}`).join(', '), // fallback field
         
         // Price data (matching formatTicket expectations)
-        price: tickets[0]?.totalAmount || 0, // ✅ formatTicket looks for 'price' first
-        totalPrice: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ formatTicket looks for 'totalPrice'
-        total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
-        totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // ✅ fallback field
-        individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // ✅ for PDF rendering
+        price: tickets[0]?.totalAmount || 0, // formatTicket looks for 'price' first
+        totalPrice: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // formatTicket looks for 'totalPrice'
+        total: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // fallback field
+        totalAmount: tickets.reduce((sum, ticket) => sum + ticket.totalAmount, 0), // fallback field
+        individualTicketPrice: tickets[0]?.totalAmount?.toString() || '0.00', // for PDF rendering
         
         // Tax data
         net: tickets[0]?.netAmount || 0,
@@ -311,7 +311,7 @@ export class PrinterService {
             ticketData: bookingData,
             printerName: 'web-pdf-printer',
             movieSettings: {
-              printInKannada: shouldPrintInKannada // ✅ Check if movie is set to print in Kannada
+              printInKannada: shouldPrintInKannada // Check if movie is set to print in Kannada
             }
           }),
         });

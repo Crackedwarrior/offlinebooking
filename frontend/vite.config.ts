@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
         usePolling: true,
         interval: 100,
       },
+      fs: {
+        strict: false,
+      },
     },
     plugins: [
       react()
@@ -26,6 +29,10 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
+      extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom'],
     },
     // Environment variable configuration
     define: {
@@ -45,45 +52,87 @@ export default defineConfig(({ mode }) => {
       } as any,
       rollupOptions: {
         output: {
-          manualChunks: {
+          manualChunks: (id) => {
             // Core React libraries
-            'react-vendor': ['react', 'react-dom'],
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
             
-            // UI Libraries
-            'radix-ui': [
-              '@radix-ui/react-dialog',
-              '@radix-ui/react-popover', 
-              '@radix-ui/react-select',
-              '@radix-ui/react-separator',
-              '@radix-ui/react-slot',
-              '@radix-ui/react-switch',
-              '@radix-ui/react-tabs',
-              '@radix-ui/react-label'
-            ],
+            // UI Libraries - Radix UI
+            if (id.includes('node_modules/@radix-ui')) {
+              return 'radix-ui';
+            }
             
             // Form libraries
-            'forms': ['react-hook-form', '@hookform/resolvers'],
+            if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/@hookform')) {
+              return 'forms';
+            }
             
             // Date libraries
-            'date': ['date-fns', 'react-datepicker', 'react-day-picker'],
+            if (id.includes('node_modules/date-fns') || id.includes('node_modules/react-datepicker') || id.includes('node_modules/react-day-picker')) {
+              return 'date';
+            }
             
             // Charts and visualization
-            'charts': ['recharts'],
+            if (id.includes('node_modules/recharts')) {
+              return 'charts';
+            }
             
             // State management
-            'state': ['zustand', '@tanstack/react-query'],
+            if (id.includes('node_modules/zustand') || id.includes('node_modules/@tanstack/react-query')) {
+              return 'state';
+            }
             
             // Utilities
-            'utils': ['clsx', 'tailwind-merge', 'class-variance-authority'],
+            if (id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge') || id.includes('node_modules/class-variance-authority')) {
+              return 'utils';
+            }
             
             // Icons
-            'icons': ['lucide-react'],
+            if (id.includes('node_modules/lucide-react')) {
+              return 'icons';
+            }
             
             // Router
-            'router': ['react-router-dom'],
+            if (id.includes('node_modules/react-router-dom')) {
+              return 'router';
+            }
             
             // Other heavy libraries
-            'heavy': ['@react-thermal-printer/image', 'embla-carousel-react', '@dnd-kit/core']
+            if (id.includes('node_modules/@react-thermal-printer') || id.includes('node_modules/embla-carousel') || id.includes('node_modules/@dnd-kit')) {
+              return 'heavy';
+            }
+            
+            // Feature-based code splitting for lazy-loaded components
+            if (id.includes('/components/SeatGrid') || id.includes('/components/SeatGrid')) {
+              return 'feature-seatgrid';
+            }
+            
+            if (id.includes('/pages/Checkout') || id.includes('/components/Checkout')) {
+              return 'feature-checkout';
+            }
+            
+            if (id.includes('/components/BookingHistory')) {
+              return 'feature-history';
+            }
+            
+            if (id.includes('/components/BoxVsOnlineReport')) {
+              return 'feature-reports';
+            }
+            
+            if (id.includes('/components/Settings')) {
+              return 'feature-settings';
+            }
+            
+            // Hooks chunk
+            if (id.includes('/hooks/')) {
+              return 'hooks';
+            }
+            
+            // Store chunk
+            if (id.includes('/store/')) {
+              return 'store';
+            }
           },
         },
       },

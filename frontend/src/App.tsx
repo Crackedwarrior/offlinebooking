@@ -20,9 +20,21 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const loadSettingsFromBackend = useSettingsStore(state => state.loadSettingsFromBackend);
   
-  // Load settings from backend on app startup (website only)
+  // Load settings from backend on app startup (website only) - non-blocking
   useEffect(() => {
-    loadSettingsFromBackend();
+    // Defer settings loading to avoid blocking initial render
+    // Use requestIdleCallback if available, otherwise setTimeout
+    const loadSettings = () => {
+      loadSettingsFromBackend().catch(err => {
+        console.error('[SETTINGS] Failed to load settings from backend:', err);
+      });
+    };
+    
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      requestIdleCallback(loadSettings, { timeout: 2000 });
+    } else {
+      setTimeout(loadSettings, 0);
+    }
   }, [loadSettingsFromBackend]);
 
   const handleAuthSuccess = () => {
