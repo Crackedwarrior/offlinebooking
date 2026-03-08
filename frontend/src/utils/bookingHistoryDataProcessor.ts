@@ -6,7 +6,7 @@
 import { ShowTime } from '@/store/bookingStore';
 import { seatSegments } from '@/features/seatGrid/components/SeatGrid';
 import { SEAT_CLASSES } from '@/lib/config';
-import { getClassFromSeatId } from './bookingHistoryHelpers';
+import { getClassFromSeatId } from '@/features/bookingHistory/utils/bookingHistoryHelpers';
 import type { 
   ShowStats, 
   IncomeBreakdown, 
