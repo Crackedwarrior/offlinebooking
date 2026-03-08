@@ -180,7 +180,7 @@ function startBackend(retryCount = 0) {
         if (!resolved) {
           const pathsTried = backendCandidates.map(c => c.backend).join(', ');
           console.log(`[ERROR] [DEBUG] Backend directory not found in any expected locations: ${pathsTried}`);
-          logToFile(`❌ Backend directory not found in any expected locations: ${pathsTried}`);
+          logToFile(`[ERROR] Backend directory not found in any expected locations: ${pathsTried}`);
           reject(new Error('Backend directory not found'));
           return;
         }
@@ -190,13 +190,13 @@ function startBackend(retryCount = 0) {
       }
       
       console.log(`[STARTUP] [DEBUG] Calculated backend path: ${backendPath}`);
-      logToFile(`🔧 Backend path: ${backendPath}`);
+      logToFile(`[INFO] Backend path: ${backendPath}`);
       
       // Check if backend directory exists
       console.log(`[STARTUP] [DEBUG] Checking if backend directory exists: ${backendPath}`);
       if (!fs.existsSync(backendPath)) {
         console.log(`[ERROR] [DEBUG] Backend directory not found: ${backendPath}`);
-        logToFile(`❌ Backend directory not found: ${backendPath}`);
+        logToFile(`[ERROR] Backend directory not found: ${backendPath}`);
         reject(new Error('Backend directory not found'));
         return;
       }
@@ -209,13 +209,13 @@ function startBackend(retryCount = 0) {
         : backendPath;
       
       console.log(`[STARTUP] [DEBUG] Backend dist path: ${backendDistPath}`);
-      logToFile(`🔧 Backend dist path: ${backendDistPath}`);
+      logToFile(`[INFO] Backend dist path: ${backendDistPath}`);
       
       // Check if backend dist directory exists
       console.log(`[STARTUP] [DEBUG] Checking if backend dist directory exists: ${backendDistPath}`);
       if (!fs.existsSync(backendDistPath)) {
         console.log(`[ERROR] [DEBUG] Backend dist directory not found: ${backendDistPath}`);
-        logToFile(`❌ Backend directory not found: ${backendDistPath}`);
+        logToFile(`[ERROR] Backend directory not found: ${backendDistPath}`);
         reject(new Error('Backend directory not found'));
         return;
       }
@@ -391,7 +391,7 @@ function startBackend(retryCount = 0) {
         logToFile(`Backend stdout: ${output}`);
         if (output.includes('Server running at')) {
           console.log(`[STARTUP] [DEBUG] Backend server started successfully!`);
-          logToFile('✅ Backend server started successfully');
+          logToFile('[SUCCESS] Backend server started successfully');
           // Wait a bit more for the server to be fully ready
           setTimeout(async () => {
             console.log(`[STARTUP] [DEBUG] Performing health check...`);
@@ -399,11 +399,11 @@ function startBackend(retryCount = 0) {
             const isHealthy = await checkBackendHealth();
             if (isHealthy) {
               console.log(`[STARTUP] [DEBUG] Backend health check passed`);
-              logToFile('✅ Backend health check passed');
+              logToFile('[SUCCESS] Backend health check passed');
               resolve();
             } else {
               console.log(`[WARN] [DEBUG] Backend health check failed, but continuing...`);
-              logToFile('⚠️ Backend health check failed, but continuing...');
+              logToFile('[WARN] Backend health check failed, but continuing...');
               resolve();
             }
           }, 2000);
@@ -459,7 +459,7 @@ function startBackend(retryCount = 0) {
             const response = await fetch('http://localhost:3001/api/health');
             if (response.ok) {
               console.log('[STARTUP] [DEBUG] Backend is ready');
-              logToFile('✅ Backend is ready');
+              logToFile('[SUCCESS] Backend is ready');
               resolve();
               return;
             }
@@ -471,7 +471,7 @@ function startBackend(retryCount = 0) {
         }
         
         console.log(`[ERROR] [DEBUG] Backend health check timeout after ${maxAttempts} attempts`);
-        logToFile(`❌ Backend health check timeout after ${maxAttempts} attempts`);
+        logToFile(`[ERROR] Backend health check timeout after ${maxAttempts} attempts`);
         reject(new Error('Backend health check timeout'));
       };
       
@@ -490,20 +490,20 @@ async function checkBackendHealth() {
   try {
     return new Promise((resolve) => {
       const req = http.get(`http://localhost:${BACKEND_PORT}/health`, (res) => {
-        console.log('🔍 Backend health check response:', res.statusCode);
+        console.log('[DEBUG] Backend health check response:', res.statusCode);
         resolve(res.statusCode === 200);
       });
       req.on('error', (error) => {
-        console.log('🔍 Backend health check failed:', error.message);
+        console.log('[DEBUG] Backend health check failed:', error.message);
         resolve(false);
       });
       req.setTimeout(5000, () => {
-        console.log('🔍 Backend health check timeout');
+        console.log('[DEBUG] Backend health check timeout');
         resolve(false);
       });
     });
   } catch (error) {
-    console.log('🔍 Backend health check error:', error.message);
+    console.log('[DEBUG] Backend health check error:', error.message);
     return false;
   }
 }
@@ -521,7 +521,7 @@ function monitorBackendHealth() {
     
     const isHealthy = await checkBackendHealth();
     if (!isHealthy) {
-      logToFile('⚠️ Backend health check failed, attempting restart...', 'WARN');
+      logToFile('[WARN] Backend health check failed, attempting restart...', 'WARN');
       
       // Attempt to restart backend
       try {
@@ -557,13 +557,13 @@ app.whenReady().then(async () => {
     try {
       await Promise.race([backendPromise, timeoutPromise]);
       console.log('[STARTUP] [DEBUG] Backend started successfully');
-      logToFile('✅ Backend started successfully');
+      logToFile('[SUCCESS] Backend started successfully');
       // Start health monitoring after successful backend startup
       monitorBackendHealth();
     } catch (backendError) {
       console.log('[ERROR] [DEBUG] Backend startup failed:', backendError);
       logError(backendError, 'Backend startup failed');
-      logToFile('⚠️ Continuing without backend...', 'WARN');
+      logToFile('[WARN] Continuing without backend...', 'WARN');
       // Send error to renderer process
       if (mainWindow) {
         mainWindow.webContents.send('backend-status', { 
@@ -775,7 +775,7 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
     console.log('[PRINT] Printer:', printerName);
     
     // Use the backend PDF printing service
-    const backendUrl = `http://localhost:${BACKEND_PORT}/api/thermal-printer/print`;
+    const backendUrl = `http://localhost:${BACKEND_PORT}/api/printer/thermal-printer/print`;
 
     // Expect renderer to supply authoritative showKey and showTime; do not derive here
     const printData = {
@@ -804,7 +804,7 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
     console.log('[PRINT] Movie settings being sent:', printData.movieSettings);
     console.log('[PRINT] printInKannada value:', printData.movieSettings.printInKannada);
     
-    // 🚀 FRONTEND DEBUG: Log which service will be used
+    // FRONTEND DEBUG: Log which service will be used
     if (printData.movieSettings.printInKannada) {
       console.log('[PRINT] This ticket will use FastKannadaPrintService (wkhtmltopdf)');
       console.log('[PRINT] Expected performance improvement: 3-5x faster than Puppeteer');
@@ -828,7 +828,7 @@ ipcMain.handle('print-ticket', async (event, ticketData, printerName, movieData)
       const options = {
         hostname: 'localhost',
         port: BACKEND_PORT,
-        path: '/api/thermal-printer/print',
+        path: '/api/printer/thermal-printer/print',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

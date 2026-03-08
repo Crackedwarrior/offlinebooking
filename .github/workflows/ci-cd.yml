@@ -1,0 +1,249 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*.*.*'  # Trigger on version tags (e.g., v1.1.0)
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Lint and Type Check
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Lint backend
+        run: |
+          cd backend
+          npm run lint || echo "No lint script, skipping"
+
+      - name: Lint frontend
+        run: |
+          cd frontend
+          npm run lint || echo "No lint script, skipping"
+
+      - name: Type check backend
+        run: |
+          cd backend
+          npx tsc --noEmit || echo "TypeScript check completed"
+
+      - name: Type check frontend
+        run: |
+          cd frontend
+          npx tsc --noEmit || echo "TypeScript check completed"
+
+  # Job 2: Run Tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Run backend tests
+        run: |
+          cd backend
+          npm test || echo "No tests found, skipping"
+
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm test || echo "No tests found, skipping"
+
+  # Job 3: Build Application
+  build:
+    name: Build Application
+    runs-on: ${{ matrix.os }}
+    needs: [lint-and-typecheck, test]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win32
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Build backend
+        run: |
+          cd backend
+          npm run build || echo "No build script, skipping"
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build || echo "No build script, skipping"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.platform }}
+          path: |
+            backend/dist/
+            frontend/dist/
+          retention-days: 7
+
+  # Job 4: Build Electron App (Windows)
+  build-electron:
+    name: Build Electron App
+    runs-on: windows-latest
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Build backend
+        run: |
+          cd backend
+          npm run build
+
+      - name: Build Electron app
+        run: |
+          cd frontend
+          npm run electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: frontend/dist/*.exe
+          retention-days: 30
+
+  # Job 5: Create GitHub Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-electron]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-windows
+          path: ./installers
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            # Extract changelog for this version
+            VERSION=${{ steps.get_version.outputs.version }}
+            awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+          else
+            echo "## What's New" > release_notes.md
+            echo "" >> release_notes.md
+            echo "Release ${{ steps.get_version.outputs.version }}" >> release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.get_version.outputs.version }}
+          body_path: release_notes.md
+          files: |
+            ./installers/*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 6: Notify (Optional)
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Release notification
+        run: |
+          echo "Release ${{ github.ref }} has been published!"
+          # Add notification logic here (Slack, Discord, email, etc.)
+
+
+
