@@ -3,7 +3,7 @@
  * Industry standard: Custom hooks for complex stateful logic
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useBookingStore } from '@/store/bookingStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { getSeatClassByRow } from '@/lib/config';
@@ -170,7 +170,10 @@ export const useTicketOperations = () => {
     });
   }, [seats, toggleSeatStatus]);
 
-  return {
+  // Memoize the return object to prevent unnecessary re-renders
+  // The functions are already memoized with useCallback, but the object wrapper
+  // was being recreated on every render, causing child components to re-render
+  return useMemo(() => ({
     decoupledSeatIds,
     setDecoupledSeatIds,
     bookingCompleted,
@@ -180,5 +183,15 @@ export const useTicketOperations = () => {
     handleBookingComplete,
     handleResetForNewBooking,
     handleConfirmBooking
-  };
+  }), [
+    decoupledSeatIds,
+    setDecoupledSeatIds,
+    bookingCompleted,
+    setBookingCompleted,
+    handleDeleteTickets,
+    handleDecoupleTickets,
+    handleBookingComplete,
+    handleResetForNewBooking,
+    handleConfirmBooking
+  ]);
 };
